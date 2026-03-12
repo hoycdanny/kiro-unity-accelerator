@@ -1,0 +1,34 @@
+{
+  "id": "preset-2d-sprite-001",
+  "name": "2D Sprite",
+  "description": "Import settings for 2D sprite textures with point filtering and no mip maps for pixel-perfect rendering.",
+  "assetType": "Texture",
+  "isBuiltIn": true,
+  "config": {
+    "textureImport": {
+      "maxSize": 2048,
+      "compression": "NormalQuality",
+      "textureType": "Sprite",
+      "filterMode": "Point",
+      "generateMipMaps": false
+    }
+  },
+  "namingPatterns": [
+    "(?i)_sprite_",
+    "(?i)_2d_",
+    "(?i)_pixel_"
+  ],
+  "mcpToolMapping": {
+    "primaryTool": "manage_asset",
+    "action": "set_import_settings",
+    "settingsMap": {
+      "maxSize": "maxSize",
+      "compression": "compression",
+      "textureType": "textureType",
+      "filterMode": "filterMode",
+      "generateMipMaps": "generateMipMaps"
+    }
+  },
+  "createdAt": "2026-03-01T00:00:00Z",
+  "updatedAt": "2026-03-01T00:00:00Z"
+}

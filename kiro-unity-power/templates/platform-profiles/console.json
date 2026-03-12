@@ -1,0 +1,30 @@
+{
+  "id": "platform-profile-console",
+  "name": "Console Platform Profile",
+  "platform": "Console",
+  "isBuiltIn": true,
+  "checks": {
+    "shaderFeatures": {
+      "unsupported": [
+        "OpenGLES_Only"
+      ],
+      "alternatives": {
+        "OpenGLES_Only": "Platform-native graphics API"
+      }
+    },
+    "memoryBudget": {
+      "maxTextureMB": 512,
+      "maxMeshMB": 256,
+      "maxAudioMB": 128,
+      "maxTotalMB": 1024
+    },
+    "scriptingConstraints": {
+      "disallowedAPIs": [
+        "System.IO.FileSystemWatcher"
+      ],
+      "requiredDefines": [
+        "UNITY_CONSOLE"
+      ]
+    }
+  }
+}

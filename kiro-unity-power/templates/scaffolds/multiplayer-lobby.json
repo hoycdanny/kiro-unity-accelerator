@@ -1,0 +1,177 @@
+{
+  "id": "scaffold-multiplayer-lobby",
+  "name": "Multiplayer Lobby",
+  "description": "多人遊戲大廳場景，包含網路管理器、玩家列表 UI、聊天面板與房間控制",
+  "category": "Multiplayer",
+  "isBuiltIn": true,
+  "hierarchy": [
+    {
+      "name": "---Network---",
+      "components": [],
+      "children": [
+        {
+          "name": "NetworkManager",
+          "components": [
+            { "typeName": "Unity.Netcode.NetworkManager", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "NetworkManager" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Network---" }
+    },
+    {
+      "name": "---Environment---",
+      "components": [],
+      "children": [
+        {
+          "name": "LobbyRoom",
+          "components": [
+            { "typeName": "UnityEngine.MeshRenderer", "properties": {} },
+            { "typeName": "UnityEngine.MeshFilter", "properties": { "mesh": "Cube" } },
+            { "typeName": "UnityEngine.BoxCollider", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "LobbyRoom" }
+        },
+        {
+          "name": "Directional Light",
+          "components": [
+            { "typeName": "UnityEngine.Light", "properties": { "type": "Directional", "intensity": 1.0 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Directional Light" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Environment---" }
+    },
+    {
+      "name": "LobbyCamera",
+      "tag": "MainCamera",
+      "components": [
+        { "typeName": "UnityEngine.Camera", "properties": { "fieldOfView": 60 } },
+        { "typeName": "UnityEngine.AudioListener", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_camera",
+      "mcpArgs": { "action": "create", "name": "LobbyCamera", "tag": "MainCamera" }
+    },
+    {
+      "name": "LobbyUI",
+      "components": [
+        { "typeName": "UnityEngine.Canvas", "properties": { "renderMode": "ScreenSpaceOverlay" } },
+        { "typeName": "UnityEngine.UI.CanvasScaler", "properties": { "uiScaleMode": "ScaleWithScreenSize", "referenceResolution": [1920, 1080] } },
+        { "typeName": "UnityEngine.UI.GraphicRaycaster", "properties": {} }
+      ],
+      "children": [
+        {
+          "name": "PlayerListPanel",
+          "components": [
+            { "typeName": "UnityEngine.UI.Image", "properties": {} },
+            { "typeName": "UnityEngine.UI.VerticalLayoutGroup", "properties": { "spacing": 8 } }
+          ],
+          "children": [
+            {
+              "name": "PlayerListTitle",
+              "components": [
+                { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Players", "fontSize": 28 } }
+              ],
+              "children": [],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_text", "name": "PlayerListTitle", "parent": "PlayerListPanel" }
+            }
+          ],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_panel", "name": "PlayerListPanel", "parent": "LobbyUI" }
+        },
+        {
+          "name": "ChatPanel",
+          "components": [
+            { "typeName": "UnityEngine.UI.Image", "properties": {} }
+          ],
+          "children": [
+            {
+              "name": "ChatLog",
+              "components": [
+                { "typeName": "UnityEngine.UI.ScrollRect", "properties": {} }
+              ],
+              "children": [],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_panel", "name": "ChatLog", "parent": "ChatPanel" }
+            },
+            {
+              "name": "ChatInput",
+              "components": [
+                { "typeName": "UnityEngine.UI.InputField", "properties": { "placeholder": "Type a message..." } }
+              ],
+              "children": [],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_input", "name": "ChatInput", "parent": "ChatPanel" }
+            }
+          ],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_panel", "name": "ChatPanel", "parent": "LobbyUI" }
+        },
+        {
+          "name": "RoomControls",
+          "components": [
+            { "typeName": "UnityEngine.UI.HorizontalLayoutGroup", "properties": { "spacing": 12 } }
+          ],
+          "children": [
+            {
+              "name": "ReadyButton",
+              "components": [
+                { "typeName": "UnityEngine.UI.Button", "properties": {} },
+                { "typeName": "UnityEngine.UI.Image", "properties": {} }
+              ],
+              "children": [],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_button", "name": "ReadyButton", "parent": "RoomControls" }
+            },
+            {
+              "name": "StartGameButton",
+              "components": [
+                { "typeName": "UnityEngine.UI.Button", "properties": {} },
+                { "typeName": "UnityEngine.UI.Image", "properties": {} }
+              ],
+              "children": [],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_button", "name": "StartGameButton", "parent": "RoomControls" }
+            },
+            {
+              "name": "LeaveButton",
+              "components": [
+                { "typeName": "UnityEngine.UI.Button", "properties": {} },
+                { "typeName": "UnityEngine.UI.Image", "properties": {} }
+              ],
+              "children": [],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_button", "name": "LeaveButton", "parent": "RoomControls" }
+            }
+          ],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "RoomControls", "parent": "LobbyUI" }
+        }
+      ],
+      "mcpTool": "manage_ui",
+      "mcpArgs": { "action": "create_canvas", "name": "LobbyUI" }
+    },
+    {
+      "name": "EventSystem",
+      "components": [
+        { "typeName": "UnityEngine.EventSystems.EventSystem", "properties": {} },
+        { "typeName": "UnityEngine.EventSystems.StandaloneInputModule", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "EventSystem" }
+    }
+  ],
+  "requiredPackages": ["com.unity.netcode.gameobjects"],
+  "createdAt": "2026-03-12T00:00:00Z"
+}

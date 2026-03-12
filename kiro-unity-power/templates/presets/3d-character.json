@@ -1,0 +1,40 @@
+{
+  "id": "preset-3d-character-001",
+  "name": "3D Character",
+  "description": "Import settings for humanoid character models with skeletal animation support, material import, and normal maps.",
+  "assetType": "Model",
+  "isBuiltIn": true,
+  "config": {
+    "modelImport": {
+      "scaleFactor": 1,
+      "meshCompression": "Medium",
+      "generateColliders": false,
+      "rigType": "Humanoid",
+      "animationType": "Humanoid",
+      "materialImportMode": "ImportViaMaterialDescription",
+      "normalMapEnabled": true
+    }
+  },
+  "namingPatterns": [
+    "(?i)_char_",
+    "(?i)_character_",
+    "(?i)_hero_",
+    "(?i)_npc_",
+    "(?i)_player_"
+  ],
+  "mcpToolMapping": {
+    "primaryTool": "manage_asset",
+    "action": "set_import_settings",
+    "settingsMap": {
+      "rigType": "rigType",
+      "materialImportMode": "materialImportMode",
+      "meshCompression": "meshCompression",
+      "normalMapEnabled": "normalMapEnabled",
+      "animationType": "animationType",
+      "scaleFactor": "scaleFactor",
+      "generateColliders": "generateColliders"
+    }
+  },
+  "createdAt": "2026-03-01T00:00:00Z",
+  "updatedAt": "2026-03-01T00:00:00Z"
+}

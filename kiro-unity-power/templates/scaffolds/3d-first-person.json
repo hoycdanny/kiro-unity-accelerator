@@ -1,0 +1,125 @@
+{
+  "id": "scaffold-3d-first-person",
+  "name": "3D First Person",
+  "description": "3D 第一人稱場景，包含 FPS 控制器、主攝影機、地形、光源與 HUD",
+  "category": "3D",
+  "isBuiltIn": true,
+  "hierarchy": [
+    {
+      "name": "---Environment---",
+      "components": [],
+      "children": [
+        {
+          "name": "Directional Light",
+          "components": [
+            { "typeName": "UnityEngine.Light", "properties": { "type": "Directional", "intensity": 1.0, "shadowType": "Soft" } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Directional Light" }
+        },
+        {
+          "name": "Terrain",
+          "components": [
+            { "typeName": "UnityEngine.Terrain", "properties": {} },
+            { "typeName": "UnityEngine.TerrainCollider", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Terrain" }
+        },
+        {
+          "name": "Skybox",
+          "components": [
+            { "typeName": "UnityEngine.Rendering.Volume", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Skybox" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Environment---" }
+    },
+    {
+      "name": "---Player---",
+      "components": [],
+      "children": [
+        {
+          "name": "FPSController",
+          "tag": "Player",
+          "components": [
+            { "typeName": "UnityEngine.CharacterController", "properties": { "height": 1.8, "radius": 0.3 } },
+            { "typeName": "UnityEngine.AudioListener", "properties": {} }
+          ],
+          "children": [
+            {
+              "name": "MainCamera",
+              "tag": "MainCamera",
+              "components": [
+                { "typeName": "UnityEngine.Camera", "properties": { "fieldOfView": 60, "nearClipPlane": 0.1, "farClipPlane": 1000 } }
+              ],
+              "children": [],
+              "mcpTool": "manage_camera",
+              "mcpArgs": { "action": "create", "name": "MainCamera", "parent": "FPSController", "tag": "MainCamera" }
+            }
+          ],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "FPSController", "tag": "Player" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Player---" }
+    },
+    {
+      "name": "HUDCanvas",
+      "components": [
+        { "typeName": "UnityEngine.Canvas", "properties": { "renderMode": "ScreenSpaceOverlay" } },
+        { "typeName": "UnityEngine.UI.GraphicRaycaster", "properties": {} }
+      ],
+      "children": [
+        {
+          "name": "Crosshair",
+          "components": [
+            { "typeName": "UnityEngine.UI.Image", "properties": { "raycastTarget": false } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_image", "name": "Crosshair", "parent": "HUDCanvas" }
+        },
+        {
+          "name": "HealthText",
+          "components": [
+            { "typeName": "UnityEngine.UI.Text", "properties": { "text": "HP: 100", "fontSize": 20 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_text", "name": "HealthText", "parent": "HUDCanvas" }
+        },
+        {
+          "name": "AmmoText",
+          "components": [
+            { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Ammo: 30/90", "fontSize": 20 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_text", "name": "AmmoText", "parent": "HUDCanvas" }
+        }
+      ],
+      "mcpTool": "manage_ui",
+      "mcpArgs": { "action": "create_canvas", "name": "HUDCanvas" }
+    },
+    {
+      "name": "EventSystem",
+      "components": [
+        { "typeName": "UnityEngine.EventSystems.EventSystem", "properties": {} },
+        { "typeName": "UnityEngine.EventSystems.StandaloneInputModule", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "EventSystem" }
+    }
+  ],
+  "requiredPackages": [],
+  "createdAt": "2026-03-12T00:00:00Z"
+}

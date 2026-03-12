@@ -1,0 +1,35 @@
+{
+  "id": "platform-profile-ios",
+  "name": "iOS Platform Profile",
+  "platform": "iOS",
+  "isBuiltIn": true,
+  "checks": {
+    "shaderFeatures": {
+      "unsupported": [
+        "Tessellation",
+        "GeometryShader",
+        "ComputeShader_Legacy"
+      ],
+      "alternatives": {
+        "Tessellation": "Vertex Displacement Map",
+        "GeometryShader": "Vertex Shader + GPU Instancing",
+        "ComputeShader_Legacy": "Metal Compute (A8+ GPU)"
+      }
+    },
+    "memoryBudget": {
+      "maxTextureMB": 150,
+      "maxMeshMB": 80,
+      "maxAudioMB": 40,
+      "maxTotalMB": 400
+    },
+    "scriptingConstraints": {
+      "disallowedAPIs": [
+        "System.Reflection.Emit",
+        "System.Runtime.Remoting"
+      ],
+      "requiredDefines": [
+        "UNITY_IOS"
+      ]
+    }
+  }
+}

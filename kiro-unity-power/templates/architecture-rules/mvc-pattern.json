@@ -1,0 +1,47 @@
+{
+  "id": "builtin-mvc-pattern",
+  "name": "MVC Pattern",
+  "description": "Model-View-Controller 架構規則：確保 Model、View、Controller 之間的依賴方向正確，View 不直接引用 Controller，Model 不引用 View 或 Controller。",
+  "isBuiltIn": true,
+  "enabled": true,
+  "pattern": "MVC",
+  "rules": [
+    {
+      "type": "NamingConvention",
+      "config": {
+        "model": { "suffixes": ["Model", "Data", "DTO"], "directory": "Models" },
+        "view": { "suffixes": ["View", "UI", "Display"], "directory": "Views" },
+        "controller": { "suffixes": ["Controller", "Manager", "Handler"], "directory": "Controllers" }
+      }
+    },
+    {
+      "type": "LayerDependency",
+      "config": {
+        "allowed": {
+          "Model": [],
+          "View": ["Model"],
+          "Controller": ["Model", "View"]
+        },
+        "forbidden": {
+          "Model": ["View", "Controller"],
+          "View": ["Controller"]
+        }
+      }
+    },
+    {
+      "type": "InheritanceConstraint",
+      "config": {
+        "Model": { "mustNotExtend": ["MonoBehaviour"], "preferExtend": [] },
+        "View": { "mustNotExtend": [], "preferExtend": ["MonoBehaviour"] },
+        "Controller": { "mustNotExtend": [], "preferExtend": ["MonoBehaviour"] }
+      }
+    },
+    {
+      "type": "CyclicDependency",
+      "config": {
+        "enabled": true,
+        "scope": "namespace"
+      }
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "id": "scaffold-2d-platformer",
+  "name": "2D Platformer",
+  "description": "2D 橫向捲軸平台遊戲場景，包含 Tilemap 地形、玩家角色、攝影機與基礎 UI",
+  "category": "2D",
+  "isBuiltIn": true,
+  "hierarchy": [
+    {
+      "name": "---Environment---",
+      "components": [],
+      "children": [
+        {
+          "name": "Tilemap Grid",
+          "components": [
+            { "typeName": "UnityEngine.Grid", "properties": { "cellSize": [1, 1, 0] } }
+          ],
+          "children": [
+            {
+              "name": "Ground Tilemap",
+              "components": [
+                { "typeName": "UnityEngine.Tilemaps.Tilemap", "properties": {} },
+                { "typeName": "UnityEngine.Tilemaps.TilemapRenderer", "properties": { "sortingOrder": 0 } },
+                { "typeName": "UnityEngine.Tilemaps.TilemapCollider2D", "properties": {} }
+              ],
+              "children": [],
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "Ground Tilemap", "parent": "Tilemap Grid" }
+            },
+            {
+              "name": "Background Tilemap",
+              "components": [
+                { "typeName": "UnityEngine.Tilemaps.Tilemap", "properties": {} },
+                { "typeName": "UnityEngine.Tilemaps.TilemapRenderer", "properties": { "sortingOrder": -1 } }
+              ],
+              "children": [],
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "Background Tilemap", "parent": "Tilemap Grid" }
+            }
+          ],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Tilemap Grid" }
+        },
+        {
+          "name": "Directional Light",
+          "components": [
+            { "typeName": "UnityEngine.Light", "properties": { "type": "Directional", "intensity": 1.0 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Directional Light" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Environment---" }
+    },
+    {
+      "name": "---Player---",
+      "components": [],
+      "children": [
+        {
+          "name": "Player",
+          "tag": "Player",
+          "components": [
+            { "typeName": "UnityEngine.SpriteRenderer", "properties": {} },
+            { "typeName": "UnityEngine.Rigidbody2D", "properties": { "gravityScale": 3 } },
+            { "typeName": "UnityEngine.BoxCollider2D", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Player", "tag": "Player" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Player---" }
+    },
+    {
+      "name": "Main Camera",
+      "tag": "MainCamera",
+      "components": [
+        { "typeName": "UnityEngine.Camera", "properties": { "orthographic": true, "orthographicSize": 5 } },
+        { "typeName": "UnityEngine.AudioListener", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_camera",
+      "mcpArgs": { "action": "create", "name": "Main Camera", "tag": "MainCamera" }
+    },
+    {
+      "name": "GameUI",
+      "components": [
+        { "typeName": "UnityEngine.Canvas", "properties": { "renderMode": "ScreenSpaceOverlay" } },
+        { "typeName": "UnityEngine.UI.GraphicRaycaster", "properties": {} }
+      ],
+      "children": [
+        {
+          "name": "ScoreText",
+          "components": [
+            { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Score: 0", "fontSize": 24 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_text", "name": "ScoreText", "parent": "GameUI" }
+        },
+        {
+          "name": "HealthBar",
+          "components": [
+            { "typeName": "UnityEngine.UI.Slider", "properties": { "value": 1.0 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_slider", "name": "HealthBar", "parent": "GameUI" }
+        }
+      ],
+      "mcpTool": "manage_ui",
+      "mcpArgs": { "action": "create_canvas", "name": "GameUI" }
+    },
+    {
+      "name": "EventSystem",
+      "components": [
+        { "typeName": "UnityEngine.EventSystems.EventSystem", "properties": {} },
+        { "typeName": "UnityEngine.EventSystems.StandaloneInputModule", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "EventSystem" }
+    }
+  ],
+  "requiredPackages": ["com.unity.2d.tilemap"],
+  "createdAt": "2026-03-12T00:00:00Z"
+}

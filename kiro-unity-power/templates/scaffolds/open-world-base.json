@@ -1,0 +1,136 @@
+{
+  "id": "scaffold-open-world-base",
+  "name": "Open World Base",
+  "description": "開放世界基礎場景，包含大型地形、環境系統、玩家控制器與小地圖 UI",
+  "category": "3D",
+  "isBuiltIn": true,
+  "hierarchy": [
+    {
+      "name": "---Environment---",
+      "components": [],
+      "children": [
+        {
+          "name": "Directional Light",
+          "components": [
+            { "typeName": "UnityEngine.Light", "properties": { "type": "Directional", "intensity": 1.2, "shadowType": "Soft" } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Directional Light" }
+        },
+        {
+          "name": "Terrain",
+          "components": [
+            { "typeName": "UnityEngine.Terrain", "properties": { "heightmapResolution": 513 } },
+            { "typeName": "UnityEngine.TerrainCollider", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Terrain" }
+        },
+        {
+          "name": "WindZone",
+          "components": [
+            { "typeName": "UnityEngine.WindZone", "properties": { "windMain": 1.0, "windTurbulence": 0.5 } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "WindZone" }
+        },
+        {
+          "name": "ReflectionProbe",
+          "components": [
+            { "typeName": "UnityEngine.ReflectionProbe", "properties": { "mode": "Baked" } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "ReflectionProbe" }
+        },
+        {
+          "name": "Water",
+          "components": [
+            { "typeName": "UnityEngine.MeshRenderer", "properties": {} },
+            { "typeName": "UnityEngine.MeshFilter", "properties": { "mesh": "Plane" } },
+            { "typeName": "UnityEngine.BoxCollider", "properties": { "isTrigger": true } }
+          ],
+          "children": [],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "Water" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Environment---" }
+    },
+    {
+      "name": "---Player---",
+      "components": [],
+      "children": [
+        {
+          "name": "PlayerController",
+          "tag": "Player",
+          "components": [
+            { "typeName": "UnityEngine.CharacterController", "properties": { "height": 1.8, "radius": 0.3 } },
+            { "typeName": "UnityEngine.AudioListener", "properties": {} }
+          ],
+          "children": [
+            {
+              "name": "MainCamera",
+              "tag": "MainCamera",
+              "components": [
+                { "typeName": "UnityEngine.Camera", "properties": { "fieldOfView": 60, "farClipPlane": 2000 } }
+              ],
+              "children": [],
+              "mcpTool": "manage_camera",
+              "mcpArgs": { "action": "create", "name": "MainCamera", "parent": "PlayerController", "tag": "MainCamera" }
+            }
+          ],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "PlayerController", "tag": "Player" }
+        }
+      ],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "---Player---" }
+    },
+    {
+      "name": "WorldUI",
+      "components": [
+        { "typeName": "UnityEngine.Canvas", "properties": { "renderMode": "ScreenSpaceOverlay" } },
+        { "typeName": "UnityEngine.UI.GraphicRaycaster", "properties": {} }
+      ],
+      "children": [
+        {
+          "name": "MinimapPanel",
+          "components": [
+            { "typeName": "UnityEngine.UI.RawImage", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_panel", "name": "MinimapPanel", "parent": "WorldUI" }
+        },
+        {
+          "name": "CompassBar",
+          "components": [
+            { "typeName": "UnityEngine.UI.Image", "properties": {} }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_image", "name": "CompassBar", "parent": "WorldUI" }
+        }
+      ],
+      "mcpTool": "manage_ui",
+      "mcpArgs": { "action": "create_canvas", "name": "WorldUI" }
+    },
+    {
+      "name": "EventSystem",
+      "components": [
+        { "typeName": "UnityEngine.EventSystems.EventSystem", "properties": {} },
+        { "typeName": "UnityEngine.EventSystems.StandaloneInputModule", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "EventSystem" }
+    }
+  ],
+  "requiredPackages": [],
+  "createdAt": "2026-03-12T00:00:00Z"
+}

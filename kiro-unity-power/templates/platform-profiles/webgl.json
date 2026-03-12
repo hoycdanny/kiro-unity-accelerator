@@ -1,0 +1,39 @@
+{
+  "id": "platform-profile-webgl",
+  "name": "WebGL Platform Profile",
+  "platform": "WebGL",
+  "isBuiltIn": true,
+  "checks": {
+    "shaderFeatures": {
+      "unsupported": [
+        "ComputeShader",
+        "Tessellation",
+        "GeometryShader",
+        "MultiThreadedRendering"
+      ],
+      "alternatives": {
+        "ComputeShader": "CPU calculation or Pixel Shader",
+        "Tessellation": "Pre-baked high-poly Mesh",
+        "GeometryShader": "Vertex Shader billboarding",
+        "MultiThreadedRendering": "Single-threaded rendering"
+      }
+    },
+    "memoryBudget": {
+      "maxTextureMB": 80,
+      "maxMeshMB": 40,
+      "maxAudioMB": 20,
+      "maxTotalMB": 200
+    },
+    "scriptingConstraints": {
+      "disallowedAPIs": [
+        "System.Threading.Thread",
+        "System.Net.Sockets",
+        "System.Reflection.Emit",
+        "System.IO.FileStream"
+      ],
+      "requiredDefines": [
+        "UNITY_WEBGL"
+      ]
+    }
+  }
+}

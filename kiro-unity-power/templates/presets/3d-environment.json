@@ -1,0 +1,40 @@
+{
+  "id": "preset-3d-environment-001",
+  "name": "3D Environment",
+  "description": "Import settings for environment and prop models with no rig, mesh compression enabled, and collider generation.",
+  "assetType": "Model",
+  "isBuiltIn": true,
+  "config": {
+    "modelImport": {
+      "scaleFactor": 1,
+      "meshCompression": "Medium",
+      "generateColliders": true,
+      "rigType": "None",
+      "animationType": "None",
+      "materialImportMode": "ImportViaMaterialDescription",
+      "normalMapEnabled": true
+    }
+  },
+  "namingPatterns": [
+    "(?i)_env_",
+    "(?i)_prop_",
+    "(?i)_building_",
+    "(?i)_terrain_",
+    "(?i)_rock_"
+  ],
+  "mcpToolMapping": {
+    "primaryTool": "manage_asset",
+    "action": "set_import_settings",
+    "settingsMap": {
+      "rigType": "rigType",
+      "materialImportMode": "materialImportMode",
+      "meshCompression": "meshCompression",
+      "normalMapEnabled": "normalMapEnabled",
+      "animationType": "animationType",
+      "scaleFactor": "scaleFactor",
+      "generateColliders": "generateColliders"
+    }
+  },
+  "createdAt": "2026-03-01T00:00:00Z",
+  "updatedAt": "2026-03-01T00:00:00Z"
+}

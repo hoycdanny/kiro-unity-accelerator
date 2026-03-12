@@ -1,0 +1,28 @@
+{
+  "id": "builtin-ios-release",
+  "name": "iOS Release",
+  "target": "iOS",
+  "scenes": [
+    "Assets/Scenes/MainMenu.unity",
+    "Assets/Scenes/GameLevel1.unity"
+  ],
+  "outputPath": "Builds/iOS/MyGame",
+  "options": {
+    "development": false,
+    "allowDebugging": false,
+    "compression": "Lz4HC",
+    "scriptingBackend": "IL2CPP"
+  },
+  "mcpToolMapping": {
+    "primaryTool": "manage_editor",
+    "action": "build",
+    "settingsMap": {
+      "target": "buildTarget",
+      "scenes": "scenes",
+      "outputPath": "locationPathName",
+      "options.scriptingBackend": "options.scriptingBackend"
+    }
+  },
+  "useCloudAssist": false,
+  "createdAt": "2025-01-01T00:00:00Z"
+}

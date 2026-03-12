@@ -1,0 +1,29 @@
+{
+  "id": "builtin-windows-dev",
+  "name": "Windows Development",
+  "target": "StandaloneWindows64",
+  "scenes": [
+    "Assets/Scenes/MainMenu.unity",
+    "Assets/Scenes/GameLevel1.unity"
+  ],
+  "outputPath": "Builds/Windows/MyGame.exe",
+  "options": {
+    "development": true,
+    "allowDebugging": true,
+    "compression": "Lz4",
+    "scriptingBackend": "Mono"
+  },
+  "mcpToolMapping": {
+    "primaryTool": "manage_editor",
+    "action": "build",
+    "settingsMap": {
+      "target": "buildTarget",
+      "scenes": "scenes",
+      "outputPath": "locationPathName",
+      "options.development": "options.development",
+      "options.allowDebugging": "options.allowDebugging"
+    }
+  },
+  "useCloudAssist": false,
+  "createdAt": "2025-01-01T00:00:00Z"
+}

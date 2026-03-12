@@ -1,0 +1,35 @@
+{
+  "id": "platform-profile-android",
+  "name": "Android Platform Profile",
+  "platform": "Android",
+  "isBuiltIn": true,
+  "checks": {
+    "shaderFeatures": {
+      "unsupported": [
+        "Tessellation",
+        "GeometryShader",
+        "HighPrecisionFloat"
+      ],
+      "alternatives": {
+        "Tessellation": "LOD Mesh",
+        "GeometryShader": "Particle System / Vertex Shader",
+        "HighPrecisionFloat": "mediump (half precision)"
+      }
+    },
+    "memoryBudget": {
+      "maxTextureMB": 120,
+      "maxMeshMB": 60,
+      "maxAudioMB": 30,
+      "maxTotalMB": 300
+    },
+    "scriptingConstraints": {
+      "disallowedAPIs": [
+        "System.Reflection.Emit",
+        "System.Runtime.Remoting"
+      ],
+      "requiredDefines": [
+        "UNITY_ANDROID"
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "preset-ui-texture-001",
+  "name": "UI Texture",
+  "description": "Import settings for UI textures with bilinear filtering, no compression for crisp rendering.",
+  "assetType": "Texture",
+  "isBuiltIn": true,
+  "config": {
+    "textureImport": {
+      "maxSize": 2048,
+      "compression": "None",
+      "textureType": "Default",
+      "filterMode": "Bilinear",
+      "generateMipMaps": false
+    }
+  },
+  "namingPatterns": [
+    "(?i)_ui_",
+    "(?i)_icon_",
+    "(?i)_hud_",
+    "(?i)_button_",
+    "(?i)_panel_"
+  ],
+  "mcpToolMapping": {
+    "primaryTool": "manage_asset",
+    "action": "set_import_settings",
+    "settingsMap": {
+      "maxSize": "maxSize",
+      "compression": "compression",
+      "textureType": "textureType",
+      "filterMode": "filterMode",
+      "generateMipMaps": "generateMipMaps"
+    }
+  },
+  "createdAt": "2026-03-01T00:00:00Z",
+  "updatedAt": "2026-03-01T00:00:00Z"
+}

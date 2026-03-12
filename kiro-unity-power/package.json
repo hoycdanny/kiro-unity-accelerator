@@ -1,0 +1,20 @@
+{
+  "name": "kiro-unity-power",
+  "version": "0.1.0",
+  "description": "Kiro Power package for Unity game development — asset automation, scene scaffolding, build automation, performance analysis, and more.",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:property": "jest --testPathPattern=tests/property",
+    "test:integration": "jest --testPathPattern=tests/integration"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "@types/jest": "^29.5.14",
+    "fast-check": "^3.22.0",
+    "typescript": "^5.6.3",
+    "ts-node": "^10.9.2"
+  }
+}

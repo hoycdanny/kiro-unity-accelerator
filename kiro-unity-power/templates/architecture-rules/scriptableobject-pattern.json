@@ -1,0 +1,46 @@
+{
+  "id": "builtin-scriptableobject-pattern",
+  "name": "ScriptableObject Pattern",
+  "description": "ScriptableObject 架構規則：確保 ScriptableObject 用於資料配置與共享，不引用 MonoBehaviour，避免 static 欄位。",
+  "isBuiltIn": true,
+  "enabled": true,
+  "pattern": "ScriptableObject",
+  "rules": [
+    {
+      "type": "NamingConvention",
+      "config": {
+        "scriptableObject": { "suffixes": ["SO", "Config", "Settings", "Asset"], "directory": "ScriptableObjects" },
+        "runtime": { "suffixes": ["Controller", "Manager", "Behaviour"], "directory": "Runtime" }
+      }
+    },
+    {
+      "type": "LayerDependency",
+      "config": {
+        "allowed": {
+          "ScriptableObject": [],
+          "Runtime": ["ScriptableObject"]
+        },
+        "forbidden": {
+          "ScriptableObject": ["Runtime"]
+        }
+      }
+    },
+    {
+      "type": "InheritanceConstraint",
+      "config": {
+        "ScriptableObject": {
+          "mustNotExtend": ["MonoBehaviour"],
+          "preferExtend": ["ScriptableObject"],
+          "forbidStaticFields": true
+        }
+      }
+    },
+    {
+      "type": "CyclicDependency",
+      "config": {
+        "enabled": true,
+        "scope": "namespace"
+      }
+    }
+  ]
+}

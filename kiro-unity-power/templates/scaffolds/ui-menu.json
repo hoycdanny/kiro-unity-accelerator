@@ -1,0 +1,130 @@
+{
+  "id": "scaffold-ui-menu",
+  "name": "UI Menu",
+  "description": "UI 選單場景，包含主選單 Canvas、標題、按鈕群組與背景",
+  "category": "UI",
+  "isBuiltIn": true,
+  "hierarchy": [
+    {
+      "name": "MenuCanvas",
+      "components": [
+        { "typeName": "UnityEngine.Canvas", "properties": { "renderMode": "ScreenSpaceOverlay" } },
+        { "typeName": "UnityEngine.UI.CanvasScaler", "properties": { "uiScaleMode": "ScaleWithScreenSize", "referenceResolution": [1920, 1080] } },
+        { "typeName": "UnityEngine.UI.GraphicRaycaster", "properties": {} }
+      ],
+      "children": [
+        {
+          "name": "BackgroundPanel",
+          "components": [
+            { "typeName": "UnityEngine.UI.Image", "properties": { "color": [0.1, 0.1, 0.15, 1.0] } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_panel", "name": "BackgroundPanel", "parent": "MenuCanvas" }
+        },
+        {
+          "name": "TitleText",
+          "components": [
+            { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Game Title", "fontSize": 48, "alignment": "MiddleCenter" } }
+          ],
+          "children": [],
+          "mcpTool": "manage_ui",
+          "mcpArgs": { "action": "create_text", "name": "TitleText", "parent": "MenuCanvas" }
+        },
+        {
+          "name": "ButtonGroup",
+          "components": [
+            { "typeName": "UnityEngine.UI.VerticalLayoutGroup", "properties": { "spacing": 16 } }
+          ],
+          "children": [
+            {
+              "name": "StartButton",
+              "components": [
+                { "typeName": "UnityEngine.UI.Button", "properties": {} },
+                { "typeName": "UnityEngine.UI.Image", "properties": {} }
+              ],
+              "children": [
+                {
+                  "name": "StartButtonText",
+                  "components": [
+                    { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Start Game", "fontSize": 24 } }
+                  ],
+                  "children": [],
+                  "mcpTool": "manage_ui",
+                  "mcpArgs": { "action": "create_text", "name": "StartButtonText", "parent": "StartButton" }
+                }
+              ],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_button", "name": "StartButton", "parent": "ButtonGroup" }
+            },
+            {
+              "name": "SettingsButton",
+              "components": [
+                { "typeName": "UnityEngine.UI.Button", "properties": {} },
+                { "typeName": "UnityEngine.UI.Image", "properties": {} }
+              ],
+              "children": [
+                {
+                  "name": "SettingsButtonText",
+                  "components": [
+                    { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Settings", "fontSize": 24 } }
+                  ],
+                  "children": [],
+                  "mcpTool": "manage_ui",
+                  "mcpArgs": { "action": "create_text", "name": "SettingsButtonText", "parent": "SettingsButton" }
+                }
+              ],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_button", "name": "SettingsButton", "parent": "ButtonGroup" }
+            },
+            {
+              "name": "QuitButton",
+              "components": [
+                { "typeName": "UnityEngine.UI.Button", "properties": {} },
+                { "typeName": "UnityEngine.UI.Image", "properties": {} }
+              ],
+              "children": [
+                {
+                  "name": "QuitButtonText",
+                  "components": [
+                    { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Quit", "fontSize": 24 } }
+                  ],
+                  "children": [],
+                  "mcpTool": "manage_ui",
+                  "mcpArgs": { "action": "create_text", "name": "QuitButtonText", "parent": "QuitButton" }
+                }
+              ],
+              "mcpTool": "manage_ui",
+              "mcpArgs": { "action": "create_button", "name": "QuitButton", "parent": "ButtonGroup" }
+            }
+          ],
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "ButtonGroup", "parent": "MenuCanvas" }
+        }
+      ],
+      "mcpTool": "manage_ui",
+      "mcpArgs": { "action": "create_canvas", "name": "MenuCanvas" }
+    },
+    {
+      "name": "UICamera",
+      "components": [
+        { "typeName": "UnityEngine.Camera", "properties": { "clearFlags": "SolidColor", "backgroundColor": [0, 0, 0, 1] } }
+      ],
+      "children": [],
+      "mcpTool": "manage_camera",
+      "mcpArgs": { "action": "create", "name": "UICamera" }
+    },
+    {
+      "name": "EventSystem",
+      "components": [
+        { "typeName": "UnityEngine.EventSystems.EventSystem", "properties": {} },
+        { "typeName": "UnityEngine.EventSystems.StandaloneInputModule", "properties": {} }
+      ],
+      "children": [],
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "EventSystem" }
+    }
+  ],
+  "requiredPackages": ["com.unity.ugui"],
+  "createdAt": "2026-03-12T00:00:00Z"
+}

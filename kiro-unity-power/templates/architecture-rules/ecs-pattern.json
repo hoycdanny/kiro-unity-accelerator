@@ -1,0 +1,46 @@
+{
+  "id": "builtin-ecs-pattern",
+  "name": "ECS Pattern",
+  "description": "Entity-Component-System 架構規則：確保 Component 為純資料結構、System 為純邏輯且不持有狀態。",
+  "isBuiltIn": true,
+  "enabled": true,
+  "pattern": "ECS",
+  "rules": [
+    {
+      "type": "NamingConvention",
+      "config": {
+        "component": { "suffixes": ["Component", "Data", "ComponentData"], "directory": "Components" },
+        "system": { "suffixes": ["System"], "directory": "Systems" },
+        "authoring": { "suffixes": ["Authoring", "Baker"], "directory": "Authoring" }
+      }
+    },
+    {
+      "type": "LayerDependency",
+      "config": {
+        "allowed": {
+          "Component": [],
+          "System": ["Component"],
+          "Authoring": ["Component"]
+        },
+        "forbidden": {
+          "Component": ["System", "Authoring"],
+          "System": ["Authoring"]
+        }
+      }
+    },
+    {
+      "type": "InheritanceConstraint",
+      "config": {
+        "Component": { "mustNotExtend": ["MonoBehaviour", "SystemBase"], "preferExtend": ["IComponentData"] },
+        "System": { "mustNotExtend": ["MonoBehaviour"], "preferExtend": ["SystemBase"] }
+      }
+    },
+    {
+      "type": "CyclicDependency",
+      "config": {
+        "enabled": true,
+        "scope": "namespace"
+      }
+    }
+  ]
+}

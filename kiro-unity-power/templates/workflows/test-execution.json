@@ -1,0 +1,36 @@
+{
+  "id": "wf-test-execution",
+  "name": "Test Execution",
+  "description": "Runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report.",
+  "isBuiltIn": true,
+  "steps": [
+    {
+      "id": "run-editmode",
+      "name": "Run EditMode tests",
+      "mcpTool": "run_tests",
+      "mcpAction": "run",
+      "mcpArgs": { "testMode": "EditMode" },
+      "dependsOn": [],
+      "onFailure": "pause"
+    },
+    {
+      "id": "run-playmode",
+      "name": "Run PlayMode tests",
+      "mcpTool": "run_tests",
+      "mcpAction": "run",
+      "mcpArgs": { "testMode": "PlayMode" },
+      "dependsOn": [],
+      "onFailure": "pause"
+    },
+    {
+      "id": "aggregate-results",
+      "name": "Aggregate test results",
+      "mcpTool": "read_console",
+      "mcpAction": "read",
+      "mcpArgs": { "filter": "TestRunner" },
+      "dependsOn": ["run-editmode", "run-playmode"],
+      "onFailure": "skip"
+    }
+  ],
+  "createdAt": "2026-01-01T00:00:00Z"
+}

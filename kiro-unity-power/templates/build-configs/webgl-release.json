@@ -1,0 +1,28 @@
+{
+  "id": "builtin-webgl-release",
+  "name": "WebGL Release",
+  "target": "WebGL",
+  "scenes": [
+    "Assets/Scenes/MainMenu.unity",
+    "Assets/Scenes/GameLevel1.unity"
+  ],
+  "outputPath": "Builds/WebGL/MyGame",
+  "options": {
+    "development": false,
+    "allowDebugging": false,
+    "compression": "Lz4HC",
+    "scriptingBackend": "IL2CPP"
+  },
+  "mcpToolMapping": {
+    "primaryTool": "manage_editor",
+    "action": "build",
+    "settingsMap": {
+      "target": "buildTarget",
+      "scenes": "scenes",
+      "outputPath": "locationPathName",
+      "options.compression": "options.compressionType"
+    }
+  },
+  "useCloudAssist": false,
+  "createdAt": "2025-01-01T00:00:00Z"
+}

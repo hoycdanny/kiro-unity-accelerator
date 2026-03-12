@@ -1,0 +1,45 @@
+{
+  "id": "wf-build-and-deploy",
+  "name": "Build & Deploy",
+  "description": "Loads a build configuration, executes the Unity build, monitors progress, and verifies the output artifact.",
+  "isBuiltIn": true,
+  "steps": [
+    {
+      "id": "load-config",
+      "name": "Load build configuration",
+      "mcpTool": "manage_editor",
+      "mcpAction": "get_settings",
+      "mcpArgs": {},
+      "dependsOn": [],
+      "onFailure": "abort"
+    },
+    {
+      "id": "execute-build",
+      "name": "Execute Unity build",
+      "mcpTool": "manage_editor",
+      "mcpAction": "build",
+      "mcpArgs": { "target": "StandaloneWindows64", "scenes": [], "outputPath": "Builds/" },
+      "dependsOn": ["load-config"],
+      "onFailure": "pause"
+    },
+    {
+      "id": "monitor-progress",
+      "name": "Monitor build progress via console",
+      "mcpTool": "read_console",
+      "mcpAction": "read",
+      "mcpArgs": { "filter": "Build" },
+      "dependsOn": ["execute-build"],
+      "onFailure": "skip"
+    },
+    {
+      "id": "verify-artifact",
+      "name": "Verify build artifact exists",
+      "mcpTool": "manage_asset",
+      "mcpAction": "get_info",
+      "mcpArgs": { "path": "Builds/" },
+      "dependsOn": ["monitor-progress"],
+      "onFailure": "pause"
+    }
+  ],
+  "createdAt": "2026-01-01T00:00:00Z"
+}

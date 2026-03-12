@@ -1,0 +1,22 @@
+{
+  "id": "preset-audio-sfx-001",
+  "name": "Audio SFX",
+  "description": "Import settings for sound effect audio files optimized for low-latency playback.",
+  "assetType": "Audio",
+  "isBuiltIn": true,
+  "config": {},
+  "namingPatterns": [
+    "(?i)_sfx_",
+    "(?i)_bgm_",
+    "(?i)_music_",
+    "(?i)_audio_",
+    "(?i)_sound_"
+  ],
+  "mcpToolMapping": {
+    "primaryTool": "manage_asset",
+    "action": "set_import_settings",
+    "settingsMap": {}
+  },
+  "createdAt": "2026-03-01T00:00:00Z",
+  "updatedAt": "2026-03-01T00:00:00Z"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "wf-asset-import-setup",
+  "name": "Asset Import & Setup",
+  "description": "Scans a folder for assets, detects types, applies matching presets, and generates a change summary.",
+  "isBuiltIn": true,
+  "steps": [
+    {
+      "id": "scan-folder",
+      "name": "Scan asset folder",
+      "mcpTool": "manage_asset",
+      "mcpAction": "list",
+      "mcpArgs": { "path": "Assets/", "recursive": true },
+      "dependsOn": [],
+      "onFailure": "abort"
+    },
+    {
+      "id": "detect-types",
+      "name": "Detect asset types by naming patterns",
+      "mcpTool": "manage_asset",
+      "mcpAction": "get_info",
+      "mcpArgs": { "detectType": true },
+      "dependsOn": ["scan-folder"],
+      "onFailure": "pause"
+    },
+    {
+      "id": "apply-presets",
+      "name": "Apply matching presets via batch execute",
+      "mcpTool": "batch_execute",
+      "mcpAction": "run",
+      "mcpArgs": { "commands": [] },
+      "dependsOn": ["detect-types"],
+      "onFailure": "pause"
+    },
+    {
+      "id": "generate-summary",
+      "name": "Generate change summary",
+      "mcpTool": "read_console",
+      "mcpAction": "read",
+      "mcpArgs": { "filter": "ImportSettings" },
+      "dependsOn": ["apply-presets"],
+      "onFailure": "skip"
+    }
+  ],
+  "createdAt": "2026-01-01T00:00:00Z"
+}
