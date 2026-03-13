@@ -2,12 +2,20 @@
 
 讓 Kiro 成為你的 Unity 開發智慧大腦。透過自然語言下達指令，Kiro 經由 MCP（Model Context Protocol）遠端操控 Unity Editor，涵蓋資產管理、場景建置、建置自動化、效能分析、程式碼品質檢查等十大核心功能。
 
+![Kiro Unity Power 截圖](image/README.png)
+
+## 🎬 製作過程影片
+
+[![YouTube](https://img.shields.io/badge/YouTube-觀看影片-red?logo=youtube)](https://youtu.be/102XLONSscM)
+
+👉 [觀看完整製作過程](https://youtu.be/102XLONSscM)
+
 ## 快速開始
 
 ### 前置需求
 
 - [Unity Editor](https://unity.com/) 已安裝並開啟專案
-- [Kiro IDE](https://kiro.dev/) 已安裝
+- [Kiro IDE](https://kiro.dev/docs/getting-started/installation) 已安裝（[下載安裝 Kiro](https://kiro.dev/docs/getting-started/installation)）
 - Node.js 18+（僅開發/測試時需要）
 
 ### 三步安裝
@@ -192,6 +200,4 @@ npm run test:integration
 | 資產操作無回應 | Unity 可能正在編譯，等待編譯完成後重試 |
 | Cloud Assist 失敗 | 自動降級為本地模式，核心功能不受影響 |
 
-## 授權
 
-Private — 僅供 Kiro Power 套件使用。
