@@ -16,7 +16,7 @@
 
    Unity Editor → Window → Package Manager → Add package from git URL：
    ```
-   https://github.com/CoplayDev/unity-mcp.git
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main
    ```
 
 2. **Kiro 端 — 安裝本 Power**
