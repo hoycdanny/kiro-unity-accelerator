@@ -80,6 +80,70 @@ const ANTIPATTERN_RULES: AntipatternRule[] = [
     description: 'Lambda/closure capturing external variables causes implicit GC allocation.',
     updateOnly: false,
   },
+  // --- Empty Update methods (from Unity 6 optimization guide) ---
+  {
+    type: 'GetComponentInUpdate',
+    pattern: /void\s+(Update|LateUpdate|FixedUpdate)\s*\(\s*\)\s*\{\s*\}/,
+    severity: SeverityLevel.Warning,
+    description: 'Empty Update/LateUpdate/FixedUpdate method still incurs interop overhead — remove it or wrap with #if UNITY_EDITOR.',
+    updateOnly: false,
+  },
+  // --- Debug.Log in Update (from profiling guide) ---
+  {
+    type: 'GetComponentInUpdate',
+    pattern: /Debug\.\s*(?:Log|LogWarning|LogError|DrawLine|DrawRay)\s*\(/,
+    severity: SeverityLevel.Warning,
+    description: 'Debug.Log/Draw statements in hot paths impact performance — use [Conditional("ENABLE_LOG")] wrapper or remove before build.',
+    updateOnly: true,
+  },
+  // --- Camera.main in Update (from optimization guide) ---
+  {
+    type: 'FindInUpdate',
+    pattern: /Camera\s*\.\s*main/,
+    severity: SeverityLevel.Suggestion,
+    description: 'Camera.main in Update — cache the reference in Start/Awake for better performance.',
+    updateOnly: true,
+  },
+  // --- String comparison with tag (from optimization guide) ---
+  {
+    type: 'StringConcatInUpdate',
+    pattern: /\.tag\s*==\s*"/,
+    severity: SeverityLevel.Warning,
+    description: 'Use GameObject.CompareTag() instead of string comparison with .tag to avoid GC allocation.',
+    updateOnly: false,
+  },
+  // --- new WaitForSeconds in coroutine (from optimization guide) ---
+  {
+    type: 'NewAllocationInUpdate',
+    pattern: /yield\s+return\s+new\s+WaitForSeconds/,
+    severity: SeverityLevel.Suggestion,
+    description: 'Cache WaitForSeconds object instead of creating new one each yield — reduces GC allocation.',
+    updateOnly: false,
+  },
+  // --- AddComponent at runtime (from optimization guide) ---
+  {
+    type: 'NewAllocationInUpdate',
+    pattern: /AddComponent\s*[<(]/,
+    severity: SeverityLevel.Suggestion,
+    description: 'AddComponent at runtime is expensive — prefer instantiating prefabs with pre-configured components.',
+    updateOnly: false,
+  },
+  // --- Transform modified twice (from optimization guide) ---
+  {
+    type: 'GetComponentInUpdate',
+    pattern: /transform\s*\.\s*position\s*=[\s\S]{0,80}transform\s*\.\s*rotation\s*=/,
+    severity: SeverityLevel.Suggestion,
+    description: 'Setting position and rotation separately — use Transform.SetPositionAndRotation() to update both at once.',
+    updateOnly: false,
+  },
+  // --- LINQ in hot path (from profiling guide) ---
+  {
+    type: 'LinqInUpdate',
+    pattern: /using\s+System\.Linq/,
+    severity: SeverityLevel.Suggestion,
+    description: 'System.Linq generates GC allocations from boxing — avoid in performance-critical code paths, use manual loops.',
+    updateOnly: false,
+  },
   // --- Draw Call antipatterns (Requirement 2.3) ---
   {
     type: 'NoStaticBatching',

@@ -1,0 +1,55 @@
+{
+  "id": "builtin-xr",
+  "name": "XR/VR Platform Profile",
+  "platform": "XR",
+  "isBuiltIn": true,
+  "checks": {
+    "shaderFeatures": {
+      "unsupported": [
+        "Tessellation",
+        "Geometry Shaders",
+        "Surface Shaders (complex)",
+        "Heavy Post-Processing (SSAO, SSR, Motion Blur)"
+      ],
+      "alternatives": {
+        "Tessellation": "Use LOD Groups instead of tessellation for VR performance",
+        "Geometry Shaders": "Use compute shaders or vertex shaders for particle effects",
+        "Surface Shaders (complex)": "Use URP Lit/Simple Lit with Single Pass Instanced support",
+        "Heavy Post-Processing (SSAO, SSR, Motion Blur)": "Disable Motion Blur (causes nausea), use baked AO, limit post-processing to Bloom and Color Grading"
+      }
+    },
+    "memoryBudget": {
+      "maxTextureMB": 512,
+      "maxMeshMB": 256,
+      "maxAudioMB": 64,
+      "maxTotalMB": 1536
+    },
+    "scriptingConstraints": {
+      "disallowedAPIs": [
+        "Application.targetFrameRate (use VR SDK refresh rate)",
+        "Screen.SetResolution (managed by VR SDK)",
+        "Camera.main in Update (cache reference)"
+      ],
+      "requiredDefines": []
+    },
+    "renderingConstraints": {
+      "targetFrameRate": "72-90 fps (platform dependent)",
+      "frameBudgetMs": 11.1,
+      "stereoRenderingMode": "Single Pass Instanced (recommended)",
+      "maxDrawCalls": 150,
+      "maxTrianglesPerFrame": 750000,
+      "foveatedRendering": "Enable Fixed Foveated Rendering on supported HMDs",
+      "antiAliasing": "Use MSAA 4x (post-process AA causes latency)",
+      "postProcessing": {
+        "recommended": ["Bloom", "Color Grading", "Vignette"],
+        "avoid": ["Motion Blur (causes nausea)", "Depth of Field (disorienting)", "Chromatic Aberration"]
+      }
+    },
+    "comfortGuidelines": {
+      "locomotion": "Use teleportation or tunneling vignette to reduce motion sickness",
+      "frameDrops": "Any frame drop below target causes discomfort — maintain consistent frame rate",
+      "uiPlacement": "Place UI at 1-3 meters distance, avoid UI attached to head movement",
+      "audioSpatialization": "Use spatial audio for immersion and comfort"
+    }
+  }
+}

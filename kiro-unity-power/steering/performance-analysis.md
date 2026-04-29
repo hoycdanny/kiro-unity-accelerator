@@ -104,3 +104,55 @@ find_gameobjects(filter: "MeshFilter")
 - 先最佳化 Draw Calls 和 GC Allocation，這兩項對效能影響最大
 - 針對目標平台設定對應的閾值（行動平台應更嚴格）
 - 定期進行效能分析，避免效能問題累積
+
+
+## Unity 6 效能分析進階指引（來自官方 PDF 最佳實踐）
+
+### Frame Time 優先於 FPS
+
+根據 Unity 官方 Profiling Guide，**使用 frame time (ms) 而非 FPS** 作為效能基準：
+- 60fps = 16.66ms/frame
+- 30fps = 33.33ms/frame
+- 90fps (VR) = 11.11ms/frame
+
+FPS 是一個具有欺騙性的指標：從 900fps 降到 450fps 看似嚴重，但實際只差 1.111ms。
+
+### 平台特定 Frame Budget
+
+| 平台 | 目標 FPS | Frame Budget | 實際可用（含散熱） |
+|------|---------|-------------|-------------------|
+| PC/Console | 60 | 16.66ms | 16.66ms |
+| Mobile | 30 | 33.33ms | ~22ms（預留 35% 散熱） |
+| VR/XR | 72-90 | 11.11-13.88ms | ~8-10ms |
+| WebGL | 60 | 16.66ms | ~14ms（瀏覽器開銷） |
+
+### CPU-bound vs GPU-bound 判斷
+
+使用 Profiler Timeline 視圖判斷瓶頸：
+- **Gfx.WaitForCommands** → Render thread 等待 main thread → CPU-bound
+- **Gfx.WaitForPresentOnGfxThread** → Main thread 等待 render thread → 可能 GPU-bound
+- **Camera.Render 在 render thread** → CPU-bound（花太多時間發送 draw calls）
+- **Gfx.PresentFrame** → GPU-bound（等待 GPU 完成渲染）
+
+### Unity 6 新功能活用
+
+- **GPU Resident Drawer**：在 URP Asset 中啟用 Instanced Drawing，可大幅減少 draw calls（需 Forward+ renderer）
+- **GPU Occlusion Culling**：搭配 GPU Resident Drawer 使用，減少不可見物件的渲染
+- **Spatial-Temporal Post-Processing (STP)**：降低渲染解析度同時維持畫質，適合行動平台
+- **Split Graphics Jobs**：在 Player Settings 中啟用，利用多核心 CPU 加速渲染指令提交
+- **Incremental GC**：分散 GC 工作量至多幀，減少單幀卡頓
+
+### Profiler 使用技巧
+
+1. **停用 VSync marker**：在 CPU Profiler 中隱藏 VSync 標記以看清實際工作量
+2. **使用 Call Stacks**：啟用 Allocation Call Stacks 追蹤 GC.Alloc 來源，比 Deep Profiling 開銷更低
+3. **Profile Analyzer 比較**：儲存最佳化前的 .data 檔案，最佳化後用 Compare view 比較差異
+4. **Standalone Profiler**：使用獨立 Profiler 視窗避免 Editor UI 影響測量結果
+5. **Highlights Module**：Unity 6 新增的 Highlights 模組可快速判斷 CPU/GPU bound
+
+### 記憶體分析指引
+
+- 使用 Memory Profiler package 取得詳細的記憶體快照
+- 比較兩個快照以偵測記憶體洩漏（場景卸載後物件仍存在）
+- 關注 Unity Objects tab 中的 Texture2D 和 Mesh 佔用量
+- 為每個目標平台設定記憶體預算（最低規格裝置的 80%）

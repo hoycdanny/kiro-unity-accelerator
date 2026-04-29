@@ -1,7 +1,7 @@
 {
   "id": "builtin-scriptableobject-pattern",
   "name": "ScriptableObject Pattern",
-  "description": "ScriptableObject 架構規則：確保 ScriptableObject 用於資料配置與共享，不引用 MonoBehaviour，避免 static 欄位。",
+  "description": "ScriptableObject 架構規則：基於 Unity 官方 'Create modular game architecture with ScriptableObjects' 電子書的最佳實踐。確保 SO 用於資料配置與共享，推薦 Event Channel、Runtime Set、Delegate Object 和 Flyweight 模式。",
   "isBuiltIn": true,
   "enabled": true,
   "pattern": "ScriptableObject",
@@ -9,8 +9,9 @@
     {
       "type": "NamingConvention",
       "config": {
-        "scriptableObject": { "suffixes": ["SO", "Config", "Settings", "Asset"], "directory": "ScriptableObjects" },
-        "runtime": { "suffixes": ["Controller", "Manager", "Behaviour"], "directory": "Runtime" }
+        "scriptableObject": { "suffixes": ["SO", "Config", "Settings", "Asset", "Data", "Channel"], "directory": "ScriptableObjects" },
+        "runtime": { "suffixes": ["Controller", "Manager", "Behaviour", "System", "Handler"], "directory": "Runtime" },
+        "eventChannel": { "suffixes": ["EventChannelSO", "EventChannel"], "directory": "Events" }
       }
     },
     {
@@ -18,10 +19,12 @@
       "config": {
         "allowed": {
           "ScriptableObject": [],
-          "Runtime": ["ScriptableObject"]
+          "Runtime": ["ScriptableObject"],
+          "EventChannel": ["ScriptableObject"]
         },
         "forbidden": {
-          "ScriptableObject": ["Runtime"]
+          "ScriptableObject": ["Runtime"],
+          "EventChannel": ["Runtime"]
         }
       }
     },
@@ -31,7 +34,14 @@
         "ScriptableObject": {
           "mustNotExtend": ["MonoBehaviour"],
           "preferExtend": ["ScriptableObject"],
-          "forbidStaticFields": true
+          "forbidStaticFields": true,
+          "recommendPatterns": [
+            "EventChannel: 使用 ScriptableObject 作為事件中介取代 Singleton，包含 UnityAction/System.Action 委派",
+            "RuntimeSet: 使用 ScriptableObject 維護 GameObject 集合，物件在 OnEnable/OnDisable 時自動加入/移除",
+            "DelegateObject: ScriptableObject 包含可插拔行為邏輯，使用 abstract class 定義介面",
+            "Flyweight: 將共享靜態資料存放在 ScriptableObject 中，多個 GameObject 引用同一份資料",
+            "DualSerialization: ScriptableObject + JSON 混合序列化，支援 modding 和外部編輯"
+          ]
         }
       }
     },

@@ -184,6 +184,7 @@ const CPU_PLANS: PlanTemplate[] = [
       'Identify CPU-heavy logic in Update methods',
       'For simple cases, convert to a Coroutine with yield returns',
       'For heavy computation, use Unity Job System with Burst compiler',
+      'Use NativeContainer types (NativeArray, NativeList) for job data',
     ],
     estimatedImpact: 'high',
     implementationDifficulty: 'high',
@@ -195,6 +196,7 @@ const CPU_PLANS: PlanTemplate[] = [
       'Replace MeshColliders with primitive colliders where possible',
       'Enable Convex on MeshColliders that must remain',
       'Reduce polygon count of collision meshes',
+      'Use Layer Collision Matrix to disable unnecessary collision pairs',
     ],
     estimatedImpact: 'medium',
     implementationDifficulty: 'low',
@@ -209,6 +211,154 @@ const CPU_PLANS: PlanTemplate[] = [
     ],
     estimatedImpact: 'medium',
     implementationDifficulty: 'low',
+  },
+  {
+    title: 'Enable GPU Resident Drawer (Unity 6)',
+    description: 'Use GPU Resident Drawer to drastically reduce draw calls by keeping mesh data on the GPU. Requires Forward+ renderer in URP.',
+    steps: [
+      'Open URP Asset settings',
+      'Enable GPU Resident Drawer under Instanced Drawing',
+      'Enable GPU Occlusion Culling for additional savings',
+      'Verify with Frame Debugger that batching improved',
+      'Note: Requires Forward+ rendering path',
+    ],
+    estimatedImpact: 'high',
+    implementationDifficulty: 'low',
+  },
+  {
+    title: 'Enable Spatial-Temporal Post-Processing (STP)',
+    description: 'Reduce rendering resolution while maintaining visual quality using STP upscaling. Ideal for mobile and XR platforms.',
+    steps: [
+      'Open URP Asset > Quality settings',
+      'Enable STP (Spatial-Temporal Post-Processing)',
+      'Configure render scale (e.g., 0.5-0.75 for mobile)',
+      'Test visual quality on target devices',
+      'Compare frame time before and after with Profiler',
+    ],
+    estimatedImpact: 'high',
+    implementationDifficulty: 'low',
+  },
+  {
+    title: 'Enable Split Graphics Jobs',
+    description: 'Distribute rendering command submission across multiple CPU cores for better parallelism.',
+    steps: [
+      'Open Player Settings > Other Settings',
+      'Enable Split Graphics Jobs',
+      'Profile to verify render thread is no longer the bottleneck',
+      'Note: Most effective on multi-core CPUs',
+    ],
+    estimatedImpact: 'medium',
+    implementationDifficulty: 'low',
+  },
+  {
+    title: 'Use Assembly Definitions for Faster Compilation',
+    description: 'Split scripts into Assembly Definitions to enable incremental compilation and reduce iteration time.',
+    steps: [
+      'Create .asmdef files for each logical module (Core, Gameplay, UI, Utils)',
+      'Define explicit references between assemblies',
+      'Move Editor-only scripts to Editor assembly definitions',
+      'Verify compilation time improvement in Console',
+    ],
+    estimatedImpact: 'medium',
+    implementationDifficulty: 'medium',
+  },
+];
+
+// ============================================================
+// XR/VR 專用最佳化方案（來自 VR/MR 電子書）
+// ============================================================
+
+const XR_PLANS: PlanTemplate[] = [
+  {
+    title: 'Enable Single Pass Instanced Rendering',
+    description: 'Render both eyes in a single pass using GPU instancing to halve draw call overhead in VR.',
+    steps: [
+      'Open XR Plugin Management settings',
+      'Set Stereo Rendering Mode to Single Pass Instanced',
+      'Verify shaders support instancing (check for UNITY_STEREO_INSTANCING_ENABLED)',
+      'Test on target HMD device',
+    ],
+    estimatedImpact: 'high',
+    implementationDifficulty: 'low',
+  },
+  {
+    title: 'Enable Foveated Rendering',
+    description: 'Reduce rendering resolution in peripheral vision areas where the user is not looking. Significantly reduces GPU workload.',
+    steps: [
+      'Check target HMD supports foveated rendering (Quest Pro, PSVR2, etc.)',
+      'Enable Fixed Foveated Rendering in XR settings',
+      'If eye tracking available, enable Dynamic Foveated Rendering',
+      'Set foveation level (Low/Medium/High) based on visual quality needs',
+    ],
+    estimatedImpact: 'high',
+    implementationDifficulty: 'low',
+  },
+  {
+    title: 'Maintain 72-90 FPS for VR Comfort',
+    description: 'VR requires consistent high frame rates to prevent motion sickness. Frame budget is ~11ms at 90fps.',
+    steps: [
+      'Profile with VR Profiler to identify frame drops',
+      'Target 11ms frame budget (90fps) or 13.8ms (72fps)',
+      'Reduce draw calls below 150 for mobile VR (Quest)',
+      'Use LOD Groups aggressively for distant objects',
+      'Implement tunneling vignette for locomotion to reduce motion sickness',
+    ],
+    estimatedImpact: 'high',
+    implementationDifficulty: 'medium',
+  },
+];
+
+// ============================================================
+// 2D 專用最佳化方案（來自 2D Art 電子書）
+// ============================================================
+
+const TWO_D_PLANS: PlanTemplate[] = [
+  {
+    title: 'Optimize 2D Light Batching',
+    description: 'Reduce 2D light rendering overhead by optimizing sorting layers and blend styles.',
+    steps: [
+      'Use 2D Light Batching Debugger to visualize batch breaks',
+      'Minimize the number of Sorting Layers and blend styles onscreen',
+      'Keep lights batchable by using same lighting setup across contiguous layers',
+      'Reduce shadow casting lights — switching to draw shadows has non-trivial cost',
+      'Set normal lighting Quality to Fast instead of Accurate on mobile',
+    ],
+    estimatedImpact: 'medium',
+    implementationDifficulty: 'low',
+  },
+  {
+    title: 'Use Sprite Atlas for 2D Performance',
+    description: 'Pack sprites into atlases to reduce draw calls and improve batching.',
+    steps: [
+      'Create Sprite Atlas assets for sprites that appear together in scenes',
+      'Use Sprite Atlas Analyzer (Unity 6.3) to check for issues',
+      'Avoid rotation of sprites when packed for tilemaps',
+      'Enable alpha dilation to maintain sharp tile edges',
+      'Use Tight mesh type in Sprite Editor to reduce overdraw',
+    ],
+    estimatedImpact: 'medium',
+    implementationDifficulty: 'low',
+  },
+];
+
+// ============================================================
+// 多人遊戲最佳化方案（來自 Multiplayer 電子書）
+// ============================================================
+
+const MULTIPLAYER_PLANS: PlanTemplate[] = [
+  {
+    title: 'Optimize Network Synchronization',
+    description: 'Reduce network bandwidth by synchronizing only essential data and using appropriate sync methods.',
+    steps: [
+      'Use NetworkVariable for continuously synced data (health, position)',
+      'Use RPC for discrete events (shooting, ability use)',
+      'Implement Data Culling to exclude non-essential updates',
+      'Use Delta Compression to send only changes since last update',
+      'Apply Interest Management to prioritize by distance/visibility',
+      'Uncheck unnecessary axes in NetworkTransform to save bandwidth',
+    ],
+    estimatedImpact: 'high',
+    implementationDifficulty: 'medium',
   },
 ];
 
