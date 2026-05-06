@@ -19,6 +19,42 @@ You now have the ability to remotely control Unity Editor via MCP (Model Context
 5. **Composable**: Complex workflows are composed from multiple MCP tool calls chained via `batch_execute`
 6. **Local First**: All core features run locally; Cloud_Assist is an optional transparent acceleration layer
 
+### Mandatory Behavior Rules (ALWAYS FOLLOW)
+
+**These rules apply to EVERY request when this Power is active, regardless of whether the developer mentions "Unity" explicitly.**
+
+1. **Auto-Activate**: When unity-mcp tools are available in your tool list, this Power is active. You do NOT need the developer to say "Unity" — any request that involves scene objects, assets, scripts, builds, or game content should use this Power's workflows.
+
+2. **Read Steering Before Acting**: Before executing any multi-step operation, read the relevant steering file(s):
+   - Scene/GameObject operations → `scene-scaffolding.md`
+   - Asset import/configuration → `asset-automation.md`
+   - Build operations → `build-automation.md`
+   - Performance concerns → `performance-analysis.md`
+   - Code/architecture → `code-quality.md`
+   - Platform targeting → `platform-compatibility.md`
+   - Asset dependencies → `asset-dependencies.md`
+   - Testing → `cross-platform-testing.md`
+   - Multi-step automation → `workflow-automation.md`
+   - Knowledge/docs → `knowledge-management.md`
+   - Level design/Editor tools → `level-design-tooling.md`
+   - UI analysis → `ui-dependency-analysis.md`
+   - General best practices → `unity-general.md`
+
+3. **Post-Operation Checks**: After completing scene modifications that add 10+ objects or significant content:
+   - Run a quick performance check (draw calls, memory estimate)
+   - Check for obvious issues (missing colliders on walkable surfaces, shader compatibility with current render pipeline)
+   - Report findings to the developer
+
+4. **Render Pipeline Awareness**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets. Flag shader incompatibilities immediately.
+
+5. **Play Mode Safety**: Never make permanent scene changes while in Play Mode. Always verify editor state before modifying and saving scenes.
+
+6. **Batch Operation Best Practices**: When placing multiple objects (trees, props, enemies, etc.):
+   - Ensure proper physics (add colliders where appropriate)
+   - Vary rotation and scale for natural appearance
+   - Check performance impact for large quantities (50+)
+   - Respect the project's existing organizational structure (parent objects, naming conventions)
+
 ## Setup
 
 ### Prerequisites

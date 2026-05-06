@@ -89,6 +89,27 @@
 }
 ```
 
+### 啟用自動最佳實踐（推薦）
+
+讓 Kiro 在每次對話中自動套用 Unity Power 的最佳實踐流程。兩種方式擇一：
+
+**方式 A — 一鍵安裝（推薦）**
+
+在 Kiro 左側面板的「Agent Hooks」區塊中，找到「Setup Unity Auto Power」按鈕並點擊執行。
+
+**方式 B — 手動複製**
+
+```bash
+mkdir -p ~/.kiro/steering
+cp kiro-unity-power/steering-template/unity-auto-power.md ~/.kiro/steering/
+```
+
+設定後，你不需要每次都提醒 Kiro「用 Power」，它會自動：
+- 啟動 Unity Power 並讀取對應的領域知識
+- 操作前檢查渲染管線相容性
+- 大量物件操作後自動跑效能檢查
+- 確保不在 Play Mode 做永久修改
+
 ### 驗證連線
 
 在 Kiro 中輸入任意 Unity 相關指令（例如「列出目前場景的物件」），若 Kiro 能正確回應，代表連線成功。
