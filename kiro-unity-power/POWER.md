@@ -23,6 +23,8 @@ You now have the ability to remotely control Unity Editor via MCP (Model Context
 
 **These rules apply to EVERY request when this Power is active, regardless of whether the developer mentions "Unity" explicitly.**
 
+0. **Language — 繁體中文**: You MUST respond in Traditional Chinese (繁體中文) for ALL interactions when this Power is active. This applies regardless of what language the developer uses to ask their question. Technical terms may remain in English with Chinese explanation on first use. Code identifiers stay in English. The ONLY exception is when the developer explicitly requests English responses.
+
 1. **Auto-Activate**: When unity-mcp tools are available in your tool list, this Power is active. You do NOT need the developer to say "Unity" — any request that involves scene objects, assets, scripts, builds, or game content should use this Power's workflows.
 
 2. **Read Steering Before Acting**: Before executing any multi-step operation, read the relevant steering file(s):
@@ -75,6 +77,22 @@ You now have the ability to remotely control Unity Editor via MCP (Model Context
    - Unity Editor → Window → MCP for Unity → Start Server
    - The server listens on `localhost:8080/mcp`
 
+### 語言設定
+
+本 Power 預設使用**繁體中文**回覆所有互動內容。安裝完成後無需額外設定。
+
+- 技術術語保留英文原文並附中文說明
+- 程式碼變數/函式名稱維持英文（遵循 Unity/C# 慣例）
+- 如需切換為英文回覆，在專案中建立 `.kiro/steering/language-override.md`：
+
+  ```markdown
+  ---
+  inclusion: auto
+  ---
+  # Language Override
+  - Respond in English for all interactions.
+  ```
+
 ### MCP Connection
 
 **Primary — HTTP (recommended)**:
@@ -109,6 +127,19 @@ Before executing any MCP operation, perform a lightweight health check:
    - Confirm Unity Editor is open
    - Confirm MCP Server is started (Window → MCP for Unity → Start Server)
    - Confirm localhost:8080 is not occupied by another process
+
+### Pre-Tool Hook（自動品質檢查）
+
+本 Power 包含一個 `preToolUse` hook 檔案，位於 `hooks/pre-unity-tool.json`。
+
+**功能**：在 Kiro 呼叫任何 unity-mcp 相關工具之前，自動提醒 AI 必須先：
+1. 啟動（activate）本 Power 以載入完整文件
+2. 讀取對應的 steering file 以獲取該任務的最佳實踐指引
+3. 依照 Power 文件中定義的 workflow 執行操作
+
+**涵蓋的工具**：所有 unity-mcp 工具，包括 `manage_scene`、`manage_gameobject`、`manage_components`、`manage_camera`、`manage_asset`、`manage_build`、`manage_editor`、`manage_material`、`manage_animation`、`manage_physics`、`manage_prefabs`、`manage_packages`、`manage_shader`、`manage_texture`、`manage_ui`、`manage_vfx`、`manage_probuilder`、`manage_profiler`、`manage_graphics`、`find_gameobjects`、`read_console`、`run_tests`、`batch_execute`、`execute_code`、`create_script`、`refresh_unity`、`script_apply_edits` 等。
+
+**使用方式**：安裝本 Power 後，此 hook 會自動生效。開發者無需手動設定。如需停用，可刪除或重新命名 `hooks/pre-unity-tool.json` 檔案。
 
 
 ## Available MCP Tools
