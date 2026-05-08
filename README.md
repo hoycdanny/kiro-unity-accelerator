@@ -89,17 +89,23 @@
 }
 ```
 
-### 自動引導 Hook（內建）
+### 安裝自動引導 Hook（推薦）
 
-安裝本 Power 後，內建的 `preToolUse` Hook 會自動生效。當 Kiro 嘗試呼叫任何 unity-mcp 工具時，Hook 會攔截並要求 AI 先：
+本 Power 提供一個 `promptSubmit` Hook，會在每次你送出訊息時自動提醒 AI 先 activate Power 並讀取對應的 Steering File，確保每次操作都遵循最佳實踐。
 
-1. **Activate Power** — 載入 POWER.md 文件與所有工具定義
-2. **讀取對應的 Steering File** — 根據請求類型載入正確的領域知識
-3. **再執行 MCP 工具呼叫** — 確保操作遵循最佳實踐
+**安裝方式：** 將 Hook 檔案複製到你的工作區 `.kiro/hooks/` 目錄：
 
-你不需要額外設定任何東西，安裝 Power 即自動啟用。
+```bash
+mkdir -p .kiro/hooks
+cp hooks/pre-unity-tool.kiro.hook .kiro/hooks/
+```
 
-Hook 檔案位於 `.kiro/hooks/pre-unity-tool.kiro.hook`，可在 Kiro 左側面板的「Agent Hooks」區塊中查看或停用。
+安裝後，每次你送出訊息，Hook 會自動要求 AI：
+1. Activate Power — 載入 POWER.md 與所有工具定義
+2. 讀取對應的 Steering File — 根據請求類型載入正確的領域知識
+3. 然後才開始處理你的請求
+
+Hook 檔案安裝後可在 Kiro 左側面板的「Agent Hooks」區塊中查看或停用。
 
 ### 驗證連線
 
