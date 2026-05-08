@@ -24,7 +24,7 @@
 
 1. **Kiro 端 — 安裝本 Power**
 
-   Kiro → 左側面板點選 Powers 圖示 → 點擊右上角「+」按鈕 → 選擇「Add Custom Power」→ 選取本專案中的 `kiro-unity-power` 資料夾
+   Kiro → 左側面板點選 Powers 圖示 → 點擊右上角「+」按鈕 → 選擇「Add Custom Power」→ 選取本專案根目錄
 
    ![安裝自訂 Power](image/Add-Kiro-Customer-Power.png)
 
@@ -101,7 +101,7 @@
 
 ```bash
 mkdir -p ~/.kiro/steering
-cp kiro-unity-power/steering-template/unity-auto-power.md ~/.kiro/steering/
+cp steering-template/unity-auto-power.md ~/.kiro/steering/
 ```
 
 設定後，你不需要每次都提醒 Kiro「用 Power」，它會自動：
@@ -117,7 +117,6 @@ cp kiro-unity-power/steering-template/unity-auto-power.md ~/.kiro/steering/
 ### 開發與測試
 
 ```bash
-cd kiro-unity-power
 npm install
 
 npm test                # 執行所有測試
@@ -684,7 +683,7 @@ console.log(formatUIDependencyReportAsText(report));
 ### 專案結構
 
 ```
-kiro-unity-power/
+kiro-unity-accelerator/
 ├── POWER.md                    # Kiro 讀取的主文件
 ├── mcp.json                    # MCP Server 連線配置
 ├── steering/                   # 領域知識 Steering Files（14 個）
@@ -792,5 +791,5 @@ kiro-unity-power/
 | 埠號 8080 被佔用 | 關閉佔用程式，或在 `mcp.json` 改用 stdio 模式 |
 | 資產操作無回應 | Unity 可能正在編譯，等待編譯完成後重試 |
 | Cloud Assist 失敗 | 自動降級為本地模式，核心功能不受影響 |
-| 測試失敗 | 執行 `cd kiro-unity-power && npm test` 查看詳細錯誤訊息 |
+| 測試失敗 | 執行 `npm test` 查看詳細錯誤訊息 |
 | TypeScript 型別錯誤 | 執行 `npx tsc --noEmit` 檢查，確認 `npm install` 已安裝依賴 |
