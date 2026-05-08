@@ -1,0 +1,43 @@
+{
+  "enabled": true,
+  "name": "Unity Power Pre-Tool Check",
+  "description": "在呼叫任何 unity-mcp 工具前，提醒 AI 必須先 activate Power 並讀取對應的 steering file",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      ".*unity.*",
+      ".*manage_profiler.*",
+      ".*manage_graphics.*",
+      ".*manage_scene.*",
+      ".*manage_gameobject.*",
+      ".*manage_components.*",
+      ".*manage_camera.*",
+      ".*manage_asset.*",
+      ".*manage_build.*",
+      ".*manage_editor.*",
+      ".*manage_material.*",
+      ".*manage_animation.*",
+      ".*manage_physics.*",
+      ".*manage_prefabs.*",
+      ".*manage_packages.*",
+      ".*manage_shader.*",
+      ".*manage_texture.*",
+      ".*manage_ui.*",
+      ".*manage_vfx.*",
+      ".*manage_probuilder.*",
+      ".*find_gameobjects.*",
+      ".*read_console.*",
+      ".*run_tests.*",
+      ".*batch_execute.*",
+      ".*execute_code.*",
+      ".*create_script.*",
+      ".*refresh_unity.*",
+      ".*script_apply_edits.*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "STOP. Before calling any unity-mcp tool, you MUST first:\n1. Call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") to load the Power\n2. Call kiroPowers(action=\"readSteering\", powerName=\"kiro-unity-accelerator\", steeringFile=\"<relevant>.md\") to read the appropriate steering file for this task\n3. Only THEN proceed with the MCP tool call\n\nIf you have already activated the Power in this conversation, you may proceed directly.\n\nSteering file selection:\n- Scene/GameObject → scene-scaffolding.md\n- Asset import/config → asset-automation.md\n- Build/deploy → build-automation.md\n- Performance/FPS → performance-analysis.md\n- Code quality → code-quality.md\n- Platform targeting → platform-compatibility.md\n- Asset dependencies → asset-dependencies.md\n- Testing → cross-platform-testing.md\n- Multi-step workflow → workflow-automation.md\n- Knowledge/docs → knowledge-management.md\n- Level design/Editor tools → level-design-tooling.md\n- UI analysis → ui-dependency-analysis.md"
+  }
+}

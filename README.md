@@ -89,56 +89,17 @@
 }
 ```
 
-### 啟用自動最佳實踐（推薦）
+### 自動引導 Hook（內建）
 
-讓 Kiro 在每次對話中自動套用 Unity Power 的最佳實踐流程。
+安裝本 Power 後，內建的 `preToolUse` Hook 會自動生效。當 Kiro 嘗試呼叫任何 unity-mcp 工具時，Hook 會攔截並要求 AI 先：
 
-#### 原理
+1. **Activate Power** — 載入 POWER.md 文件與所有工具定義
+2. **讀取對應的 Steering File** — 根據請求類型載入正確的領域知識
+3. **再執行 MCP 工具呼叫** — 確保操作遵循最佳實踐
 
-本 Power 提供了一份 Steering 檔案 `steering-template/unity-auto-power.md`，其 front-matter 設定為：
+你不需要額外設定任何東西，安裝 Power 即自動啟用。
 
-```yaml
----
-inclusion: auto
----
-```
-
-`inclusion: auto` 代表這份 Steering 會在每次 Kiro 對話時自動載入，不需要使用者手動觸發。只要把它放到 Kiro 的 Steering 目錄，Kiro 就會在偵測到 unity-mcp 工具時自動啟動 Power 並遵循最佳實踐。
-
-#### 設定方式（兩種擇一）
-
-**方式 A — 一鍵安裝（推薦）**
-
-在 Kiro 左側面板的「Agent Hooks」區塊中，找到「Setup Unity Auto Power」按鈕並點擊執行。
-
-**方式 B — 手動複製到全域 Steering 目錄**
-
-```bash
-mkdir -p ~/.kiro/steering
-cp steering-template/unity-auto-power.md ~/.kiro/steering/
-```
-
-或者複製到工作區層級（僅對該專案生效）：
-
-```bash
-mkdir -p .kiro/steering
-cp steering-template/unity-auto-power.md .kiro/steering/
-```
-
-#### 設定後的效果
-
-你不需要每次都提醒 Kiro「用 Power」，它會自動：
-- 在對話開始時啟動 Unity Power 並讀取對應的領域知識
-- 根據請求類型自動選擇正確的 Steering File（場景建置、效能分析、建置自動化等）
-- 操作前檢查渲染管線相容性
-- 大量物件操作後自動跑效能檢查
-- 確保不在 Play Mode 做永久修改
-
-#### 自訂 Steering 內容
-
-如果你想修改自動載入的行為，直接編輯 `~/.kiro/steering/unity-auto-power.md`（全域）或 `.kiro/steering/unity-auto-power.md`（工作區）。只要保留 front-matter 中的 `inclusion: auto`，Kiro 就會持續自動載入。
-
-若改為 `inclusion: manual`，則需要在聊天中用 `#unity-auto-power` 手動引用才會生效。
+Hook 檔案位於 `.kiro/hooks/pre-unity-tool.kiro.hook`，可在 Kiro 左側面板的「Agent Hooks」區塊中查看或停用。
 
 ### 驗證連線
 
