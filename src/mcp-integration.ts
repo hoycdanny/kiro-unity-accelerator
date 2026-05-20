@@ -53,7 +53,7 @@ export async function executeMcpCall(
     const hint = classifyError(err);
     return {
       success: false,
-      error: `MCP 連線錯誤 (${hint.errorType})：${hint.suggestion}`,
+      error: `MCP connection error (${hint.errorType}): ${hint.suggestion}`,
     };
   }
 }

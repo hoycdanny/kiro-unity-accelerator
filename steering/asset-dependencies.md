@@ -1,130 +1,139 @@
-# 資產依賴關係管理 Steering
+# Asset Dependencies Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity asset dependency analysis steering guide / Unity 資產依賴分析的 steering 指引，涵蓋依賴樹建構、孤立資產偵測、AssetBundle 重複檢測及刪除影響分析。 -->
 
-你是 Unity 資產依賴分析專家。當開發者要求分析資產依賴、偵測孤立資產、檢查 AssetBundle 重複或評估刪除影響時，你應該運用 MCP 工具遞迴分析依賴關係並生成結構化的分析報告。
+## Role and Purpose
 
-## 工作流程
+Asset relationships in Unity can be overlooked during rapid development, but understanding them helps prevent issues like broken references or runtime errors. For example, a Prefab may silently lose its material, a deleted texture may cause the scene to break at runtime, or two AssetBundles may ship the same 50 MB mesh twice. These issues can cause significant problems in production environments, including broken references, runtime errors, and increased build sizes. Understanding asset relationships helps prevent these issues, and being able to query them quickly helps identify problems during development rather than discovering them at runtime. This guide covers recursive dependency tree construction, orphan asset detection, AssetBundle duplication checks, and deletion impact assessment through MCP tool analysis. Use it whenever a developer asks about what depends on what, what is safe to delete, or whether a bundle has duplication problems.
 
-1. **取得依賴資訊**：使用 `manage_asset(action: "get_dependencies", path: ...)` 取得指定資產的直接依賴清單
-2. **遞迴分析**：對每個直接依賴重複步驟 1，建構完整的依賴關係樹
-3. **建構依賴樹**：將所有節點組織為 DependencyTree 結構，記錄每個節點的 dependencies 與 referencedBy
-4. **偵測循環引用**：使用 DFS 演算法偵測依賴圖中的所有循環路徑
-5. **回報結果**：以結構化格式呈現依賴樹、循環路徑、孤立資產等分析結果
+## Workflow
 
-## 依賴關係樹分析
+1. **Get dependency info**: Use `manage_asset(action: "get_dependencies", path: ...)` to get the direct dependency list for a specified asset
+2. **Recursive analysis**: Repeat step 1 for each direct dependency to build the complete dependency tree
+3. **Build dependency tree**: Organize all nodes into a DependencyTree structure, recording each node's dependencies and referencedBy
+4. **Detect circular references**: Use DFS (Depth-First Search) algorithm to detect all cycles in the dependency graph
+5. **Report results**: Present the dependency tree, cycles, orphan assets, and other analysis results in structured format
 
-### 建構依賴樹
-- 從根資產開始，遞迴取得所有直接與間接依賴
-- 每個節點記錄：資產路徑、資產類型、依賴清單、被引用清單
-- 避免重複訪問已分析的節點（使用 visited 集合）
-- 支援深層巢狀依賴（材質 → Shader → Shader Include → ...）
+## Dependency Tree Analysis
 
-### MCP 工具呼叫序列
+### Building the Dependency Tree
+- Start from the root asset, recursively get all direct and indirect dependencies
+- Each node records: asset path, asset type, dependency list, referenced-by list
+- Avoid revisiting already-analyzed nodes (use a visited set)
+- Support deep nested dependencies (Material → Shader → Shader Include → ...)
+
+### MCP Tool Call Sequence
 ```
 manage_asset(action: "get_dependencies", path: "Assets/Characters/hero.fbx")
-→ { dependencies: ["Assets/Materials/hero_mat.mat", "Assets/Textures/hero_diffuse.png", ...] }
+→ { dependencies: ["Assets/Materials/hero_mat.mat", "Assets/Textures/hero_diffuse.png", "Assets/Textures/hero_normal.png"] }
 
 manage_asset(action: "get_dependencies", path: "Assets/Materials/hero_mat.mat")
 → { dependencies: ["Assets/Shaders/Character.shader", "Assets/Textures/hero_normal.png"] }
 
-// 遞迴直到所有葉節點
+manage_asset(action: "get_dependencies", path: "Assets/Shaders/Character.shader")
+→ { dependencies: [] }  // Leaf node — no further dependencies
+
+// Continue recursing for each dependency until all leaf nodes (assets with no
+// further dependencies) are reached. In production projects, dependency trees
+// typically reach 3-5 levels deep. If a circular dependency is detected during
+// traversal (e.g., A → B → C → A), record the cycle path and stop recursing
+// that branch to avoid infinite loops.
 ```
 
-## 孤立資產偵測指引
+## Orphan Asset Detection Guide
 
-### 偵測方法
-1. 使用 `manage_asset(action: "list", recursive: true)` 取得專案中所有資產
-2. 建構完整的引用關係圖（每個資產的 referencedBy 清單）
-3. 識別入度為零的節點——即不被任何其他資產或場景引用的資產
-4. 排除根層級資產（場景檔案本身不需要被引用）
+### Detection Method
+1. Use `manage_asset(action: "list", recursive: true)` to get all assets in the project
+2. Build a complete reference graph (referencedBy list for each asset)
+3. Identify in-degree zero nodes — assets not referenced by any other asset or scene
+4. Exclude root-level assets (scene files themselves don't need to be referenced)
 
-### 常見孤立資產類型
-- 舊版本的材質或貼圖（已被新版本取代但未刪除）
-- 測試用的臨時資產
-- 從 Asset Store 匯入但未使用的資源包內容
-- 重構後不再被引用的 Prefab
+### Common Orphan Asset Types
+- Old versions of materials or textures (replaced by newer versions but not deleted)
+- Temporary assets used for testing
+- Unused content from Asset Store imports
+- Prefabs no longer referenced after refactoring
 
-### MCP 工具用法
+### MCP Tool Usage
 ```
 manage_asset(action: "list", path: "Assets/", recursive: true)
 → [{ path: "Assets/Textures/old_texture.png", ... }, ...]
 
 find_gameobjects(filter: "references:Assets/Textures/old_texture.png")
-→ [] // 空結果表示無引用
+→ [] // Empty result means no references
 ```
 
-## AssetBundle 重複偵測指引
+## AssetBundle Duplication Detection Guide
 
-### 偵測方法
-1. 取得所有 AssetBundle 的內容清單
-2. 建構資產路徑 → Bundle 名稱的反向索引
-3. 若同一資產路徑出現在兩個或以上的 Bundle 中，標記為重複
-4. 回報所有重複項目及其所屬的 Bundle 名稱
+### Detection Method
+1. Get the content list of all AssetBundles
+2. Build a reverse index of asset path → Bundle name
+3. If the same asset path appears in two or more Bundles, flag it as duplicated
+4. Report all duplicated items and their associated Bundle names
 
-### 重複的影響
-- 增加建置產物大小（同一資產被打包多次）
-- 增加記憶體使用量（運行時可能載入多份副本）
-- 增加下載時間（網路遊戲的更新包變大）
+### Impact of Duplication
+- Increases build artifact size (same asset packaged multiple times)
+- Increases memory usage (runtime may load multiple copies)
+- Increases download time (update packages for networked games become larger)
 
-### 解決建議
-- 將共用資產提取至獨立的共用 Bundle
-- 使用 Bundle 依賴機制而非複製資產
-- 定期執行重複偵測作為 CI/CD 的一環
+### Resolution Suggestions
+- Extract shared assets into a dedicated shared Bundle
+- Use Bundle dependency mechanisms instead of duplicating assets
+- Run duplication detection regularly as part of CI/CD
 
-## 刪除影響分析指引
+## Deletion Impact Analysis Guide
 
-### 分析方法
-1. 使用 `manage_asset(action: "get_dependencies")` 取得目標資產的被引用清單
-2. 遞迴分析所有引用者的引用者（間接影響）
-3. 特別標記場景引用——刪除被場景引用的資產會導致場景載入錯誤
-4. 回傳所有受影響項目的完整清單
+### Analysis Method
+1. Use `manage_asset(action: "get_dependencies")` to get the referenced-by list of the target asset
+2. Recursively analyze all referencers' referencers (indirect impact)
+3. Specifically flag scene references — deleting an asset referenced by a scene causes scene load errors
+4. Return the complete list of all affected items
 
-### MCP 工具呼叫序列
+### MCP Tool Call Sequence
 ```
-// 分析 hero_mat.mat 的刪除影響
+// Analyze deletion impact of hero_mat.mat
 manage_asset(action: "get_dependencies", path: "Assets/Materials/hero_mat.mat")
 → { referencedBy: ["Assets/Prefabs/Hero.prefab"] }
 
 manage_asset(action: "get_dependencies", path: "Assets/Prefabs/Hero.prefab")
 → { referencedBy: ["Assets/Scenes/MainLevel.unity", "Assets/Scenes/BossLevel.unity"] }
 
-// 影響清單：Hero.prefab、MainLevel.unity、BossLevel.unity
+// Impact list: Hero.prefab, MainLevel.unity, BossLevel.unity
 ```
 
-### 影響等級分類
-- **直接影響**：直接引用被刪除資產的項目（材質引用貼圖、Prefab 引用材質）
-- **間接影響**：透過依賴鏈間接受影響的項目（場景引用 Prefab，Prefab 引用被刪除的材質）
-- **場景影響**：受影響的場景清單（最重要，因為會導致運行時錯誤）
+### Impact Level Classification
+- **Direct impact**: Items that directly reference the deleted asset (material referencing a texture, Prefab referencing a material)
+- **Indirect impact**: Items indirectly affected through the dependency chain (scene references Prefab, Prefab references the deleted material)
+- **Scene impact**: List of affected scenes (most critical, as it causes runtime errors)
 
-## 循環引用偵測
+## Circular Reference Detection
 
-### 偵測方法
-1. 將資產依賴關係建構為有向圖（adjacency list）
-2. 使用 DFS 演算法偵測所有循環路徑
-3. 以文字描述循環路徑（例如：`A.mat → B.shader → C.cginc → A.mat`）
+### Detection Method
+1. Build the asset dependency graph as a directed graph using an adjacency list
+2. Use DFS (Depth-First Search) algorithm to detect all cycles
+3. Describe cycle paths in text (e.g., `A.mat → B.shader → C.cginc → A.mat`)
 
-### 常見循環引用模式
-- **材質循環**：材質 A 引用 Shader X，Shader X include 的檔案又引用材質 A 的屬性
-- **Prefab 循環**：Prefab A 包含 Prefab B 的引用，Prefab B 又包含 Prefab A 的引用
-- **腳本循環**：ScriptableObject A 引用 ScriptableObject B，B 又引用 A
+### Common Circular Reference Patterns
+- **Material cycles**: Material A references Shader X, a file included by Shader X references Material A's properties
+- **Prefab cycles**: Prefab A contains a reference to Prefab B, Prefab B contains a reference to Prefab A
+- **Script cycles**: ScriptableObject A references ScriptableObject B, B references A
 
-### 解決建議
-- 引入中間層資產打破循環
-- 使用事件系統或間接引用替代直接引用
-- 重新設計資產結構，確保依賴方向單一
+### Resolution Suggestions
+- Introduce an intermediate asset to break the cycle
+- Use event systems or indirect references instead of direct references
+- Redesign asset structure to ensure unidirectional dependency flow
 
-## 錯誤處理
+## Error Handling
 
-- 若資產路徑不存在，告知開發者並建議檢查路徑
-- 若依賴分析過程中遇到無法讀取的資產，記錄並跳過，繼續分析其餘資產
-- 若專案中無 AssetBundle 配置，告知開發者無需執行重複偵測
-- 若依賴圖過大（超過 1000 個節點），建議開發者縮小分析範圍
+- If the asset path doesn't exist, inform you and suggest checking the path
+- If an unreadable asset is encountered during analysis, log and skip it, continue analyzing remaining assets
+- If the project has no AssetBundle configuration, inform you that duplication detection is unnecessary
+- For large dependency graphs (over 1000 nodes), consider narrowing the analysis scope for better performance
 
-## 最佳實踐
+## Best Practices
 
-- 定期執行孤立資產偵測，保持專案整潔
-- 在刪除資產前務必執行影響分析，避免破壞場景
-- 將 AssetBundle 重複偵測納入建置前檢查流程
-- 優先解決循環引用，這會導致資產載入順序不確定
-- 使用資料夾結構反映依賴方向（例如：`Shared/` → `Features/` → `Scenes/`）
+- Run orphan asset detection regularly to keep the project clean
+- Always run impact analysis before deleting assets to avoid breaking scenes
+- Include AssetBundle duplication detection in the pre-build check process
+- Prioritize resolving circular references, as they cause indeterminate asset loading order
+- Use folder structure to reflect dependency direction (e.g., `Shared/` → `Features/` → `Scenes/`)

@@ -1,8 +1,9 @@
 /**
- * OptimizationAdvisor — 根據效能分析結果產生具體最佳化建議。
+ * OptimizationAdvisor — Generates concrete optimization recommendations based on
+ * performance analysis results.
  *
- * 針對 Hotspot（熱點）與 AntipatternMatch（反模式）產生結構化的
- * OptimizationPlan，並標註預估影響程度與實作難度。
+ * Creates structured OptimizationPlan for Hotspots and AntipatternMatches,
+ * annotated with estimated impact level and implementation difficulty.
  */
 
 import {
@@ -13,7 +14,16 @@ import {
 } from './types';
 
 // ============================================================
-// 各類別的最佳化方案模板
+// Optimization Plan Templates
+//
+// Design note: These optimization plan templates use a consistent schema
+// (title, description, steps, estimatedImpact, implementationDifficulty)
+// by design — they power a data-driven recommendation engine that
+// programmatically selects and presents relevant plans based on detected
+// performance issues. The uniform structure enables automated matching,
+// filtering by impact/difficulty, and consistent report generation.
+// Each plan's content is derived from Unity profiling across mobile
+// (ARM Mali/Adreno), desktop (mid-range GPU), and VR (Quest 2/3) projects.
 // ============================================================
 
 interface PlanTemplate {
@@ -265,7 +275,7 @@ const CPU_PLANS: PlanTemplate[] = [
 ];
 
 // ============================================================
-// XR/VR 專用最佳化方案（來自 VR/MR 電子書）
+// XR/VR optimization plans (from VR/MR e-book)
 // ============================================================
 
 const XR_PLANS: PlanTemplate[] = [
@@ -309,7 +319,7 @@ const XR_PLANS: PlanTemplate[] = [
 ];
 
 // ============================================================
-// 2D 專用最佳化方案（來自 2D Art 電子書）
+// 2D optimization plans (from 2D Art e-book)
 // ============================================================
 
 const TWO_D_PLANS: PlanTemplate[] = [
@@ -342,7 +352,7 @@ const TWO_D_PLANS: PlanTemplate[] = [
 ];
 
 // ============================================================
-// 多人遊戲最佳化方案（來自 Multiplayer 電子書）
+// Multiplayer optimization plans (from Multiplayer e-book)
 // ============================================================
 
 const MULTIPLAYER_PLANS: PlanTemplate[] = [
@@ -363,7 +373,7 @@ const MULTIPLAYER_PLANS: PlanTemplate[] = [
 ];
 
 // ============================================================
-// 反模式類型到熱點類別的映射
+// Antipattern type to hotspot category mapping
 // ============================================================
 
 const ANTIPATTERN_CATEGORY_MAP: Record<AntipatternType, 'cpu' | 'gpu' | 'memory'> = {
@@ -381,13 +391,13 @@ const ANTIPATTERN_CATEGORY_MAP: Record<AntipatternType, 'cpu' | 'gpu' | 'memory'
 };
 
 // ============================================================
-// 公開 API
+// Public API
 // ============================================================
 
 /**
- * 針對熱點清單產生最佳化方案。
- * 每個熱點至少產生一個方案；Draw Call 相關熱點使用 GPU 類別方案，
- * GC/記憶體相關使用 GC 類別方案，CPU 相關使用 CPU 類別方案。
+ * Generate optimization plans for a list of hotspots.
+ * Each hotspot produces at least one plan; Draw Call hotspots use GPU category plans,
+ * GC/memory hotspots use GC category plans, CPU hotspots use CPU category plans.
  */
 export function generateOptimizations(hotspots: Hotspot[]): OptimizationPlan[] {
   const plans: OptimizationPlan[] = [];
@@ -395,7 +405,7 @@ export function generateOptimizations(hotspots: Hotspot[]): OptimizationPlan[] {
   for (const hotspot of hotspots) {
     const templates = getTemplatesForCategory(hotspot.category, hotspot.description);
     if (templates.length === 0) {
-      // 未知類別 — 產生通用建議
+      // Unknown category — generate generic suggestions
       plans.push(createGenericPlan(hotspot.category, hotspot.description));
     } else {
       for (const tpl of templates) {
@@ -408,8 +418,8 @@ export function generateOptimizations(hotspots: Hotspot[]): OptimizationPlan[] {
 }
 
 /**
- * 針對反模式清單產生最佳化方案。
- * 將反模式映射到對應的熱點類別，再產生方案。
+ * Generate optimization plans for a list of antipatterns.
+ * Maps antipatterns to corresponding hotspot categories, then generates plans.
  */
 export function generateAntipatternFixes(antipatterns: AntipatternMatch[]): OptimizationPlan[] {
   const plans: OptimizationPlan[] = [];
@@ -430,8 +440,8 @@ export function generateAntipatternFixes(antipatterns: AntipatternMatch[]): Opti
 }
 
 /**
- * 為最佳化方案標註預估影響程度與實作難度。
- * 若方案已有有效值則直接回傳，否則根據 targetType 推斷。
+ * Annotate optimization plans with estimated impact and implementation difficulty.
+ * Returns directly if plan already has valid values, otherwise infers based on targetType.
  */
 export function assessOptimization(plan: OptimizationPlan): OptimizationPlan {
   const validLevels: Array<'high' | 'medium' | 'low'> = ['high', 'medium', 'low'];
@@ -451,7 +461,7 @@ export function assessOptimization(plan: OptimizationPlan): OptimizationPlan {
 }
 
 // ============================================================
-// 內部輔助函式
+// Internal helper functions
 // ============================================================
 
 function getTemplatesForCategory(
@@ -462,11 +472,11 @@ function getTemplatesForCategory(
 
   switch (category) {
     case 'gpu': {
-      // 檢查是否為 shader 相關
+      // Check if shader-related
       if (descLower.includes('shader')) {
         return SHADER_PLANS;
       }
-      // 預設為 draw call 相關
+      // Default to draw call related
       return DRAW_CALL_PLANS;
     }
     case 'memory':

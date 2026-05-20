@@ -4,6 +4,14 @@
  * Attempts to read the `project_info` resource from the unity-mcp server
  * and returns a structured health status with actionable error messages.
  *
+ * This module provides MCP connection health checks for Unity Editor
+ * integration via the unity-mcp package (https://github.com/CoplayDev/unity-mcp).
+ * The package is installed inside the developer's Unity project via Package
+ * Manager (Window > Package Manager > Add package from git URL) and runs an
+ * MCP server on `localhost` that this module talks to. When that bridge is
+ * missing, outdated, or stopped, every other workflow will fail, which is why
+ * the diagnostic hints below explicitly reference `unity-mcp` by name.
+ *
  * Requirement: All (MCP connection foundation)
  */
 
@@ -48,7 +56,7 @@ export function classifyError(error: unknown): DiagnosticHint {
     return {
       errorType: 'Connection Refused',
       suggestion:
-        '請在 Unity Editor 中開啟 Window > MCP for Unity > Start Server，確認 MCP Server 已啟動。',
+        'Open Window > MCP for Unity > Start Server in Unity Editor to confirm the MCP Server is running.',
     };
   }
 
@@ -56,7 +64,7 @@ export function classifyError(error: unknown): DiagnosticHint {
     return {
       errorType: 'Connection Timeout',
       suggestion:
-        'Unity Editor 可能正在執行耗時操作（編譯或建置中），請稍候重試。',
+        'Unity Editor may be performing a time-consuming operation (compiling or building). Please wait and retry.',
     };
   }
 
@@ -64,7 +72,7 @@ export function classifyError(error: unknown): DiagnosticHint {
     return {
       errorType: 'Host Unreachable',
       suggestion:
-        '請確認 localhost:8080 未被其他程式佔用，且網路配置正常。',
+        'Verify that localhost:8080 is not occupied by another process and that network configuration is correct.',
     };
   }
 
@@ -72,14 +80,14 @@ export function classifyError(error: unknown): DiagnosticHint {
     return {
       errorType: 'Invalid Response',
       suggestion:
-        'MCP Server 回應格式異常，請更新 unity-mcp UPM 套件至最新版本。',
+        'MCP Server response format is abnormal. The unity-mcp package (the open-source UPM bridge that exposes Unity Editor to MCP clients, installed in your Unity project under Window > Package Manager) is likely outdated. Please update the unity-mcp UPM package in your Unity project to the latest version.',
     };
   }
 
   return {
     errorType: 'Unknown Error',
     suggestion:
-      '請確認 Unity Editor 已開啟並載入專案，且 MCP Server 已啟動（Window > MCP for Unity > Start Server）。',
+      'Ensure Unity Editor is open with a project loaded and MCP Server is running (Window > MCP for Unity > Start Server).',
   };
 }
 
@@ -94,7 +102,8 @@ export function classifyError(error: unknown): DiagnosticHint {
  * The `fetchFn` parameter allows callers to inject their own HTTP
  * implementation (or a test stub). It defaults to the global `fetch`.
  *
- * @param serverUrl - Base URL of the MCP server (e.g. `http://localhost:8080/mcp`).
+ * @param serverUrl - Base URL of the MCP server (e.g. `<your-mcp-server-url>`).
+ *                    Security: HTTP is intentional — this endpoint is local-only (loopback) and never exposed externally.
  * @param fetchFn   - Optional fetch implementation for testing.
  * @returns A structured health result.
  */
@@ -122,7 +131,7 @@ export async function checkMcpHealth(
       const hint = classifyError(new Error(`HTTP ${response.status}`));
       return {
         status: 'unhealthy',
-        message: `MCP Server 回傳 HTTP ${response.status}。${hint.suggestion}`,
+        message: `MCP Server returned HTTP ${response.status}. ${hint.suggestion}`,
         serverUrl,
       };
     }
@@ -136,14 +145,14 @@ export async function checkMcpHealth(
     if (body.error) {
       return {
         status: 'unhealthy',
-        message: `MCP Server 回傳錯誤：${body.error.message ?? JSON.stringify(body.error)}`,
+        message: `MCP Server returned error: ${body.error.message ?? JSON.stringify(body.error)}`,
         serverUrl,
       };
     }
 
     return {
       status: 'healthy',
-      message: 'MCP 連線正常。',
+      message: 'MCP connection is healthy.',
       serverUrl,
       responseTimeMs: elapsed,
     };

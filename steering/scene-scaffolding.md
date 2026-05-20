@@ -1,37 +1,43 @@
-# 場景建置加速 Steering
+# Scene Scaffolding Acceleration Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity scene scaffolding steering guide / Unity 場景架構快速搭建的 steering 指引，涵蓋場景模板載入、GameObject 階層生成、衝突處理及生成摘要。 -->
 
-你是 Unity 場景架構專家。當開發者要求快速搭建場景、生成遊戲物件階層、或使用場景範本時，你應該運用本文件中的領域知識，將開發者的高階意圖轉化為精確的 MCP 工具呼叫序列。
+> **Product context**: This steering file provides Unity scene structure generation guidance. Configuration paths starting with `Assets/UnityAccelerator/` refer to the project-level extension folder inside your Unity project, where developers store custom presets, scaffolds, and templates that override the built-in ones. If you are adapting this guide for an unrelated Unity project, replace `UnityAccelerator` with your own project namespace (for example, `Assets/<YourProject>/Config/Scaffolds/`).
 
-## 工作流程
+## Role and Purpose
 
-### 標準場景生成流程
+This document provides Unity scene architecture expertise. When the developer requests scene structure generation, GameObject hierarchy creation, or scene template usage, apply the domain knowledge in this document to translate high-level intent into precise MCP tool call sequences.
+
+## Workflow
+
+### Standard Scene Generation Process
 
 ```
-確認類型 → 載入 Scaffold → 建立場景 → 建立物件階層 → 檢查衝突 → 生成摘要
+Confirm type → Load Scaffold → Create scene → Build hierarchy → Check conflicts → Generate summary
 ```
 
-1. **確認場景類型**：與開發者確認需要的場景類型（2D 平台、3D 第一人稱、UI 選單、開放世界、多人大廳）
-2. **載入 Scaffold**：從 `templates/scaffolds/` 載入對應的 Scene_Scaffold JSON（自訂位置優先，不存在則回退至內建範本）
-3. **建立場景**：使用 `manage_scene(action: "create")` 建立新場景或開啟目標場景
-4. **建立物件階層**：依照 Scaffold 的 hierarchy 定義，使用 `manage_gameobject`、`manage_components`、`manage_camera`、`manage_ui` 遞迴建立物件與元件
-5. **檢查衝突**：使用 `find_gameobjects` 檢查目標場景中是否已有同名物件
-6. **生成摘要**：計算建立的物件數量與元件清單，在 Console 中顯示結構化摘要
+1. **Confirm Scene Type**: Confirm the required scene type with the developer (2D platformer, 3D first-person, UI menu, open world, multiplayer lobby, architectural visualization, training simulation, data visualization, educational tool)
+2. **Load Scaffold**: Load the corresponding Scene_Scaffold JSON from `templates/scaffolds/` (custom location takes priority; falls back to built-in templates)
+3. **Create Scene**: Use `manage_scene(action: "create")` to create a new scene or open the target scene
+4. **Build Hierarchy**: Following the Scaffold hierarchy definition, recursively create objects and components using `manage_gameobject`, `manage_components`, `manage_camera`, `manage_ui`
+5. **Check Conflicts**: Use `find_gameobjects` to check if objects with the same name already exist in the target scene
+6. **Generate Summary**: Calculate the number of created objects and component list, display a structured summary in Console
 
-## 內建 Scene_Scaffold 類型
+## Built-in Scene Scaffold Types
 
-| Scaffold 名稱 | 類別 | 檔案 | 適用場景 |
-|---------------|------|------|----------|
-| 2D Platformer | 2D | `2d-platformer.json` | 2D 橫向捲軸平台遊戲 |
-| 3D First Person | 3D | `3d-first-person.json` | 3D 第一人稱射擊/探索 |
-| UI Menu | UI | `ui-menu.json` | 主選單、設定畫面 |
-| Open World Base | 3D | `open-world-base.json` | 開放世界基礎場景 |
-| Multiplayer Lobby | Multiplayer | `multiplayer-lobby.json` | 多人遊戲大廳 |
+| Scaffold Name | Category | File | Use Case |
+|---------------|----------|------|----------|
+| 2D Platformer | 2D | `2d-platformer.json` | 2D side-scrolling platform game |
+| 3D First Person | 3D | `3d-first-person.json` | 3D first-person shooter/exploration |
+| UI Menu | UI | `ui-menu.json` | Main menu, settings screen |
+| Open World Base | 3D | `open-world-base.json` | Open world base scene |
+| Multiplayer Lobby | Multiplayer | `multiplayer-lobby.json` | Multiplayer game lobby |
 
-## MCP 工具呼叫序列範例
+> **Non-gaming use cases**: The built-in scaffolds cover common Unity project types including games, architectural visualization (3D building walkthroughs), training simulations (interactive learning environments), data dashboards (visual data displays), educational tools (interactive teaching applications), and more. Choose the scaffold that best matches your project structure. For example, an architectural walkthrough might start from `3d-first-person.json` but replace the FPSController with a WalkController and add measurement UI. You can save adapted structures as custom scaffolds for reuse (see Custom Scaffold Recommendations below).
 
-### 3D 第一人稱場景生成
+## MCP Tool Call Sequence Examples
+
+### 3D First-Person Scene Generation
 
 ```
 1. manage_scene(action: "create", name: "FPSLevel")
@@ -45,7 +51,7 @@
 9. manage_scene(action: "save")
 ```
 
-### 2D 平台遊戲場景生成
+### 2D Platformer Scene Generation
 
 ```
 1. manage_scene(action: "create", name: "PlatformerLevel")
@@ -59,7 +65,7 @@
 9. manage_scene(action: "save")
 ```
 
-### UI 選單場景生成
+### UI Menu Scene Generation
 
 ```
 1. manage_scene(action: "create", name: "MainMenu")
@@ -73,7 +79,7 @@
 9. manage_scene(action: "save")
 ```
 
-### 批次建立物件階層
+### Batch Create Object Hierarchy
 
 ```
 batch_execute(commands: [
@@ -83,45 +89,45 @@ batch_execute(commands: [
 ])
 ```
 
-## 衝突處理指引
+## Conflict Handling Guide
 
-### 衝突偵測流程
+### Conflict Detection Flow
 
-在建立物件前，使用 `find_gameobjects` 檢查目標場景中是否已有同名物件：
+Before creating objects, use `find_gameobjects` to check if objects with the same name already exist in the target scene:
 
 ```
 find_gameobjects(name: "FPSController")
 ```
 
-### 衝突處理選項
+### Conflict Handling Options
 
-若偵測到同名物件，詢問開發者選擇：
+If same-name objects are detected, ask the developer to choose:
 
-| 選項 | 行為 |
-|------|------|
-| **覆蓋** | 刪除場景中的同名物件，重新建立 Scaffold 定義的物件 |
-| **重新命名** | 為 Scaffold 物件加上後綴（如 `FPSController_1`）避免衝突 |
-| **取消** | 跳過該物件，繼續處理其餘物件 |
+| Option | Behavior |
+|--------|----------|
+| **Overwrite** | Delete same-name objects in the scene, recreate Scaffold-defined objects |
+| **Rename** | Add a suffix to Scaffold objects (e.g., `FPSController_1`) to avoid conflicts |
+| **Cancel** | Skip that object, continue processing remaining objects |
 
-### 衝突偵測範例
-
-```
-1. 從 Scaffold hierarchy 提取所有物件名稱（含遞迴子物件）
-2. 對每個名稱呼叫 find_gameobjects 檢查是否存在
-3. 收集所有衝突名稱
-4. 若有衝突，一次性列出所有衝突物件供開發者選擇處理方式
-```
-
-## 生成摘要格式
-
-場景生成完成後，在 Console 中顯示結構化摘要：
+### Conflict Detection Example
 
 ```
-=== 場景生成摘要 ===
-場景名稱：FPSLevel
-Scaffold：3D First Person
+1. Extract all object names from Scaffold hierarchy (including recursive children)
+2. Call find_gameobjects for each name to check existence
+3. Collect all conflicting names
+4. If conflicts exist, list all conflicting objects at once for the developer to choose handling method
+```
 
-建立物件：8 個
+## Generation Summary Format
+
+After scene generation completes, display a structured summary in Console:
+
+```
+=== Scene Generation Summary ===
+Scene Name: FPSLevel
+Scaffold: 3D First Person
+
+Objects Created: 8
   - Directional Light
   - Terrain
   - FPSController
@@ -129,33 +135,33 @@ Scaffold：3D First Person
   - HUDCanvas
   - ...
 
-元件清單：
+Components:
   - Light, Terrain, TerrainCollider, CharacterController, Camera, Canvas, ...
 
-衝突處理：無衝突
-狀態：完成
+Conflict Handling: No conflicts
+Status: Complete
 ```
 
-## 最佳實踐
+## Best Practices
 
-### 場景結構慣例
+### Scene Structure Conventions
 
-- 使用 `---GroupName---` 格式的空物件作為分組標記（如 `---Environment---`、`---Player---`）
-- 攝影機物件應設定 `MainCamera` tag
-- UI Canvas 建議使用 Screen Space - Overlay 模式（預設）
-- 光源建議使用 Directional Light 作為主光源
+- Use empty objects with `---GroupName---` format as group markers (e.g., `---Environment---`, `---Player---`)
+- Camera objects should have the `MainCamera` tag set
+- UI Canvas should use Screen Space - Overlay mode (default)
+- Use Directional Light as the main light source
 
-### 元件配置建議
+### Component Configuration Recommendations
 
-| 場景類型 | 建議元件 | 理由 |
-|----------|----------|------|
-| 3D 第一人稱 | CharacterController + AudioListener | 標準 FPS 控制器配置 |
-| 2D 平台 | Rigidbody2D + BoxCollider2D | 2D 物理互動基礎 |
-| UI 選單 | Canvas + GraphicRaycaster + EventSystem | UI 互動必要元件 |
-| 開放世界 | Terrain + WindZone + ReflectionProbe | 大型場景環境基礎 |
+| Scene Type | Recommended Components | Reason |
+|------------|----------------------|--------|
+| 3D First Person | CharacterController + AudioListener | Standard first-person controller setup (character movement and camera control) |
+| 2D Platform | Rigidbody2D + BoxCollider2D | 2D physics interaction foundation (enables collision detection and physics-based movement) |
+| UI Menu | Canvas + GraphicRaycaster + EventSystem | Required components for UI interaction |
+| Open World | Terrain + WindZone + ReflectionProbe | Large scene environment foundation |
 
-### 自訂 Scaffold 建議
+### Custom Scaffold Recommendations
 
-- 開發者可將現有場景結構儲存為自訂 Scaffold
-- 自訂 Scaffold 存放於 `Assets/KiroUnityPower/Config/Scaffolds/`
-- 建議為自訂 Scaffold 加上描述性名稱與 category 分類
+- Developers can save existing scene structures as custom Scaffolds
+- Custom Scaffolds are stored in `Assets/UnityAccelerator/Config/Scaffolds/` (replace `UnityAccelerator` with your own namespace if adapting this template for a different project)
+- Add descriptive names and category classification to custom Scaffolds

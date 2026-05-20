@@ -220,7 +220,7 @@ export function calculateCouplingScores(
  * - LayerSeparation: Separate UI logic from game logic into different layers
  * - InterfaceDecoupling: Use interfaces instead of concrete type references
  *
- * Bidirectional dependencies are flagged as severe coupling and prioritised
+ * Bidirectional dependencies are flagged as severe coupling and prioritized
  * for refactoring (Requirement 3.5).
  *
  * Pairs with couplingScore at or below the threshold produce no suggestions.
@@ -240,7 +240,7 @@ export function generateRefactoringSuggestions(
 
     const targets = [pair.scriptA, pair.scriptB];
 
-    // Bidirectional → severe coupling, prioritise EventBus + InterfaceDecoupling
+    // Bidirectional → severe coupling, prioritize EventBus + InterfaceDecoupling
     if (pair.isBidirectional) {
       suggestions.push(buildSuggestion('EventBus', targets, pair, 'high'));
       suggestions.push(buildSuggestion('InterfaceDecoupling', targets, pair, 'high'));

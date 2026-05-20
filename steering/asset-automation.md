@@ -1,51 +1,56 @@
-# 資產設定自動化 Steering
+# Asset Automation Steering
+<!-- File Purpose / 本檔案用途: Unity asset automation steering guide / Unity 資產設定自動化的 steering 指引，涵蓋資產批次設定、類型偵測、匯入參數管理及資產管線最佳實踐。 -->
 
-## 你的角色
+> **Context**: This steering file is designed for AI assistants helping developers with Unity asset automation tasks. It uses "the developer" to refer to the human being assisted.
 
-你是 Unity 資產管線專家。當開發者要求批次設定資產、偵測資產類型、或管理資產匯入參數時，你應該運用本文件中的領域知識，將開發者的高階意圖轉化為精確的 MCP 工具呼叫序列。
+## Role and Purpose
 
-## 工作流程
+Unity's asset import pipeline can be automated through batch operations and preset configurations. When working on Unity projects, manual import-setting management is time-consuming: when multiple textures are imported, discovering that compression settings need adjustment across all files requires manually adjusting each file individually, which is time-consuming and error-prone. This guide focuses on what actually works in production — using filename conventions to detect asset type, applying Asset Presets in batch, and producing a change summary the developer can review before committing. Use it whenever the developer needs to configure many assets at once or wants to enforce import settings as code.
 
-### 標準資產批次操作流程
+## Asset Import & Configuration Workflow
+
+### Standard Asset Batch Operation Flow
 
 ```
-掃描 → 偵測類型 → 載入 Preset → batch_execute 套用 → 生成變更摘要
+Scan → Detect type → Load Preset → batch_execute apply → Generate change summary
 ```
 
-1. **掃描資料夾**：使用 `manage_asset(action: "list")` 遞迴掃描指定資料夾，取得所有資產檔案清單
-2. **偵測資產類型**：根據檔案命名慣例（見下方規則）自動判斷資產類型，建議適用的 Asset_Preset
-3. **載入 Preset**：從 `templates/presets/` 載入對應的 Asset_Preset JSON（自訂位置優先，不存在則回退至內建範本）
-4. **批次套用**：使用 `batch_execute` 將 Preset 中定義的參數批次套用至所有選定資產
-5. **生成摘要**：比對每個資產套用前後的參數差異，產生結構化的變更摘要
+1. **Scan folder**: Use `manage_asset(action: "list")` to recursively scan the specified folder and retrieve a list of all asset files
+2. **Detect asset type**: Automatically determine asset type based on file naming conventions (see rules below) and suggest the applicable Asset_Preset
+3. **Load Preset**: Load the corresponding Asset_Preset JSON from `templates/presets/` (custom location takes priority; falls back to built-in template if not found)
+4. **Batch apply**: Use `batch_execute` to batch-apply the parameters defined in the Preset to all selected assets
+5. **Generate summary**: Compare each asset's parameters before and after application, producing a structured change summary
 
-## 命名慣例規則
+## Naming Convention Rules
 
-根據檔案名稱中的關鍵字自動偵測資產類型：
+Automatically detect asset type based on keywords in the file name:
 
-| 命名模式 | 資產類型 | 對應 Preset |
-|----------|----------|-------------|
+| Naming Pattern | Asset Type | Corresponding Preset |
+|----------------|------------|---------------------|
 | `_char_`, `_character_`, `_hero_`, `_npc_`, `_player_` | 3D Character | `3d-character.json` |
 | `_env_`, `_prop_`, `_building_`, `_terrain_`, `_rock_` | 3D Environment | `3d-environment.json` |
 | `_sprite_`, `_2d_`, `_pixel_` | 2D Sprite | `2d-sprite.json` |
 | `_ui_`, `_icon_`, `_hud_`, `_button_`, `_panel_` | UI Texture | `ui-texture.json` |
 | `_sfx_`, `_bgm_`, `_music_`, `_audio_`, `_sound_` | Audio SFX | `audio-sfx.json` |
 
-匹配規則：
-- 匹配不區分大小寫
-- 檔名中只要包含上述任一關鍵字即視為匹配
-- 若檔名不匹配任何模式，不自動建議 Preset，由開發者手動選擇
+Matching rules:
+- Matching is case-insensitive
+- A file name containing any of the above keywords is considered a match
+- If the file name does not match any pattern, no Preset is automatically suggested; the developer must select manually
 
-## MCP 工具用法範例
+## MCP Tool Usage Examples
 
-### 掃描資料夾
+The examples below cover the three operations the developer will use most often: scanning, applying settings to a single asset, and applying settings in batch. Real workflows usually chain these together — scan first to confirm the file list, dry-run on one asset, then batch-execute. A brief manual review between scan and batch-execute is recommended, especially the first time a Preset is run against a new folder.
+
+### Scan Folder
 
 ```
 manage_asset(action: "list", path: "Assets/Characters/", recursive: true, filter: "*.fbx,*.obj")
 ```
 
-回傳該資料夾下所有符合篩選條件的資產路徑清單。
+Returns a list of all asset paths matching the filter conditions under the specified folder.
 
-### 設定模型導入參數
+### Set Model Import Parameters
 
 ```
 manage_asset(action: "set_import_settings", path: "Assets/Characters/hero.fbx", settings: {
@@ -56,7 +61,7 @@ manage_asset(action: "set_import_settings", path: "Assets/Characters/hero.fbx", 
 })
 ```
 
-### 批次執行
+### Batch Execute
 
 ```
 batch_execute(commands: [
@@ -65,70 +70,72 @@ batch_execute(commands: [
 ])
 ```
 
-### 取得資產目前設定（用於變更摘要比對）
+### Get Current Asset Settings (for change summary comparison)
 
 ```
 manage_asset(action: "get_info", path: "Assets/Characters/hero.fbx")
 ```
 
-## 錯誤處理指引
+## Asset Import Failure Troubleshooting
 
-### 套用失敗回復
+Batch operations fail in predictable ways: a file is locked, an asset path was renamed, or a Preset references a feature the importer does not support. The patterns below describe how to recover gracefully — the goal is to record the failure, leave the asset in a known state, and keep moving. We have found this matters most when batches are large enough that re-running everything would be slow.
 
-- 在套用 Preset 前，先記錄資產的原始參數狀態
-- 若 MCP 工具呼叫回傳錯誤，立即回復該資產至原始狀態
-- 記錄錯誤原因（資產路徑、錯誤訊息）
-- 繼續處理剩餘資產，不因單一失敗中斷整批操作
+### Apply Failure Recovery
 
-### 批次操作部分失敗
+- Before applying a Preset, record the asset's original parameter state
+- If an MCP tool call returns an error, immediately revert that asset to its original state
+- Record the error reason (asset path, error message)
+- Continue processing remaining assets; do not interrupt the entire batch due to a single failure
 
-- 記錄每個操作的成功/失敗狀態
-- 最終彙報格式：「成功 N 個、失敗 M 個」
-- 列出每個失敗資產的路徑與錯誤原因
+### Partial Batch Operation Failure
 
-### 常見錯誤情境
+- Record the success/failure status of each operation
+- Final report format: "Succeeded: N, Failed: M"
+- List each failed asset's path and error reason
 
-| 錯誤 | 處理方式 |
-|------|----------|
-| 資產路徑不存在 | 告知開發者並建議正確路徑 |
-| 檔案被鎖定 | 提示開發者關閉佔用該檔案的程式 |
-| 不支援的檔案類型 | 跳過並告知開發者該檔案類型不在支援清單中 |
-| JSON Preset 格式錯誤 | 回退至內建範本，告知開發者自訂範本有問題 |
+### Common Error Scenarios
 
-## 最佳實踐
+| Error | Handling |
+|-------|----------|
+| Asset path does not exist | Inform the developer and suggest the correct path |
+| File is locked | Prompt the developer to close the program occupying the file |
+| Unsupported file type | Skip and inform the developer that the file type is not in the supported list |
+| JSON Preset format error | Fall back to built-in template, inform the developer that the custom template has issues |
 
-### Rig 類型選擇
+## Asset Pipeline Best Practices
 
-| 資產類型 | 建議 Rig | 理由 |
-|----------|----------|------|
-| 有骨架動畫的人形角色 | Humanoid | 支援 Mecanim 重定向動畫 |
-| 非人形動畫模型（動物、機械） | Generic | 支援自訂骨架動畫 |
-| 環境模型、道具 | None | 無需動畫骨架，減少匯入時間 |
-| 帶簡單動畫的道具 | Generic | 支援基本動畫播放 |
+### Rig Type Selection
 
-### 貼圖壓縮建議
+| Asset Type | Recommended Rig | Reason |
+|------------|----------------|--------|
+| Humanoid characters with skeletal animation | Humanoid | Supports Mecanim animation retargeting |
+| Non-humanoid animated models (animals, machines) | Generic | Supports custom skeleton animation |
+| Environment models, props | None | No animation skeleton needed, reduces import time |
+| Props with simple animation | Generic | Supports basic animation playback |
 
-| 目標平台 | 建議壓縮格式 | 理由 |
-|----------|-------------|------|
-| 行動平台（iOS/Android） | ASTC | 品質與檔案大小的最佳平衡 |
-| 桌面平台（Windows/Mac） | BC7 | 高品質壓縮，桌面 GPU 原生支援 |
-| WebGL | ETC2 / ASTC | 瀏覽器相容性佳 |
-| 通用（不確定平台） | NormalQuality | 安全的預設選擇 |
+### Texture Compression Recommendations
 
-### Mesh 壓縮建議
+| Target Platform | Recommended Compression Format | Reason |
+|-----------------|-------------------------------|--------|
+| Mobile (iOS/Android) | ASTC | Best balance of quality and file size |
+| Desktop (Windows/Mac) | BC7 | High-quality compression, natively supported by desktop GPUs |
+| WebGL | ETC2 / ASTC | Good browser compatibility |
+| Universal (platform uncertain) | NormalQuality | Safe default choice |
 
-| 資產類型 | 建議壓縮等級 | 理由 |
-|----------|-------------|------|
-| 主角模型 | Off 或 Low | 保持最高視覺品質 |
-| NPC / 遠景角色 | Medium | 平衡品質與效能 |
-| 環境模型 | Medium 或 High | 數量多，壓縮效益大 |
-| UI 元素 | Off | 通常面數極低，無需壓縮 |
+### Mesh Compression Recommendations
 
-### 支援的資產檔案類型
+| Asset Type | Recommended Compression Level | Reason |
+|------------|------------------------------|--------|
+| Main character models | Off or Low | Maintain highest visual quality |
+| NPCs / distant characters | Medium | Balance quality and performance |
+| Environment models | Medium or High | Large quantity, significant compression benefit |
+| UI elements | Off | Typically very low poly count, no compression needed |
 
-**3D 模型**：`.fbx`, `.obj`, `.dae`, `.3ds`, `.blend`
-**貼圖**：`.png`, `.jpg`, `.jpeg`, `.tga`, `.psd`, `.tiff`, `.bmp`, `.gif`, `.exr`, `.hdr`
-**音效**：`.wav`, `.mp3`, `.ogg`, `.aiff`, `.flac`
-**材質與 Shader**：`.mat`, `.shader`, `.shadergraph`, `.cginc`, `.hlsl`
-**動畫**：`.anim`, `.controller`
-**其他**：`.prefab`, `.asset`, `.unity`
+### Supported Asset File Types
+
+**3D Models**: `.fbx`, `.obj`, `.dae`, `.3ds`, `.blend`
+**Textures**: `.png`, `.jpg`, `.jpeg`, `.tga`, `.psd`, `.tiff`, `.bmp`, `.gif`, `.exr`, `.hdr`
+**Audio**: `.wav`, `.mp3`, `.ogg`, `.aiff`, `.flac`
+**Materials & Shaders**: `.mat`, `.shader`, `.shadergraph`, `.cginc`, `.hlsl`
+**Animations**: `.anim`, `.controller`
+**Other**: `.prefab`, `.asset`, `.unity`

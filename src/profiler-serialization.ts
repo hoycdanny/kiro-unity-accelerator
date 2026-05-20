@@ -1,9 +1,10 @@
 /**
- * ProfilerSerialization — 序列化、反序列化與格式化效能分析報告。
+ * ProfilerSerialization — Serialize, deserialize, and format performance analysis reports.
+ * 序列化、反序列化與格式化效能分析報告。
  *
- * - serializeReport：將 ProfilerReport 序列化為 JSON 字串
- * - deserializeReport：將 JSON 字串反序列化為 ProfilerReport，無效格式拋出描述性錯誤
- * - formatReportAsText：將報告格式化為人類可讀的文字
+ * - serializeReport: Serialize a ProfilerReport to a JSON string / 將 ProfilerReport 序列化為 JSON 字串
+ * - deserializeReport: Deserialize a JSON string to a ProfilerReport; throws descriptive errors on invalid format / 將 JSON 字串反序列化為 ProfilerReport，無效格式拋出描述性錯誤
+ * - formatReportAsText: Format a report as human-readable text / 將報告格式化為人類可讀的文字
  */
 
 import {
@@ -16,7 +17,7 @@ import {
 } from './types';
 
 // ============================================================
-// 公開 API
+// Public API / 公開 API
 // ============================================================
 
 /**
@@ -136,7 +137,7 @@ export function formatReportAsText(report: ProfilerReport): string {
 }
 
 // ============================================================
-// 驗證輔助函式
+// Validation helpers / 驗證輔助函式
 // ============================================================
 
 function validateProfilerReport(value: unknown): void {

@@ -27,14 +27,14 @@ const ANTIPATTERN_RULES: AntipatternRule[] = [
     type: 'GetComponentInUpdate',
     pattern: /GetComponent\s*[<(]/,
     severity: SeverityLevel.Error,
-    description: 'GetComponent called in Update method — cache the result in Awake/Start instead.',
+    description: 'GetComponent called in Update method — this causes performance issues because it searches for the component every frame. Consider caching the component reference in Awake or Start (called once) and reusing it. Example: private Rigidbody rb; void Awake() { rb = GetComponent<Rigidbody>(); }',
     updateOnly: true,
   },
   {
     type: 'StringConcatInUpdate',
     pattern: /(?:string\s+\w+\s*=.*\+|"\s*\+\s*\w|\w\s*\+\s*"|\+=\s*")/,
     severity: SeverityLevel.Warning,
-    description: 'String concatenation in Update method causes GC allocation — use StringBuilder.',
+    description: 'String concatenation in Update method causes memory allocation (GC pressure) — consider using StringBuilder for better performance.',
     updateOnly: true,
   },
   {

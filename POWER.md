@@ -1,89 +1,93 @@
-# Kiro Unity Power
+# Unity Accelerator Power
 
 ## Overview
 
-You now have the ability to remotely control Unity Editor via MCP (Model Context Protocol). This Power transforms you into a Unity development expert that can execute asset management, scene scaffolding, build automation, performance analysis, code quality checks, and more — all through natural language commands from the developer.
+This package provides Unity development automation capabilities that can execute asset management, scene scaffolding, build automation, performance analysis, code quality checks, and more — all through natural language commands from the developer.
 
 ### Architecture
 
-- **Kiro (You) = Brain**: Understand developer intent, plan execution strategies, orchestrate MCP tool call sequences
-- **unity-mcp = Execution Layer**: Open-source MCP server ([CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)) bridging you to Unity Editor
-- **This Power Package = Intelligence Layer**: POWER.md (this file), steering files, and preset templates that give you deep Unity domain knowledge
+- **AI Layer**: Understand user intent, plan execution strategies, orchestrate MCP tool call sequences
+- **unity-mcp = Execution Layer**: Open-source MCP server ([CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)) bridging the AI to Unity Editor. This guide uses unity-mcp as the MCP bridge implementation. Other MCP-compatible bridges may also work.
+- **This Package = Intelligence Layer**: POWER.md (this file), steering files, and preset templates that provide deep Unity domain knowledge
 
 ### Key Principles
 
-1. **Zero Friction**: Install Power + UPM package + start MCP server — three steps, no cloud accounts needed
-2. **Kiro-Centric**: All operations originate from you; Unity Editor is the controlled target
-3. **Intelligence First**: Your value comes from steering files and workflow knowledge, not plumbing
-4. **Natural Language Driven**: Developers describe intent; you translate to MCP tool call sequences
-5. **Composable**: Complex workflows are composed from multiple MCP tool calls chained via `batch_execute`
+1. **Three-Step Setup**: Install the package, add the UPM dependency, and start the MCP server
+2. **AI-Driven Architecture**: All operations originate from the AI layer; Unity Editor is the controlled target
+3. **Knowledge-Driven**: Architecture separates domain knowledge (steering files) from execution logic (MCP tools)
+4. **Natural Language Driven**: Developers describe intent; the AI translates to MCP tool call sequences
+5. **Composable Architecture**: Complex workflows are composed from multiple MCP tool calls chained via `batch_execute`
 6. **Local First**: All core features run locally; Cloud_Assist is an optional transparent acceleration layer
 
-### Mandatory Behavior Rules (ALWAYS FOLLOW)
+### Core Behaviors
 
-**These rules apply to EVERY request when this Power is active, regardless of whether the developer mentions "Unity" explicitly.**
+**These behaviors are always active when this Power is loaded, regardless of whether the developer mentions "Unity" explicitly.**
 
-0. **Language — 繁體中文**: You MUST respond in Traditional Chinese (繁體中文) for ALL interactions when this Power is active. This applies regardless of what language the developer uses to ask their question. Technical terms may remain in English with Chinese explanation on first use. Code identifiers stay in English. The ONLY exception is when the developer explicitly requests English responses.
+#### Language
 
-1. **Auto-Activate**: When unity-mcp tools are available in your tool list, this Power is active. You do NOT need the developer to say "Unity" — any request that involves scene objects, assets, scripts, builds, or game content should use this Power's workflows.
+Respond in the language the developer uses. If they write in Chinese, respond in Traditional Chinese (繁體中文). If they write in English or another language, match that language. When no preference is clear, default to Traditional Chinese. Technical terms may remain in English with Chinese explanation on first use. Code identifiers always stay in English.
 
-2. **Read Steering Before Acting**: Before executing any multi-step operation, read the relevant steering file(s):
-   - Scene/GameObject operations → `scene-scaffolding.md`
-   - Asset import/configuration → `asset-automation.md`
-   - Build operations → `build-automation.md`
-   - Performance concerns → `performance-analysis.md`
-   - Code/architecture → `code-quality.md`
-   - Platform targeting → `platform-compatibility.md`
-   - Asset dependencies → `asset-dependencies.md`
-   - Testing → `cross-platform-testing.md`
-   - Multi-step automation → `workflow-automation.md`
-   - Knowledge/docs → `knowledge-management.md`
-   - Level design/Editor tools → `level-design-tooling.md`
-   - UI analysis → `ui-dependency-analysis.md`
-   - General best practices → `unity-general.md`
+#### Auto-Activation
 
-3. **Post-Operation Checks**: After completing scene modifications that add 10+ objects or significant content:
-   - Run a quick performance check (draw calls, memory estimate)
-   - Check for obvious issues (missing colliders on walkable surfaces, shader compatibility with current render pipeline)
-   - Report findings to the developer
+When unity-mcp tools are available in the tool list, this Power is active. Any request involving scene objects, assets, scripts, builds, or game content should use this Power's workflows — the developer does not need to explicitly mention "Unity".
 
-4. **Render Pipeline Awareness**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets. Flag shader incompatibilities immediately.
+#### Steering-First Approach
 
-5. **Play Mode Safety**: Never make permanent scene changes while in Play Mode. Always verify editor state before modifying and saving scenes.
+Before executing any multi-step operation, read the relevant steering file(s) to ensure domain-correct behavior:
 
-6. **Batch Operation Best Practices**: When placing multiple objects (trees, props, enemies, etc.):
-   - Ensure proper physics (add colliders where appropriate)
-   - Vary rotation and scale for natural appearance
-   - Check performance impact for large quantities (50+)
-   - Respect the project's existing organizational structure (parent objects, naming conventions)
+| Domain | Steering File |
+|--------|--------------|
+| Scene/GameObject operations | `scene-scaffolding.md` |
+| Asset import/configuration | `asset-automation.md` |
+| Build operations | `build-automation.md` |
+| Performance concerns | `performance-analysis.md` |
+| Code/architecture | `code-quality.md` |
+| Platform targeting | `platform-compatibility.md` |
+| Asset dependencies | `asset-dependencies.md` |
+| Testing | `cross-platform-testing.md` |
+| Multi-step automation | `workflow-automation.md` |
+| Knowledge/docs | `knowledge-management.md` |
+| Level design/Editor tools | `level-design-tooling.md` |
+| UI analysis | `ui-dependency-analysis.md` |
+| General best practices | `unity-general.md` |
+
+#### Safety & Quality Checks
+
+- **Post-operation**: After scene modifications adding 10+ objects (which can impact rendering performance by increasing draw calls and memory usage), run a quick performance check (draw calls, memory estimate) and check for common issues (missing colliders, shader incompatibilities). Report findings to the developer. For guidance on interpreting these metrics, see the `performance-analysis.md` steering file.
+- **Render pipeline**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets. Flag shader incompatibilities immediately.
+- **Play Mode**: Never make permanent scene changes while in Play Mode. Verify editor state before modifying and saving scenes.
+- **Batch operations**: When placing multiple objects, ensure proper physics, vary rotation/scale for natural appearance, check performance impact for large quantities (50+), and respect the project's existing organizational structure.
 
 ## Setup
 
 ### Prerequisites
 
-1. Unity Editor installed and a project open
-2. Kiro IDE installed
+1. [Unity Editor](https://unity.com/download) installed and a project open (see [Unity Hub documentation](https://docs.unity3d.com/hub/manual/index.html) for getting started)
+2. The IDE installed
 
 ### Installation Steps
 
-1. **Install unity-mcp UPM package in Unity**:
+1. **Install the MCP bridge UPM package in Unity**:
    - Open Unity Editor → Window → Package Manager
-   - Add package from git URL: `https://github.com/CoplayDev/unity-mcp.git`
+   - Add package from git URL: `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main`
 
-2. **Install Kiro Unity Power in Kiro**:
-   - Open Kiro → Powers panel → Install "Kiro Unity Power"
+2. **Install this Power in the IDE**:
+   - Open the IDE → Powers panel → Install this Power
 
 3. **Start MCP Server in Unity**:
    - Unity Editor → Window → MCP for Unity → Start Server
-   - The server listens on `localhost:8080/mcp`
+   - The server listens on a local MCP endpoint (shown in the Unity MCP window; local-only loopback — communication that stays on the local computer and is not accessible from the network — see Security Note below)
 
-### 語言設定
+### Language Setting / 語言設定
 
-本 Power 預設使用**繁體中文**回覆所有互動內容。安裝完成後無需額外設定。
+This Power automatically adapts to the language the developer uses — write in the preferred language and it responds in kind. No configuration needed.
 
-- 技術術語保留英文原文並附中文說明
-- 程式碼變數/函式名稱維持英文（遵循 Unity/C# 慣例）
-- 如需切換為英文回覆，在專案中建立 `.kiro/steering/language-override.md`：
+本 Power 會自動適應您使用的語言 — 用任何語言提問，即以該語言回覆，無需額外設定。
+
+- If no language is detected from the developer's input, the default is Traditional Chinese (繁體中文)
+- Technical terms remain in English with explanation in the developer's language / 技術術語保留英文原文並附說明
+- Code identifiers stay in English (Unity/C# conventions) / 程式碼變數/函式名稱維持英文
+- To set a preferred response language, create a file named `language-override.md` in the `.kiro/steering/` directory of the project (note: folders starting with a dot are hidden by default on macOS/Linux; use `ls -a` or enable hidden files in the file manager to see them):
 
   ```markdown
   ---
@@ -96,14 +100,18 @@ You now have the ability to remotely control Unity Editor via MCP (Model Context
 ### MCP Connection
 
 **Primary — HTTP (recommended)**:
-The default connection uses HTTP transport at `http://localhost:8080/mcp`. This is configured in `mcp.json` and requires no additional setup beyond starting the MCP server in Unity.
+The default connection uses HTTP transport at the configured MCP server URL (local-only, not exposed to external networks). This is configured in `mcp.json` and requires no additional setup beyond starting the MCP server in Unity.
 
-**Backup — stdio via uvx**:
-If the HTTP connection is unavailable (e.g., port conflict, firewall issues), you can use the stdio transport mode as a fallback. This uses `uvx` to launch the unity-mcp server as a subprocess:
+> **Security Note**: HTTP is used intentionally. This endpoint communicates exclusively with the Unity Editor on `localhost` (loopback interface — network traffic that stays on the local machine). Traffic never leaves the local machine, so HTTPS is not required.
+
+**Backup — stdio (standard input/output — communication via text streams) via uvx**:
+If the HTTP connection is unavailable (e.g., port conflict, firewall issues), the stdio transport mode can be used as a fallback. This uses `uvx` (a Python package runner) to launch the MCP bridge as a subprocess (a child process managed by the IDE):
 
 - Command: `uvx`
 - Args: `["unity-mcp"]`
 - Transport: `stdio`
+
+> **Note**: If these technical concepts are unfamiliar, the HTTP mode (recommended above) works automatically without requiring understanding of these details. The stdio mode is only needed as a fallback.
 
 To switch to stdio mode, update `mcp.json`:
 ```json
@@ -123,7 +131,7 @@ To switch to stdio mode, update `mcp.json`:
 Before executing any MCP operation, perform a lightweight health check:
 1. Attempt to read the `project_info` resource
 2. If successful → MCP connection is healthy
-3. If failed → prompt the developer:
+3. If failed → prompt the developer to:
    - Confirm Unity Editor is open
    - Confirm MCP Server is started (Window → MCP for Unity → Start Server)
    - Confirm localhost:8080 is not occupied by another process
@@ -132,7 +140,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 本 Power 包含一個 `preToolUse` hook 檔案，位於 `hooks/pre-unity-tool.json`。
 
-**功能**：在 Kiro 呼叫任何 unity-mcp 相關工具之前，自動提醒 AI 必須先：
+**功能**：在 AI 呼叫任何 unity-mcp 相關工具之前，自動提醒 AI 必須先：
 1. 啟動（activate）本 Power 以載入完整文件
 2. 讀取對應的 steering file 以獲取該任務的最佳實踐指引
 3. 依照 Power 文件中定義的 workflow 執行操作
@@ -148,10 +156,10 @@ Before executing any MCP operation, perform a lightweight health check:
 
 | Tool | Description |
 |------|-------------|
-| `manage_asset` | Manage asset import settings, search assets, batch operations. Actions: `list`, `get_info`, `set_import_settings`, `get_dependencies` |
-| `manage_material` | Create, modify, and assign materials. Manage shader properties and material parameters |
-| `manage_texture` | Import and configure texture assets. Set compression, max size, filter mode, mip maps |
-| `manage_shader` | List, inspect, and manage shaders. Check shader features and compatibility |
+| `manage_asset` | Configure how Unity imports models, textures, and audio files. Use for batch operations when applying presets to multiple assets, or to query asset metadata before modification. Actions: `list`, `get_info`, `set_import_settings`, `get_dependencies` |
+| `manage_material` | Create, modify, and assign materials. Manage shader properties and material parameters. Pairs with `manage_shader` for compatibility checks |
+| `manage_texture` | Import and configure texture assets. Set compression, max size, filter mode, mip maps. Critical for platform-specific optimization |
+| `manage_shader` | List, inspect, and manage shaders. Check shader features and compatibility across target platforms |
 
 ### Scene & GameObject Management
 
@@ -186,8 +194,8 @@ Before executing any MCP operation, perform a lightweight health check:
 |------|-------------|
 | `run_tests` | Execute Unity Test Framework tests. Filter by category, platform, or test name |
 | `read_console` | Read Unity Editor console output. Get logs, warnings, errors |
-| `batch_execute` | Execute multiple MCP tool calls in sequence. Essential for complex workflows |
-| `find_gameobjects` | Search for GameObjects by name, tag, layer, component type, or custom filter |
+| `batch_execute` | Execute multiple MCP tool calls in sequence. Essential for complex workflows that combine scanning, configuration, and verification steps |
+| `find_gameobjects` | Search for GameObjects by name, tag, layer, component type, or custom filter. Use before scene modifications to detect conflicts |
 
 ### MCP Resources (Read-Only)
 
@@ -203,7 +211,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 1: Asset Batch Configuration (Requirement 1)
 
-**When the developer asks to batch-configure assets (e.g., "Set all models in Characters folder to Humanoid rig"):**
+**To batch-configure assets (e.g., "Set all models in Characters folder to Humanoid rig"):**
 
 **Step-by-step:**
 1. **Scan** — `manage_asset(action: "list", path: "Assets/Characters/", recursive: true, filter: "*.fbx,*.obj")`
@@ -226,7 +234,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 2: Scene Scaffolding (Requirement 2)
 
-**When the developer asks to quickly build a scene (e.g., "Create a 3D first-person scene"):**
+**To quickly build a scene (e.g., "Create a 3D first-person scene"):**
 
 **Step-by-step:**
 1. **Identify scene type** — Confirm which Scene_Scaffold the developer needs
@@ -244,20 +252,22 @@ Before executing any MCP operation, perform a lightweight health check:
 **Conflict handling:**
 - If the target scene already contains objects with the same name, ask the developer: Overwrite / Rename / Cancel
 
-**Built-in scaffolds (5 types):**
-- `2d-platformer` — 2D platformer game scene
-- `3d-first-person` — 3D FPS scene (FPSController, MainCamera, Terrain, Lights, HUD)
-- `ui-menu` — UI menu scene
-- `open-world-base` — Open world base scene
-- `multiplayer-lobby` — Multiplayer lobby scene
+**Built-in scaffolds (5 types — these templates work for any Unity project):**
+- `2d-platformer` — 2D side-scrolling scene (games, educational apps, interactive stories)
+- `3d-first-person` — 3D first-person scene (FPSController, MainCamera, Terrain, Lights, HUD) — also suitable for architectural walkthroughs and training simulations
+- `ui-menu` — UI menu scene (settings screens, dashboards, data displays)
+- `open-world-base` — Open world base scene (exploration, visualization, large environments)
+- `multiplayer-lobby` — Multiplayer lobby scene (collaborative tools, multi-user experiences)
+
+> **Alternative use case**: For an architectural visualization project, replace the 3D scene with a building walkthrough, replace gameplay mechanics with measurement tools and material inspectors, and run the same quality/performance checks.
 
 
 ### Workflow 3: Build Automation (Requirement 3)
 
-**When the developer asks to build the project (e.g., "Build for Windows"):**
+**To build the project (e.g., "Build for Windows"):**
 
 **Step-by-step:**
-1. **Load config** — Read the matching BuildConfig from `templates/build-configs/` or developer's custom config
+1. **Load config** — Read the matching BuildConfig from `templates/build-configs/` or the developer's custom config
 2. **Trigger build** — `manage_editor(action: "build", target: "StandaloneWindows64", scenes: [...], outputPath: "...")`
 3. **Monitor progress** — Poll `read_console()` to get build progress and logs
 4. **Handle result:**
@@ -266,8 +276,8 @@ Before executing any MCP operation, perform a lightweight health check:
 5. **Report** — Build result with duration, output size, and any warnings
 
 **Cloud_Assist mode (optional):**
-- When `useCloudAssist: true` in the build config, route the build task to Kiro-managed cloud infrastructure
-- The developer does NOT need to configure any cloud accounts or access keys
+- When `useCloudAssist: true` in the build config, route the build task to managed cloud infrastructure
+- The developer does NOT need to configure any cloud accounts or access keys — this is managed automatically. Teams with enterprise or compliance requirements can configure custom cloud settings (such as specific regions, VPCs, or private infrastructure)
 - Poll build status every 30 seconds and display progress in Unity Editor
 - On completion, automatically download build artifacts to the specified local output path
 
@@ -285,7 +295,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 4: Cross-Platform Testing (Requirement 4)
 
-**When the developer asks to run cross-platform tests (e.g., "Run tests for Android and iOS"):**
+**To run cross-platform tests (e.g., "Run tests for Android and iOS"):**
 
 **Step-by-step:**
 1. **Run local tests** — `run_tests(platform: "Android")` to execute Unity Test Framework tests in simulated environment
@@ -293,8 +303,8 @@ Before executing any MCP operation, perform a lightweight health check:
 3. **Report** — Display structured test results for each target platform
 
 **Cloud_Assist device testing (optional):**
-- When enabled, submit build artifacts to Kiro-managed cloud device pool
-- Developer does NOT need to configure cloud accounts or device pool settings
+- When enabled, submit build artifacts to managed cloud device pool
+- Developer does NOT need to configure cloud accounts or device pool settings — this is managed automatically. Teams with enterprise or compliance requirements can configure custom device pools or specific testing regions
 - On completion, automatically download test results including per-device pass rates, failed test cases, and screenshots
 - If any device has test failures, mark that device and provide detailed failure logs
 
@@ -305,10 +315,10 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 5: Workflow Automation (Requirement 5)
 
-**When the developer asks to automate a multi-step process (e.g., "Import assets, configure them, then build"):**
+**To automate a multi-step process (e.g., "Import assets, configure them, then build"):**
 
 **Step-by-step:**
-1. **Load template** — Read the matching WorkflowTemplate from `templates/workflows/` or developer's custom template
+1. **Load template** — Read the matching WorkflowTemplate from `templates/workflows/` or the developer's custom template
 2. **Validate dependencies** — Check that step dependencies form a valid DAG (no cycles, all referenced steps exist)
 3. **Execute steps** — Run each step's MCP tool call in topological order, respecting `dependsOn` constraints
 4. **Track progress** — After completing step K of N, progress = K/N × 100%
@@ -331,13 +341,13 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 6: Performance Analysis (Requirement 6)
 
-**When the developer asks to analyze performance (e.g., "Analyze the current scene's performance"):**
+**To analyze performance (e.g., "Analyze the current scene's performance"):**
 
 **Step-by-step:**
 1. **Collect metrics** — `manage_graphics(action: "get_rendering_stats")` to get Draw Calls, Shader complexity, frame rate
 2. **Read logs** — `read_console()` to collect performance-related logs and GC Allocation data
 3. **Locate bottlenecks** — `find_gameobjects(filter: ...)` to identify objects causing high draw calls or complex shaders
-4. **Compare thresholds** — Compare collected metrics against thresholds (custom from `Assets/KiroUnityPower/Config/thresholds.json` or built-in defaults)
+4. **Compare thresholds** — Compare collected metrics against thresholds (custom from `Assets/UnityAccelerator/Config/thresholds.json` or built-in defaults)
 5. **Generate report** — Create a PerformanceReport containing:
    - Draw Calls (average, peak)
    - GC Allocation (average, peak)
@@ -358,7 +368,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 7: Code Quality & Architecture Check (Requirement 7)
 
-**When the developer asks to check code quality (e.g., "Check the project's code architecture"):**
+**To check code quality (e.g., "Check the project's code architecture"):**
 
 **Step-by-step:**
 1. **Get project info** — `project_info` resource to understand project structure
@@ -385,23 +395,23 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 8: Knowledge Management (Requirement 8)
 
-**When the developer or tech lead asks about documentation (e.g., "What docs do we have about the inventory system?"):**
+**To manage documentation (e.g., "What docs do we have about the inventory system?"):**
 
 **Step-by-step:**
 1. **Search** — Query the Knowledge_Base by keyword and tags, results sorted by relevance
-2. **Asset lookup** — When a developer selects a script or component, find related documents via `relatedAssets` matching
+2. **Asset lookup** — When the developer selects a script or component, find related documents via `relatedAssets` matching
 3. **API change detection** — When Unity API updates, compare project's used APIs against the change list to generate migration guides
 4. **Onboarding** — For new team members, auto-generate an onboarding checklist based on project structure and existing docs
 5. **Staleness check** — Flag documents not updated in 180+ days as "NeedsReview" and notify the document owner
 
 **Knowledge_Base storage:**
-- Location: `Assets/KiroUnityPower/Knowledge/` (JSON + Markdown files)
+- Location: `Assets/UnityAccelerator/Knowledge/` (JSON + Markdown files)
 - Each entry has: title, content, tags, relatedAssets, author, timestamps, status
 
 
 ### Workflow 9: Platform Compatibility Check (Requirement 9)
 
-**When the developer asks to check platform compatibility (e.g., "Check Android compatibility"):**
+**To check platform compatibility (e.g., "Check Android compatibility"):**
 
 **Step-by-step:**
 1. **Load profile** — Read the target PlatformProfile from `templates/platform-profiles/`
@@ -427,7 +437,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ### Workflow 10: Asset Dependency Management (Requirement 10)
 
-**When the developer asks about asset dependencies (e.g., "Analyze dependencies of hero.fbx"):**
+**To analyze asset dependencies (e.g., "Analyze dependencies of hero.fbx"):**
 
 **Step-by-step:**
 1. **Get dependencies** — `manage_asset(action: "get_dependencies", path: "Assets/Characters/hero.fbx")`
@@ -439,12 +449,12 @@ Before executing any MCP operation, perform a lightweight health check:
 **Orphaned asset detection:**
 - Scan the entire project's asset reference graph
 - Identify assets with zero in-degree (not referenced by any scene or other asset)
-- Present the orphaned asset list for developer review
+- Present the orphaned asset list for the developer's review
 
 **Delete impact analysis:**
 - Before deleting an asset, check all direct and indirect dependents
 - List all scenes and assets that reference the target asset
-- Require developer confirmation before proceeding
+- Require the developer's confirmation before proceeding
 
 **AssetBundle duplication detection:**
 - Analyze AssetBundle configurations
@@ -458,7 +468,7 @@ Before executing any MCP operation, perform a lightweight health check:
 
 ## Preset Templates
 
-The `templates/` directory contains pre-built JSON templates that you can use directly or as a base for customization. Developers can also create custom templates stored in `Assets/KiroUnityPower/Config/` within their Unity project.
+The `templates/` directory contains pre-built JSON templates that can be used directly or as a base for customization. Developers can also create custom templates stored in `Assets/UnityAccelerator/Config/` within their Unity project.
 
 **Loading priority:** Custom templates (Unity project) take precedence over built-in templates (this Power package). If a custom template doesn't exist, fall back to the built-in version.
 
@@ -535,20 +545,20 @@ Developers can create custom templates in their Unity project:
 
 | Type | Custom Location |
 |------|----------------|
-| Asset_Preset | `Assets/KiroUnityPower/Config/Presets/` |
-| Scene_Scaffold | `Assets/KiroUnityPower/Config/Scaffolds/` |
-| BuildConfig | `Assets/KiroUnityPower/Config/Builds/` |
-| WorkflowTemplate | `Assets/KiroUnityPower/Config/Workflows/` |
-| ArchitectureRule | `Assets/KiroUnityPower/Config/Rules/` |
-| PlatformProfile | `Assets/KiroUnityPower/Config/Platforms/` |
-| Knowledge_Base | `Assets/KiroUnityPower/Knowledge/` |
-| PerformanceReport | `Assets/KiroUnityPower/Reports/` |
-| PerformanceThresholds | `Assets/KiroUnityPower/Config/thresholds.json` |
+| Asset_Preset | `Assets/UnityAccelerator/Config/Presets/` |
+| Scene_Scaffold | `Assets/UnityAccelerator/Config/Scaffolds/` |
+| BuildConfig | `Assets/UnityAccelerator/Config/Builds/` |
+| WorkflowTemplate | `Assets/UnityAccelerator/Config/Workflows/` |
+| ArchitectureRule | `Assets/UnityAccelerator/Config/Rules/` |
+| PlatformProfile | `Assets/UnityAccelerator/Config/Platforms/` |
+| Knowledge_Base | `Assets/UnityAccelerator/Knowledge/` |
+| PerformanceReport | `Assets/UnityAccelerator/Reports/` |
+| PerformanceThresholds | `Assets/UnityAccelerator/Config/thresholds.json` |
 
 
 ## Steering Files
 
-The `steering/` directory contains domain-specific knowledge files that guide you on how to effectively use MCP tools for each capability area. These are automatically loaded based on the developer's request context.
+The `steering/` directory contains domain-specific knowledge files that guide the AI on how to effectively use MCP tools for each capability area. These are automatically loaded based on the developer's request context.
 
 | File | Domain | Loaded When |
 |------|--------|-------------|
@@ -571,13 +581,13 @@ The `steering/` directory contains domain-specific knowledge files that guide yo
 | Category | Example | Response |
 |----------|---------|----------|
 | MCP connection failure | Server not started, network issue | Prompt: "Please confirm Unity Editor is open and MCP Server is started (Window → MCP for Unity → Start Server)" |
-| MCP operation timeout | Unity compiling or building | Wait and retry; inform developer Unity may be busy |
+| MCP operation timeout | Unity compiling or building | Wait and retry; inform the developer Unity may be busy |
 | MCP tool error | Asset path not found, invalid params | Parse error, suggest correct path or parameters |
 | Asset operation error | Preset apply failed, file locked | Record failure, continue with remaining assets, report at end |
 | Build error | Compilation failed, missing dependency | Parse `read_console` logs, provide structured error summary |
-| Cloud_Assist error | Network timeout, auth failure | Degrade to local MCP execution, notify developer |
+| Cloud_Assist error | Network timeout, auth failure | Degrade to local MCP execution, notify the developer |
 | Workflow error | Step execution failed | Pause workflow, offer Retry / Skip / Abort |
-| Template load error | Invalid JSON, file not found | Fall back to built-in template, inform developer |
+| Template load error | Invalid JSON, file not found | Fall back to built-in template, inform the developer |
 
 ### Cloud_Assist Degradation
 

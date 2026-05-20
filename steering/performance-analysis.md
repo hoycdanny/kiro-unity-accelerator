@@ -1,158 +1,167 @@
-# 效能分析輔助 Steering
+# Performance Analysis Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity performance analysis steering guide / Unity 效能分析的 steering 指引，涵蓋效能指標收集、閾值比對、瓶頸定位及最佳化建議生成。 -->
 
-你是 Unity 效能分析專家。當開發者要求分析場景效能、定位瓶頸或最佳化效能時，你應該運用 MCP 工具收集指標、比對閾值並生成結構化的效能報告。
+## Role and Purpose
 
-## 工作流程
+Performance problems in Unity typically involve a few key metrics: Draw Calls, GC Allocation, Shader complexity, and frame rate. Unity's Profiler collects performance metrics. The challenge is understanding which metrics exceed acceptable thresholds for a given platform and what to do when they are outside the recommended range (see threshold tables below). This guide encodes the thresholds we have seen work across mobile, desktop, and VR projects, plus the optimization techniques that provide the greatest performance improvement relative to implementation effort. Use it whenever a developer asks to analyze scene performance, identify bottlenecks, or generate a performance report. The MCP tool sequences below collect the data; the threshold tables and suggestion templates turn that data into actionable advice.
 
-1. **收集渲染指標**：使用 `manage_graphics(action: "get_rendering_stats")` 取得 Draw Calls、Shader 複雜度等渲染統計
-2. **收集 Console 日誌**：使用 `read_console()` 取得 GC Allocation 警告與幀率相關日誌
-3. **定位瓶頸物件**：使用 `find_gameobjects(filter: ...)` 搜尋高面數模型、複雜 Shader 物件
-4. **載入閾值設定**：從 `Assets/KiroUnityPower/Config/thresholds.json`（自訂）或內建預設值載入閾值
-5. **比對閾值**：將收集到的指標與閾值逐項比對
-6. **生成報告**：產生 Performance_Report JSON，包含指標數值、瓶頸清單與最佳化建議
-7. **回報結果**：以結構化格式向開發者呈現報告摘要
+## Performance Analysis Execution Flow
 
-## 效能指標閾值建議
+1. **Collect rendering metrics**: Use `manage_graphics(action: "get_rendering_stats")` to get Draw Calls, Shader complexity, and other rendering statistics
+2. **Collect Console logs**: Use `read_console()` to get GC Allocation warnings and frame rate related logs
+3. **Locate bottleneck objects**: Use `find_gameobjects(filter: ...)` to search for high-polygon models, complex Shader objects
+4. **Load threshold settings**: Load thresholds from a project-local config file (e.g., `Assets/Config/performance-thresholds.json`) or built-in defaults
+5. **Compare against thresholds**: Compare collected metrics against thresholds item by item
+6. **Generate report**: Produce a Performance_Report JSON including metric values, bottleneck list, and optimization suggestions
+7. **Report results**: Present the report summary to the developer in structured format
+
+> **Threshold context**: These thresholds are derived from profiling data across mobile (ARM Mali/Adreno GPUs common in smartphones and tablets), desktop (mid-range GPU), and VR/XR (Quest 2/3 and similar standalone headsets used for training, visualization, and interactive experiences) projects. Mobile thresholds are the most restrictive because thermal throttling (when a device automatically reduces performance to prevent overheating) compounds frame drops over time.
+
+## Performance Metric Threshold Recommendations
 
 ### Draw Calls
-| 等級 | 閾值 | 說明 |
-|------|------|------|
-| 正常 | < 500 | 行動平台建議範圍 |
-| 警告 | 500–1000 | 可能影響低階裝置效能 |
-| 錯誤 | > 1000 | 嚴重影響幀率，需立即最佳化 |
+| Level | Threshold | Description |
+|-------|-----------|-------------|
+| Normal | < 500 | Recommended range for mobile platforms |
+| Warning | 500–1000 | May affect performance on low-end devices |
+| Error | > 1000 | Severely impacts frame rate, requires immediate optimization |
 
-### GC Allocation（每幀）
-| 等級 | 閾值 | 說明 |
-|------|------|------|
-| 正常 | < 1 KB | 理想狀態 |
-| 警告 | 1–5 KB | 可能導致間歇性卡頓 |
-| 錯誤 | > 5 KB | 頻繁觸發 GC，造成明顯掉幀 |
+### GC Allocation (per frame)
+| Level | Threshold | Description |
+|-------|-----------|-------------|
+| Normal | < 1 KB | Ideal state |
+| Warning | 1–5 KB | May cause intermittent stuttering |
+| Error | > 5 KB | Frequently triggers GC, causing noticeable frame drops |
 
-### Shader 複雜度（指令數）
-| 等級 | 閾值 | 說明 |
-|------|------|------|
-| 正常 | < 128 | 適合大多數平台 |
-| 警告 | 128–256 | 行動平台可能有問題 |
-| 錯誤 | > 256 | 需要簡化 Shader |
+### Shader Complexity (instruction count)
+| Level | Threshold | Description |
+|-------|-----------|-------------|
+| Normal | < 128 | Suitable for most platforms |
+| Warning | 128–256 | May be problematic on mobile platforms |
+| Error | > 256 | Shader needs simplification |
 
-### 幀率（FPS）
-| 等級 | 閾值 | 說明 |
-|------|------|------|
-| 正常 | ≥ 60 | 流暢體驗 |
-| 警告 | 30–59 | 可接受但有改善空間 |
-| 錯誤 | < 30 | 體驗不佳，需最佳化 |
+### Frame Rate (FPS)
+| Level | Threshold | Description |
+|-------|-----------|-------------|
+| Normal | ≥ 60 | Smooth experience |
+| Warning | 30–59 | Acceptable but room for improvement |
+| Error | < 30 | Poor experience, optimization needed |
 
-## 最佳化建議範本
+## Optimization Suggestion Templates
 
-### Draw Calls 過高
-- **LOD（Level of Detail）**：為高面數模型建立 LOD Group，遠距離使用低面數版本
-- **材質合併（Material Batching）**：將使用相同 Shader 的物件合併材質，啟用 Static/Dynamic Batching
-- **GPU Instancing**：對大量重複物件啟用 GPU Instancing
-- **遮擋剔除（Occlusion Culling）**：啟用 Occlusion Culling 減少不可見物件的繪製
+### High Draw Calls
+- **LOD (Level of Detail)**: Create LOD Groups for high-polygon models, use low-polygon versions at distance
+- **Material Batching**: Merge materials for objects using the same Shader, enable Static/Dynamic Batching
+- **GPU Instancing**: Enable GPU Instancing for large numbers of repeated objects
+- **Occlusion Culling**: Enable Occlusion Culling to reduce rendering of invisible objects
 
-### GC Allocation 過高
-- **物件池（Object Pooling）**：避免在 Update/FixedUpdate 中 new 物件，改用物件池
-- **避免裝箱（Boxing）**：使用泛型集合避免值型別裝箱
-- **字串操作**：使用 StringBuilder 取代字串串接
-- **快取引用**：在 Awake/Start 中快取 GetComponent 結果，避免每幀呼叫
+### High GC Allocation
+- **Object Pooling**: Avoid `new` in Update/FixedUpdate, use object pools instead
+- **Avoid Boxing**: Use generic collections to avoid value type boxing
+- **String Operations**: Use StringBuilder instead of string concatenation
+- **Cache References**: Cache GetComponent results in Awake/Start, avoid per-frame calls
 
-### Shader 複雜度過高
-- **Shader 簡化**：減少 Shader 中的數學運算與取樣次數
-- **Shader LOD**：使用 Shader LOD 在低階裝置上切換至簡化版本
-- **Mobile Shader**：行動平台改用 URP/Mobile 系列 Shader
-- **減少 Pass 數量**：合併多 Pass Shader 為單 Pass
+### High Shader Complexity
+- **Shader Simplification**: Reduce math operations and sampling in Shaders
+- **Shader LOD**: Use Shader LOD to switch to simplified versions on low-end devices
+- **Mobile Shaders**: Use URP/Mobile series Shaders for mobile platforms
+- **Reduce Pass Count**: Merge multi-pass Shaders into single pass
 
-### 幀率過低
-- **降低解析度**：在行動平台使用動態解析度縮放
-- **減少後處理**：停用非必要的後處理效果（Bloom、SSAO、Motion Blur）
-- **物理最佳化**：降低 Fixed Timestep 頻率、簡化碰撞體形狀
-- **腳本最佳化**：將耗時邏輯移至 Coroutine 或 Job System
+### Low Frame Rate
+- **Lower Resolution**: Use dynamic resolution scaling on mobile platforms
+- **Reduce Post-Processing**: Disable non-essential post-processing effects (Bloom, SSAO, Motion Blur)
+- **Physics Optimization**:
+  - Lower FixedUpdate frequency: FixedUpdate is Unity's physics update loop — a method called at a fixed time interval regardless of frame rate, used for physics calculations and other time-sensitive operations. The Fixed Timestep setting (found in Edit > Project Settings > Time) controls how often this loop runs. For example, changing from 0.02 (50 updates/sec) to 0.04 (25 updates/sec) reduces physics updates by half, which can improve performance on physics-heavy scenes.
+  - Simplify collider shapes: prefer Box/Sphere/Capsule colliders over Mesh colliders where possible.
+- **Script Optimization**: Move expensive logic to Coroutines or Job System
 
-## MCP 工具用法範例
+## MCP Tool Usage Examples
 
-### 取得渲染統計
+### Get Rendering Statistics
 ```
 manage_graphics(action: "get_rendering_stats")
 → { drawCalls: 850, triangles: 1200000, ... }
 ```
 
-### 讀取 Console 效能日誌
+### Read Console Performance Logs
 ```
 read_console(filter: "GC|performance|frame")
 → [{ message: "GC.Alloc: 4.2 KB", ... }, ...]
 ```
 
-### 搜尋高面數物件
+### Search High-Polygon Objects
 ```
 find_gameobjects(filter: "MeshFilter")
 → [{ name: "HeroModel", path: "/Characters/HeroModel", ... }, ...]
 ```
 
-## 錯誤處理
+## Analysis Tool Troubleshooting
 
-- 若 `manage_graphics` 回傳空資料，提示開發者確認是否在 Play Mode 中
-- 若 `read_console` 無效能相關日誌，告知開發者可能需要啟用 Profiler 或 Deep Profiling
-- 若閾值設定檔載入失敗，自動使用內建預設閾值並告知開發者
-- 若 Unity Editor 幀率低於 10 FPS，建議降低分析取樣頻率
+- If `manage_graphics` returns empty data, prompt the developer to confirm they are in Play Mode
+- If `read_console` has no performance-related logs, inform the developer they may need to enable Profiler or Deep Profiling
+- If threshold config file fails to load, automatically use built-in default thresholds and inform the developer
+- If Unity Editor frame rate is below 10 FPS, suggest reducing analysis sampling frequency
 
-## 最佳實踐
+## Performance Optimization Strategy
 
-- 在 Play Mode 下進行效能分析以取得準確數據
-- 使用 Development Build 進行效能測試以取得完整的 Profiler 資料
-- 先最佳化 Draw Calls 和 GC Allocation，這兩項對效能影響最大
-- 針對目標平台設定對應的閾值（行動平台應更嚴格）
-- 定期進行效能分析，避免效能問題累積
+- Perform performance analysis in Play Mode for accurate data
+- Use Development Build for performance testing to get complete Profiler data
+- Optimize Draw Calls and GC Allocation first — these have the greatest performance impact
+- Set platform-appropriate thresholds (mobile platforms should be stricter)
+- Perform performance analysis regularly to avoid accumulating performance issues
 
+## Unity 6 Advanced Profiling Guide (from official PDF best practices)
 
-## Unity 6 效能分析進階指引（來自官方 PDF 最佳實踐）
+### Frame Time Over FPS
 
-### Frame Time 優先於 FPS
-
-根據 Unity 官方 Profiling Guide，**使用 frame time (ms) 而非 FPS** 作為效能基準：
+Per the Unity official Profiling Guide, **use frame time (ms) rather than FPS** as the performance baseline:
 - 60fps = 16.66ms/frame
 - 30fps = 33.33ms/frame
 - 90fps (VR) = 11.11ms/frame
 
-FPS 是一個具有欺騙性的指標：從 900fps 降到 450fps 看似嚴重，但實際只差 1.111ms。
+FPS is a deceptive metric: dropping from 900fps to 450fps looks severe, but the actual difference is only 1.111ms.
 
-### 平台特定 Frame Budget
+### Platform-Specific Frame Budgets
 
-| 平台 | 目標 FPS | Frame Budget | 實際可用（含散熱） |
-|------|---------|-------------|-------------------|
+| Platform | Target FPS | Frame Budget | Actual Available (with thermal) |
+|----------|-----------|-------------|-------------------------------|
 | PC/Console | 60 | 16.66ms | 16.66ms |
-| Mobile | 30 | 33.33ms | ~22ms（預留 35% 散熱） |
+| Mobile | 30 | 33.33ms | ~22ms (reserve 35% for thermal) |
 | VR/XR | 72-90 | 11.11-13.88ms | ~8-10ms |
-| WebGL | 60 | 16.66ms | ~14ms（瀏覽器開銷） |
+| WebGL | 60 | 16.66ms | ~14ms (browser overhead) |
 
-### CPU-bound vs GPU-bound 判斷
+### CPU-bound vs GPU-bound Diagnosis
 
-使用 Profiler Timeline 視圖判斷瓶頸：
-- **Gfx.WaitForCommands** → Render thread 等待 main thread → CPU-bound
-- **Gfx.WaitForPresentOnGfxThread** → Main thread 等待 render thread → 可能 GPU-bound
-- **Camera.Render 在 render thread** → CPU-bound（花太多時間發送 draw calls）
-- **Gfx.PresentFrame** → GPU-bound（等待 GPU 完成渲染）
+> **CPU-bound** means the CPU is the performance bottleneck (it can't feed data
+> to the GPU fast enough). **GPU-bound** means the GPU is the bottleneck (it
+> can't finish rendering before the next frame is due).
 
-### Unity 6 新功能活用
+Use the Profiler Timeline view to identify which applies:
+- **Gfx.WaitForCommands** → Render thread waiting for main thread → CPU-bound
+- **Gfx.WaitForPresentOnGfxThread** → Main thread waiting for render thread → Possibly GPU-bound
+- **Camera.Render on render thread** → CPU-bound (spending too much time sending draw calls)
+- **Gfx.PresentFrame** → GPU-bound (waiting for GPU to finish rendering)
 
-- **GPU Resident Drawer**：在 URP Asset 中啟用 Instanced Drawing，可大幅減少 draw calls（需 Forward+ renderer）
-- **GPU Occlusion Culling**：搭配 GPU Resident Drawer 使用，減少不可見物件的渲染
-- **Spatial-Temporal Post-Processing (STP)**：降低渲染解析度同時維持畫質，適合行動平台
-- **Split Graphics Jobs**：在 Player Settings 中啟用，利用多核心 CPU 加速渲染指令提交
-- **Incremental GC**：分散 GC 工作量至多幀，減少單幀卡頓
+### Unity 6 New Features
 
-### Profiler 使用技巧
+- **GPU Resident Drawer** (Unity 6 feature): Enable Instanced Drawing in URP Asset to significantly reduce draw calls (requires Forward+ renderer)
+- **GPU Occlusion Culling**: Use with GPU Resident Drawer to reduce rendering of invisible objects
+- **Spatial-Temporal Post-Processing (STP)**: Lower rendering resolution while maintaining quality, suitable for mobile
+- **Split Graphics Jobs**: Enable in Player Settings to leverage multi-core CPU for faster render command submission
+- **Incremental GC**: Spread GC workload across multiple frames to reduce single-frame stuttering
 
-1. **停用 VSync marker**：在 CPU Profiler 中隱藏 VSync 標記以看清實際工作量
-2. **使用 Call Stacks**：啟用 Allocation Call Stacks 追蹤 GC.Alloc 來源，比 Deep Profiling 開銷更低
-3. **Profile Analyzer 比較**：儲存最佳化前的 .data 檔案，最佳化後用 Compare view 比較差異
-4. **Standalone Profiler**：使用獨立 Profiler 視窗避免 Editor UI 影響測量結果
-5. **Highlights Module**：Unity 6 新增的 Highlights 模組可快速判斷 CPU/GPU bound
+### Profiler Tips
 
-### 記憶體分析指引
+1. **Disable VSync marker**: Hide VSync markers in CPU Profiler to see actual workload clearly
+2. **Use Call Stacks**: Enable Allocation Call Stacks to trace GC.Alloc sources, lower overhead than Deep Profiling
+3. **Profile Analyzer comparison**: Save pre-optimization .data files, use Compare view after optimization to compare differences
+4. **Standalone Profiler**: Use standalone Profiler window to avoid Editor UI affecting measurements
+5. **Highlights Module**: Unity 6's new Highlights module quickly identifies CPU/GPU bound status
 
-- 使用 Memory Profiler package 取得詳細的記憶體快照
-- 比較兩個快照以偵測記憶體洩漏（場景卸載後物件仍存在）
-- 關注 Unity Objects tab 中的 Texture2D 和 Mesh 佔用量
-- 為每個目標平台設定記憶體預算（最低規格裝置的 80%）
+### Memory Analysis Guide
+
+- Use Memory Profiler package for detailed memory snapshots
+- Compare two snapshots to detect memory leaks (objects persisting after scene unload)
+- Focus on Texture2D and Mesh usage in the Unity Objects tab
+- Set memory budgets per target platform (80% of lowest-spec device)

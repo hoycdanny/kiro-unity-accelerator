@@ -26,8 +26,10 @@ function generateId(): string {
 /**
  * Parses a natural-language batch configuration description into BatchRule objects.
  *
- * Supports descriptions like:
+ * Supports descriptions in both English and Chinese, for example:
+ *   "Set Layer to Enemy for all objects whose name contains Enemy"
  *   "所有名稱包含 Enemy 的物件設定 Layer 為 Enemy"
+ *   "Set component Rigidbody mass to 10 for objects with Tag Player"
  *   "Tag 為 Player 的物件設定組件 Rigidbody 的 mass 為 10"
  *
  * Multiple rules can be separated by newlines or semicolons.
@@ -45,7 +47,7 @@ export function parseBatchRules(description: string): BatchRule[] {
 
     // --- Parse filter conditions ---
 
-    // Name filter: "名稱包含 X" or "name contains X" or "名稱為 X"
+    // Name filter: "名稱包含 X" (name contains X) or "名稱為 X" (name equals X)
     const nameContains = line.match(/名稱包含\s*(\S+)/);
     if (nameContains) {
       filters.push({ type: 'name', value: `*${nameContains[1]}*`, useWildcard: true });
@@ -55,25 +57,25 @@ export function parseBatchRules(description: string): BatchRule[] {
       filters.push({ type: 'name', value: nameEquals[1], useWildcard: false });
     }
 
-    // Tag filter: "Tag 為 X" or "tag 為 X"
+    // Tag filter: "Tag 為 X" (Tag equals X)
     const tagMatch = line.match(/[Tt]ag\s*為\s*(\S+)/);
     if (tagMatch) {
       filters.push({ type: 'tag', value: tagMatch[1], useWildcard: false });
     }
 
-    // Layer filter: "Layer 為 X" or "layer 為 X"
+    // Layer filter: "Layer 為 X 的" (objects whose Layer is X)
     const layerFilterMatch = line.match(/[Ll]ayer\s*為\s*(\S+)\s*的/);
     if (layerFilterMatch) {
       filters.push({ type: 'layer', value: layerFilterMatch[1], useWildcard: false });
     }
 
-    // Component filter: "包含 X 組件" or "組件 X"
+    // Component filter: "包含 X 組件" (has component X) or "組件 X 的" (component X's)
     const componentMatch = line.match(/(?:包含|組件)\s*(\S+)\s*(?:組件|的)/);
     if (componentMatch) {
       filters.push({ type: 'component', value: componentMatch[1], useWildcard: false });
     }
 
-    // Parent path filter: "父物件路徑 X"
+    // Parent path filter: "父物件路徑 X" (parent object path X)
     const parentMatch = line.match(/父物件路徑\s*(\S+)/);
     if (parentMatch) {
       filters.push({ type: 'parentPath', value: parentMatch[1], useWildcard: false });
@@ -81,19 +83,19 @@ export function parseBatchRules(description: string): BatchRule[] {
 
     // --- Parse actions ---
 
-    // setLayer: "設定 Layer 為 X"
+    // setLayer: "設定 Layer 為 X" (set Layer to X)
     const layerAction = line.match(/設定\s*[Ll]ayer\s*為\s*(\S+)/);
     if (layerAction) {
       actions.push({ type: 'setLayer', params: { layer: layerAction[1] } });
     }
 
-    // setTag: "設定 Tag 為 X"
+    // setTag: "設定 Tag 為 X" (set Tag to X)
     const tagAction = line.match(/設定\s*[Tt]ag\s*為\s*(\S+)/);
     if (tagAction) {
       actions.push({ type: 'setTag', params: { tag: tagAction[1] } });
     }
 
-    // setComponentProperty: "設定組件 X 的 Y 為 Z" or "X 的 Y 設為 Z"
+    // setComponentProperty: "設定組件 X 的 Y 為 Z" (set component X's property Y to Z)
     const compPropAction = line.match(/(?:設定)?組件\s*(\S+)\s*的\s*(\S+)\s*(?:為|設為)\s*(\S+)/);
     if (compPropAction) {
       const value = parsePropertyValue(compPropAction[3]);
@@ -344,7 +346,7 @@ export async function findGameObjectsViaMcp(
   if (!result.success) {
     return {
       success: false,
-      error: result.error ?? '場景物件搜尋失敗。',
+      error: result.error ?? 'Failed to search scene objects. / 場景物件搜尋失敗。',
     };
   }
 
@@ -382,7 +384,7 @@ export async function validateLayersAndTags(
       if (!result.success && result.error?.includes('layer')) {
         return {
           success: false,
-          error: `Layer "${layer}" 在專案中不存在。請使用 manage_editor(action: "add_layer") 新增，或選擇已定義的 Layer。`,
+          error: `Layer "${layer}" does not exist in the project. Use manage_editor(action: "add_layer") to add it, or choose an existing Layer.`,
         };
       }
     }
@@ -399,7 +401,7 @@ export async function validateLayersAndTags(
       if (!result.success && result.error?.includes('tag')) {
         return {
           success: false,
-          error: `Tag "${tag}" 在專案中不存在。請使用 manage_editor(action: "add_tag") 新增，或選擇已定義的 Tag。`,
+          error: `Tag "${tag}" does not exist in the project. Use manage_editor(action: "add_tag") to add it, or choose an existing Tag. / Tag "${tag}" 在專案中不存在。請使用 manage_editor(action: "add_tag") 新增，或選擇已定義的 Tag。`,
         };
       }
     }
@@ -438,15 +440,15 @@ export async function executeBatchConfig(
     if (!findResult.success || !findResult.data) {
       return {
         success: false,
-        error: findResult.error ?? `規則 "${rule.name}" 的物件搜尋失敗。`,
+        error: findResult.error ?? `Object search failed for rule "${rule.name}". / 規則 "${rule.name}" 的物件搜尋失敗。`,
       };
     }
 
     const matchedObjects = findResult.data;
     if (matchedObjects.length === 0) {
       skippedReasons.push({
-        gameObjectName: `(規則: ${rule.name})`,
-        reason: '沒有符合篩選條件的物件',
+        gameObjectName: `(Rule: ${rule.name} / 規則: ${rule.name})`,
+        reason: 'No objects matched the filter conditions. / 沒有符合篩選條件的物件',
       });
       continue;
     }
@@ -476,7 +478,7 @@ export async function executeBatchConfig(
           const obj = matchedObjects[objIndex];
           skippedReasons.push({
             gameObjectName: obj?.name ?? 'unknown',
-            reason: r.error ?? '操作失敗',
+            reason: r.error ?? 'Operation failed. / 操作失敗',
           });
         }
       });

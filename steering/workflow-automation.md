@@ -1,37 +1,39 @@
-# 工作流程自動化 Steering
+# Workflow Automation Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity workflow automation steering guide / Unity 工作流程自動化的 steering 指引，涵蓋多步驟工作流範本執行、DAG 依賴驗證、拓撲排序、進度回報及失敗處理策略。 -->
 
-你是 Unity 工作流自動化專家。當開發者要求執行自動化工作流、建立工作流範本或管理多步驟任務時，你應該運用以下知識來規劃並執行工作流程。
+## Role and Purpose
 
-## 工作流程
+Multi-step workflows in Unity — "import these assets, configure them, build, then run tests" — can be time-consuming and error-prone when steps have ordering constraints (when some steps must complete before others can begin). Automating them improves repeatability and helps ensure prerequisites are not skipped, which is particularly valuable during team onboarding. This guide covers how to define, validate, and execute workflow templates with proper dependency ordering and failure recovery. Use it whenever the developer asks to automate a sequence of operations or create a reusable workflow template.
 
-### 執行工作流範本
+## Workflow
 
-1. **載入範本**：從 `templates/workflows/` 或使用者自訂位置載入 WorkflowTemplate JSON
-2. **驗證依賴**：檢查步驟之間的 `dependsOn` 關係是否合法（無循環、引用的步驟存在）
-3. **拓撲排序**：將步驟按依賴關係排序，確保每個步驟在其依賴步驟完成後才執行
-4. **依序執行**：按排序後的順序逐步執行 MCP 工具呼叫
-5. **進度回報**：每完成一個步驟，計算並回報整體進度百分比（K/N × 100）
-6. **錯誤處理**：若步驟失敗，根據 `onFailure` 設定決定暫停、跳過或中止
+### Execute Workflow Templates
 
-### 建立自訂工作流
+1. **Load template**: Load WorkflowTemplate JSON from `templates/workflows/` or your custom location
+2. **Validate dependencies**: Check that `dependsOn` relationships between steps are valid (no cycles, referenced steps exist)
+3. **Topological sort**: Sort steps by dependency order, ensuring each step executes only after its dependencies complete
+4. **Execute sequentially**: Execute MCP tool calls in sorted order
+5. **Report progress**: After completing each step, calculate and report overall progress percentage (K/N × 100)
+6. **Handle errors**: If a step fails, decide to pause, skip, or abort based on `onFailure` setting
 
-1. 詢問開發者工作流的目的與步驟
-2. 為每個步驟確認對應的 MCP 工具與參數
-3. 確認步驟之間的依賴關係
-4. 驗證依賴關係合法性
-5. 儲存為 WorkflowTemplate JSON
+### Create Custom Workflows
 
-## MCP 工具用法
+1. Ask you about the workflow's purpose and steps
+2. Confirm the corresponding MCP tool and parameters for each step
+3. Confirm dependencies between steps
+4. Validate dependency legality
+5. Save as WorkflowTemplate JSON
 
-### 執行工作流中的單一步驟
+## MCP Tool Usage
+
+### Execute a Single Workflow Step
 
 ```
 manage_asset(action: "list", path: "Assets/", recursive: true)
 ```
 
-### 批次執行多步驟
+### Batch Execute Multiple Steps
 
 ```
 batch_execute(commands: [
@@ -40,82 +42,84 @@ batch_execute(commands: [
 ])
 ```
 
-### 觸發建置步驟
+### Trigger Build Step
 
 ```
 manage_editor(action: "build", target: "Android", scenes: [...], outputPath: "Builds/Android")
 ```
 
-## 步驟依賴驗證指引（DAG 拓撲排序）
+## Step Dependency Validation (DAG Topological Sort)
 
-### 合法依賴規則
+> **What is topological sort?** It determines the correct order to execute steps when some steps depend on others completing first — like determining which tasks must complete before others can begin, such as installing dependencies before building software. The algorithm automatically calculates this order so dependent steps always run after their prerequisites.
 
-- 每個步驟的 `dependsOn` 陣列中的 ID 必須對應到工作流中存在的步驟
-- 依賴關係不可形成循環（A → B → C → A 為非法）
-- 無依賴的步驟可以平行執行（但目前以序列方式執行）
+### Valid Dependency Rules
 
-### 拓撲排序演算法
+- Each step's `dependsOn` array IDs must correspond to existing steps in the workflow
+- Dependencies must not form cycles (A → B → C → A is invalid)
+- Steps with no dependencies can execute in parallel (but currently executed serially)
 
-1. 建立每個步驟的入度（被依賴的次數）
-2. 將入度為 0 的步驟加入佇列
-3. 從佇列取出步驟，將其加入排序結果
-4. 對該步驟的所有後繼步驟，入度減 1；若入度變為 0，加入佇列
-5. 若排序結果的步驟數量少於總步驟數，表示存在循環依賴
+### Topological Sort Algorithm (Kahn's Algorithm)
 
-### 驗證失敗處理
+1. Build in-degree count for each step (how many other steps it depends on)
+2. Add steps with in-degree 0 (no dependencies) to a queue
+3. Dequeue a step, add it to the sorted result
+4. For all successor steps, decrement in-degree by 1; if in-degree becomes 0, add to queue
+5. If sorted result count is less than total step count, a cycle exists
 
-- 若發現循環依賴，回報循環路徑並拒絕儲存
-- 若 `dependsOn` 引用不存在的步驟 ID，回報錯誤並列出無效引用
-- 建議開發者修正依賴關係後重新驗證
+### Validation Failure Handling
 
-## 失敗處理指引
+- If a cycle is detected, report the cycle path and reject saving
+- If `dependsOn` references a non-existent step ID, report the error and list invalid references
+- Suggest you fix dependencies and re-validate
 
-### onFailure 策略
+## Failure Handling Guide
 
-| 策略 | 行為 |
-|------|------|
-| `pause` | 暫停工作流，記錄錯誤，提示開發者選擇：重試、跳過、中止 |
-| `skip` | 記錄錯誤，跳過該步驟，繼續執行下一個步驟 |
-| `abort` | 記錄錯誤，立即中止整個工作流 |
+### onFailure Strategies
 
-### 暫停後的選項
+| Strategy | Behavior |
+|----------|----------|
+| `pause` | Pause workflow, record error, prompt you to choose: Retry / Skip / Abort |
+| `skip` | Record error, skip the step, continue to next step |
+| `abort` | Record error, immediately abort the entire workflow |
 
-- **重試**：重新執行失敗的步驟
-- **跳過**：跳過失敗步驟，繼續執行後續步驟（注意：依賴此步驟的後續步驟也會被跳過）
-- **中止**：終止整個工作流，回報已完成與未完成的步驟
+### Options After Pause
 
-### 錯誤記錄格式
+- **Retry**: Re-execute the failed step
+- **Skip**: Skip the failed step, continue subsequent steps (note: steps depending on this step will also be skipped)
+- **Abort**: Terminate the entire workflow, report completed and incomplete steps
+
+### Error Log Format
 
 ```
-[工作流名稱] 步驟 "步驟名稱" (ID: step-id) 執行失敗
-  錯誤類型: MCP 工具呼叫失敗
-  工具: manage_asset
-  動作: set_import_settings
-  錯誤訊息: Asset path not found: Assets/Missing/file.fbx
-  onFailure 策略: pause
-  等待開發者決定...
+[Workflow Name] Step "Step Name" (ID: step-id) execution failed
+  Error Type: MCP tool call failed
+  Tool: manage_asset
+  Action: set_import_settings
+  Error Message: Asset path not found: Assets/Missing/file.fbx
+  onFailure Strategy: pause
+  Awaiting your decision...
 ```
 
-## 進度計算
+## Progress Calculation
 
-- 進度百分比 = (已完成步驟數 / 總步驟數) × 100
-- 跳過的步驟計入已完成步驟數
-- 進度在每個步驟完成後即時更新
+- Progress percentage = (completed steps / total steps) × 100
+- Skipped steps count toward completed steps
+- Progress updates in real-time after each step completes
 
-## 內建工作流範本
+## Built-in Workflow Templates
 
-### 1. 資產導入與設定（asset-import-setup）
-- 步驟：掃描資料夾 → 偵測資產類型 → 載入 Preset → 批次套用 → 生成摘要
+### 1. Asset Import & Setup (asset-import-setup)
+- Steps: Scan folder → Detect asset types → Load Preset → Batch apply → Generate summary
 
-### 2. 建置與部署（build-and-deploy）
-- 步驟：載入建置配置 → 執行建置 → 監控進度 → 驗證產物
+### 2. Build & Deploy (build-and-deploy)
+- Steps: Load build config → Execute build → Monitor progress → Verify artifacts
 
-### 3. 測試執行（test-execution）
-- 步驟：執行 EditMode 測試 → 執行 PlayMode 測試 → 彙整結果
+### 3. Test Execution (test-execution)
+- Steps: Run EditMode tests → Run PlayMode tests → Aggregate results
 
-## 最佳實踐
+## Best Practices
 
-- 為每個步驟設定合理的 `onFailure` 策略：關鍵步驟用 `pause`，非關鍵步驟用 `skip`
-- 善用 `dependsOn` 明確定義步驟間的依賴，避免隱式依賴
-- 工作流範本應保持通用性，具體參數在執行時由開發者提供
-- 定期審閱自訂工作流，移除不再需要的步驟
+- Set appropriate `onFailure` strategy for each step: use `pause` for critical steps, `skip` for non-critical
+- Use `dependsOn` to explicitly define step dependencies, avoid implicit dependencies
+- Workflow templates should remain generic; specific parameters are provided by you at execution time
+- Regularly review custom workflows, remove steps that are no longer needed

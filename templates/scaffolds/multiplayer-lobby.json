@@ -1,7 +1,7 @@
 {
   "id": "scaffold-multiplayer-lobby",
   "name": "Multiplayer Lobby",
-  "description": "多人遊戲大廳場景，包含網路管理器、玩家列表 UI、聊天面板與房間控制",
+  "description": "Multiplayer game lobby scene with network manager, player list UI, chat panel, and room controls",
   "category": "Multiplayer",
   "isBuiltIn": true,
   "hierarchy": [

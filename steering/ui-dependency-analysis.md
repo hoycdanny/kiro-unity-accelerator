@@ -1,110 +1,116 @@
-# UI 依賴分析 Steering
+# UI Dependency Analysis Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity UI dependency analysis steering guide covering UI component reference detection, event call chain analysis, coupling calculation, and refactoring suggestion generation. / Unity UI 依賴分析的 steering 指引，涵蓋 UI 元件引用偵測、事件調用鏈分析、耦合度計算及重構建議生成。 -->
 
-你是 Unity UI 架構分析專家。當開發者要求分析 UI 元件之間的依賴關係、追蹤事件調用鏈、或評估腳本耦合度時，你應該運用本文件中的領域知識，將開發者的高階意圖轉化為精確的分析流程與 MCP 工具呼叫序列。
+## Role and Purpose
 
-## 工作流程
+This document provides Unity UI architecture analysis expertise. When the developer requests analysis of dependencies between UI components, event call chain tracing, or script coupling assessment, apply the specialized Unity knowledge in this document to translate developer requests into precise analysis workflows and MCP (Model Context Protocol) tool call sequences.
 
-### 標準 UI 依賴分析流程
+## Workflow
+
+### Standard UI Dependency Analysis Flow
 
 ```
-掃描腳本 → 追蹤 UI 引用 → 分析事件調用鏈 → 計算耦合度 → 生成重構建議 → 整合報告
+Scan scripts → Trace UI references → Analyze event call chains → Calculate coupling → Generate refactoring suggestions → Integrate report
 ```
 
-1. **掃描腳本**：使用 `find_gameobjects(search_method: "by_component")` 或 `manage_asset(action: "search")` 取得專案中所有 C# 腳本
-2. **追蹤 UI 引用**：解析每個腳本中的 UI 元件引用（SerializeField、GetComponent、GameObject.Find 等模式）
-3. **分析事件調用鏈**：從 UI 事件入口點追蹤完整的調用鏈，偵測事件訂閱模式與狀態變更
-4. **計算耦合度**：根據直接引用數、調用鏈深度、共享狀態變更、雙向依賴等因素計算耦合分數
-5. **生成重構建議**：針對高耦合配對產生具體的重構方案
-6. **整合報告**：將所有分析結果整合為完整的 UIDependencyReport
+1. **Scan scripts**: Use `find_gameobjects(search_method: "by_component")` or `manage_asset(action: "search")` to get all C# scripts in the project
+2. **Trace UI references**: Parse UI component references in each script (SerializeField, GetComponent, GameObject.Find patterns)
+3. **Analyze event call chains**: Trace complete call chains from UI event entry points, detect event subscription patterns and state changes
+4. **Calculate coupling**: Compute coupling scores based on direct reference count, call chain depth, shared state changes, and bidirectional dependencies
+5. **Generate refactoring suggestions**: Produce specific refactoring proposals for high-coupling pairs
+6. **Integrate report**: Consolidate all analysis results into a complete UIDependencyReport
 
-## UI 引用偵測模式
+## UI Reference Detection Patterns
 
-系統能偵測以下 UI 元件引用方式：
+The system detects the following UI component reference methods:
 
-| 引用方式 | 程式碼模式 | 說明 |
-|----------|-----------|------|
-| SerializeField | `[SerializeField] private Button myButton;` | Inspector 拖曳指定 |
-| PublicField | `public Button myButton;` | 公開欄位直接引用 |
-| GetComponent | `GetComponent<Button>()` | 執行時期動態取得 |
-| GetComponentInChildren | `GetComponentInChildren<Slider>()` | 從子物件動態取得 |
-| GameObjectFind | `GameObject.Find("ButtonObj")` | 透過名稱全域搜尋 |
-| TransformFind | `transform.Find("ButtonObj")` | 透過路徑相對搜尋 |
-| AddComponent | `AddComponent<Image>()` | 動態新增元件 |
+| Reference Method | Code Pattern | Description |
+|-----------------|-------------|-------------|
+| SerializeField | `[SerializeField] private Button myButton;` | Inspector drag-and-drop assignment (a Unity attribute that makes private fields visible in the Inspector panel — Unity's property editor — for visual assignment) |
+| PublicField | `public Button myButton;` | Public field direct reference |
+| GetComponent | `GetComponent<Button>()` | Runtime dynamic retrieval |
+| GetComponentInChildren | `GetComponentInChildren<Slider>()` | Dynamic retrieval from children |
+| GameObjectFind | `GameObject.Find("ButtonObj")` | Global search by name |
+| TransformFind | `transform.Find("ButtonObj")` | Relative path search |
+| AddComponent | `AddComponent<Image>()` | Dynamic component addition |
 
-### 支援的 UI 元件類型
+### Supported UI Component Types
 
-Button、Toggle、Slider、InputField、Dropdown、ScrollRect、Text、Image、TMP_Text、TextMeshProUGUI、TextMeshPro、RawImage、Canvas、CanvasGroup、RectTransform、ScrollView、Scrollbar
+Button, Toggle, Slider, InputField, Dropdown, ScrollRect, Text, Image, TMP_Text, TextMeshProUGUI, TextMeshPro, RawImage, Canvas, CanvasGroup, RectTransform, ScrollView, Scrollbar
 
-### 高扇入偵測
+### High Fan-In Detection
 
-當同一個 UI 元件被超過 3 個不同腳本引用時，系統會將其標記為「高扇入元件」（High Fan-In Component），這通常代表該元件是潛在的耦合熱點。
+> **Fan-In (扇入度)** measures how many other modules reference a given component. A component with high fan-in is used by many places — which makes it a critical dependency point: changing it risks breaking all of its consumers.
 
-## 事件調用鏈分析
+When the same UI component is referenced by more than 3 different scripts, the system flags it as a "High Fan-In Component" (a component referenced by many other components), which typically indicates a potential coupling hotspot (a point where many parts of the code depend on each other, making changes risky) that may benefit from decoupling via an event bus or interface.
 
-### 偵測的事件訂閱模式
+## Event Call Chain Analysis
 
-| 模式 | 程式碼範例 | 說明 |
-|------|-----------|------|
-| AddListener | `button.onClick.AddListener(OnClick)` | UnityEvent 訂閱 |
-| CSharpEventSubscription | `someEvent += OnSomething;` | C# 事件訂閱 |
-| SerializedUnityEvent | `[SerializeField] UnityEvent onClicked;` | 序列化 UnityEvent |
-| SendMessage | `SendMessage("OnDamage")` | 字串反射呼叫 |
-| BroadcastMessage | `BroadcastMessage("OnDamage")` | 廣播反射呼叫 |
+### Detected Event Subscription Patterns
 
-### 狀態變更偵測
+| Pattern | Code Example | Description |
+|---------|-------------|-------------|
+| AddListener | `button.onClick.AddListener(OnClick)` | UnityEvent subscription |
+| CSharpEventSubscription | `someEvent += OnSomething;` | C# event subscription |
+| SerializedUnityEvent | `[SerializeField] UnityEvent onClicked;` | Serialized UnityEvent |
+| SendMessage | `SendMessage("OnDamage")` | String reflection call |
+| BroadcastMessage | `BroadcastMessage("OnDamage")` | Broadcast reflection call |
 
-調用鏈終端的狀態變更類型：
+### State Change Detection
 
-| 類型 | 程式碼模式 | 說明 |
-|------|-----------|------|
-| StaticFieldWrite | `GameManager.score = 10;` | 靜態欄位寫入 |
-| ScriptableObjectModify | `playerData.health = 100;` | ScriptableObject 修改 |
-| PlayerPrefsWrite | `PlayerPrefs.SetInt("key", value)` | PlayerPrefs 寫入 |
-| SingletonStateModify | `Instance.health = 100;` | Singleton 狀態修改 |
+State change types at call chain terminals:
 
-### 過深調用鏈
+| Type | Code Pattern | Description |
+|------|-------------|-------------|
+| StaticFieldWrite | `GameManager.score = 10;` | Static field write |
+| ScriptableObjectModify | `playerData.health = 100;` | ScriptableObject modification |
+| PlayerPrefsWrite | `PlayerPrefs.SetInt("key", value)` | PlayerPrefs write |
+| SingletonStateModify | `Instance.health = 100;` | Singleton state modification |
 
-當事件調用鏈深度超過 5 層時，系統會標記為「過深調用鏈」（Deep Chain），建議進行架構重構以降低複雜度。
+### Deep Call Chains
 
-## 耦合度計算公式
+When event call chain depth exceeds 5 levels, the system flags it as a "Deep Chain" and suggests architectural refactoring to reduce complexity.
 
-耦合分數由以下四個因素加權計算：
+> **When to act**: In practice, coupling scores above 15 almost always indicate a design problem worth addressing immediately. Scores between 10-15 are worth monitoring but may be acceptable for tightly related components (e.g., a HealthBar and HealthSystem).
 
-| 因素 | 權重 | 說明 |
-|------|------|------|
-| 直接引用數 | × 1.0 | 兩個腳本共享的 UI 元件引用數量 |
-| 最大調用鏈深度 | × 0.5 | 兩個腳本之間最深的事件調用鏈 |
-| 共享狀態變更數 | × 2.0 | 兩個腳本共同涉及的狀態變更次數 |
-| 雙向依賴加成 | + 10.0 | 若兩個腳本互相依賴，額外加 10 分 |
+## Coupling Score Calculation
 
-高耦合閾值為 10 分，超過此分數的配對會被列入報告摘要。
+Coupling score is calculated from four weighted factors:
 
-## 重構建議類型
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| Direct reference count | × 1.0 | Number of shared UI component references between two scripts |
+| Max call chain depth | × 0.5 | Deepest event call chain between two scripts |
+| Shared state change count | × 2.0 | Number of state changes both scripts are involved in |
+| Bidirectional dependency bonus | + 10.0 | If two scripts depend on each other, add 10 points |
 
-| 建議類型 | 適用情境 | 優先級 |
-|----------|---------|--------|
-| EventBus | 直接引用數多或雙向依賴 | 高（雙向）/ 中 |
-| ScriptableObjectChannel | 共享狀態變更多 | 中 |
-| LayerSeparation | 調用鏈過深（> 5 層） | 中 |
-| InterfaceDecoupling | 雙向依賴或一般高耦合 | 高（雙向）/ 低 |
+High coupling threshold is 10 points; pairs exceeding this score are included in the report summary.
 
-## MCP 工具用法範例
+## Refactoring Suggestion Types
 
-### 掃描專案中的 C# 腳本
+| Suggestion Type | Applicable Scenario | Priority |
+|----------------|--------------------| ---------|
+| EventBus | High direct reference count or bidirectional dependency | High (bidirectional) / Medium |
+| ScriptableObjectChannel | High shared state change count | Medium |
+| LayerSeparation | Deep call chain (> 5 levels) | Medium |
+| InterfaceDecoupling | Bidirectional dependency or general high coupling | High (bidirectional) / Low |
+
+## MCP Tool Usage Examples
+
+### Scan C# Scripts in Project
 
 ```
 manage_asset(action: "search", path: "Assets/Scripts/", search_pattern: "*.cs")
 ```
 
-### 讀取腳本內容進行分析
+### Read Script Content for Analysis
 
 ```
 manage_script(action: "read", name: "UIManager", path: "Assets/Scripts/UI/")
 ```
 
-### 批次讀取多個腳本
+### Batch Read Multiple Scripts
 
 ```
 batch_execute(commands: [
@@ -114,58 +120,58 @@ batch_execute(commands: [
 ])
 ```
 
-### 建構依賴圖並視覺化
+### Build Dependency Graph
 
-分析完成後，可使用 `buildUIDependencyGraph` 建構有向依賴圖，其中：
-- 每個腳本檔案成為一個 `script` 節點
-- 每個唯一的 UI 元件成為一個 `uiComponent` 節點
-- 每個引用產生一條從腳本到 UI 元件的邊
+After analysis, use `buildUIDependencyGraph` to construct a directed dependency graph where:
+- Each script file becomes a `script` node
+- Each unique UI component becomes a `uiComponent` node
+- Each reference creates an edge from script to UI component
 
-## 錯誤處理指引
+## Error Handling
 
-### 腳本解析失敗
+### Script Parse Failure
 
-- 若單一腳本解析失敗，記錄至 `failedFiles` 並繼續處理其餘腳本
-- 不因單一檔案失敗中斷整體分析
-- 最終報告中列出所有失敗檔案及錯誤原因
+- If a single script fails to parse, record to `failedFiles` and continue processing remaining scripts
+- Do not interrupt overall analysis due to a single file failure
+- List all failed files and error reasons in the final report
 
-### 空輸入處理
+### Empty Input Handling
 
-- 空腳本陣列回傳有效的空結果（空引用清單、空調用鏈、零耦合分數）
-- 不拋出例外
+- Empty script array returns valid empty results (empty reference list, empty call chains, zero coupling score)
+- Do not throw exceptions
 
-### 常見錯誤情境
+### Common Error Scenarios
 
-| 錯誤 | 處理方式 |
-|------|----------|
-| 腳本內容為 null | 記錄至 failedFiles，跳過該檔案 |
-| 找不到事件入口點 | 回傳僅含入口節點的最小調用鏈 |
-| 調用鏈超過最大深度 | 在達到 maxDepth（預設 10）時停止遞迴 |
-| 偵測到循環依賴 | 記錄循環路徑至 cyclePath，不重複遍歷 |
+| Error | Handling |
+|-------|----------|
+| Script content is null | Record to failedFiles, skip that file |
+| Event entry point not found | Return minimal call chain containing only the entry node |
+| Call chain exceeds max depth | Stop recursion at maxDepth (default 10) |
+| Circular dependency detected | Record cycle path to cyclePath, do not re-traverse |
 
-## 最佳實踐
+## Best Practices
 
-### UI 引用方式建議
+### UI Reference Method Recommendations
 
-| 引用方式 | 建議 | 理由 |
-|----------|------|------|
-| SerializeField | 優先使用 | 編譯時期安全、Inspector 可見、易於維護 |
-| GetComponent | 適度使用 | 適合動態生成的 UI，但應快取結果 |
-| GameObject.Find | 避免使用 | 效能差、字串耦合、重構困難 |
-| SendMessage / BroadcastMessage | 避免使用 | 字串反射、無編譯時期檢查、難以追蹤 |
+| Reference Method | Recommendation | Reason |
+|-----------------|---------------|--------|
+| SerializeField | Preferred | Compile-time safe, Inspector visible, easy to maintain |
+| GetComponent | Use moderately | Suitable for dynamically generated UI, but cache results |
+| GameObject.Find | Avoid | Poor performance, string coupling, difficult to refactor |
+| SendMessage / BroadcastMessage | Avoid | String reflection, no compile-time checking, hard to trace |
 
-### 降低耦合度策略
+### Coupling Reduction Strategies
 
-| 策略 | 適用場景 | 效果 |
-|------|---------|------|
-| Event Bus | 多對多通訊 | 消除直接引用，支援鬆耦合 |
-| ScriptableObject Channel | 跨場景狀態共享 | 資料驅動、可序列化、易於測試 |
-| Interface Decoupling | 一對一依賴 | 提高可測試性、支援替換實作 |
-| Layer Separation | 深層調用鏈 | 分離 UI 與遊戲邏輯，降低複雜度 |
+| Strategy | Applicable Scenario | Effect |
+|----------|--------------------| -------|
+| Event Bus | Many-to-many communication | Eliminates direct references, supports loose coupling |
+| ScriptableObject Channel | Cross-scene state sharing | Data-driven, serializable, easy to test |
+| Interface Decoupling | One-to-one dependency | Improves testability, supports implementation swapping |
+| Layer Separation | Deep call chains | Separates UI from game logic, reduces complexity |
 
-### 報告序列化
+### Report Serialization
 
-分析報告支援三種操作：
-- **序列化**：將 `UIDependencyReport` 轉為 JSON 字串，便於儲存與傳輸
-- **反序列化**：將 JSON 字串還原為 `UIDependencyReport`，包含完整的格式驗證
-- **文字格式化**：將報告轉為人類可讀的結構化文字，包含所有引用、調用鏈、耦合配對與重構建議
+Analysis reports support three operations:
+- **Serialize**: Convert `UIDependencyReport` to JSON string for storage and transmission
+- **Deserialize**: Restore JSON string to `UIDependencyReport` with full format validation
+- **Text formatting**: Convert report to human-readable structured text including all references, call chains, coupling pairs, and refactoring suggestions

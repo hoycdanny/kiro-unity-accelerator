@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 
 import {
   loadConfig,
@@ -34,6 +35,18 @@ export const BATCH_RULE_CUSTOM_DIR = path.join(DEFAULT_CUSTOM_BASE, BATCH_RULE_S
 export const BATCH_RULE_BUILT_IN_DIR = path.join(DEFAULT_BUILT_IN_BASE, BATCH_RULE_SUBDIR);
 
 // ----------------------------------------------------------------
+// Allowed base directories for listJsonFiles
+// ----------------------------------------------------------------
+
+/** Set of directories that listJsonFiles is allowed to read from. */
+const ALLOWED_LIST_DIRS = new Set([
+  path.resolve(TEMPLATE_CUSTOM_DIR),
+  path.resolve(TEMPLATE_BUILT_IN_DIR),
+  path.resolve(BATCH_RULE_CUSTOM_DIR),
+  path.resolve(BATCH_RULE_BUILT_IN_DIR),
+]);
+
+// ----------------------------------------------------------------
 // Internal helpers
 // ----------------------------------------------------------------
 
@@ -42,16 +55,18 @@ function toFileName(name: string): string {
 }
 
 /**
- * Lists JSON files in a directory via config-crud's loadConfig pattern.
+ * Lists JSON files in a pre-approved directory.
+ * Only reads from directories in the ALLOWED_LIST_DIRS allowlist.
  * Returns file names (without extension) found in the given directory.
  */
 function listJsonFiles(dir: string): string[] {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fs = require('fs') as typeof import('fs');
-    if (!fs.existsSync(dir)) return [];
+    const resolvedDir = path.resolve(dir); // nosemgrep: path-join-resolve-traversal
+    // Only allow reading from known safe directories
+    if (!ALLOWED_LIST_DIRS.has(resolvedDir)) return [];
+    if (!fs.existsSync(resolvedDir)) return []; // nosemgrep: detect-non-literal-fs-filename
     return fs
-      .readdirSync(dir)
+      .readdirSync(resolvedDir) // nosemgrep: detect-non-literal-fs-filename
       .filter((f: string) => f.endsWith('.json'))
       .map((f: string) => f.replace(/\.json$/, ''));
   } catch {

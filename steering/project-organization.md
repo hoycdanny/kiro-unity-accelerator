@@ -1,113 +1,134 @@
-# 專案組織與版本控制 Steering
+# Project Organization & Version Control Steering
+<!-- File Purpose / 本檔案用途: Unity project organization and version control steering guide / Unity 專案組織與版本控制的 steering 指引，涵蓋標準資料夾結構、命名規範、.meta 檔案管理、Prefab 最佳實踐、版本控制建議及關卡設計工作流程。 -->
 
-## 你的角色
+## Role and Purpose
 
-你是 Unity 專案組織與工作流程專家。當開發者要求檢查專案結構、命名規範或版本控制設定時，你應該運用 MCP 工具掃描專案結構並提供改善建議。
+Unity projects accumulate hundreds of assets quickly. Without an agreed folder layout, naming convention, and version-control practices, finding things slows everyone on the team — and the effort required to reorganize a project typically increases significantly as the project grows and more assets accumulate. This guide captures the layout patterns that Unity's official Style Guide recommends, plus practical adjustments commonly made by studios for production projects (especially around Resources/, Assembly Definitions, and 2D-specific concerns). Use it whenever a developer asks about project structure, naming conventions, or version-control setup.
 
-## 標準資料夾結構（來自 Unity 官方最佳實踐）
+## Standard Folder Structure (Based on Unity Official Best Practices)
+
+The structure below is the baseline most teams converge on. Smaller prototypes can collapse `Scripts/Core` and `Scripts/Gameplay` into one folder; larger projects often add team-specific folders such as `Cinematics/`, `Localization/`, or `Tests/`. Keep the asset-type folders (Animations, Audio, Materials, Models, Prefabs, Scenes, Shaders, Textures) — search and onboarding both rely on those names being predictable.
 
 ```
 Assets/
-├── Animations/          # AnimationClip、Animator Controller
+├── Animations/          # AnimationClips, Animator Controllers
 ├── Audio/
-│   ├── Music/           # 背景音樂（.wav, .ogg）
-│   └── SFX/             # 音效（.wav, .mp3）
-├── Editor/              # Editor-only 腳本（不會被打包）
-├── Materials/           # 材質球（.mat）
+│   ├── Music/           # Background music (.wav, .ogg)
+│   └── SFX/             # Sound effects (.wav, .mp3)
+├── Editor/              # Editor-only scripts (not included in builds)
+├── Materials/           # Materials (.mat)
 ├── Models/
-│   ├── Characters/      # 角色模型（.fbx, .obj）
-│   └── Environment/     # 環境模型
-├── Plugins/             # 第三方插件
-├── Prefabs/             # 預製物件（.prefab）
-├── Resources/           # 需透過 Resources.Load 載入的資產（謹慎使用）
-├── Scenes/              # 場景檔案（.unity）
+│   ├── Characters/      # Character models (.fbx, .obj)
+│   └── Environment/     # Environment models
+├── Plugins/             # Third-party plugins
+├── Prefabs/             # Prefab objects (.prefab)
+├── Resources/           # Assets loaded via Resources.Load (use sparingly)
+├── Scenes/              # Scene files (.unity)
 ├── Scripts/
-│   ├── Core/            # 核心系統（GameManager、EventSystem）
-│   ├── Gameplay/        # 遊戲邏輯
-│   ├── UI/              # UI 相關腳本
-│   └── Utils/           # 工具類
-├── Shaders/             # 自訂 Shader
-├── StreamingAssets/     # 需原封不動複製到建置的檔案
-├── Textures/            # 貼圖（.png, .jpg, .tga）
-└── ThirdParty/          # 第三方資產（與自有資產分離）
+│   ├── Core/            # Core systems (GameManager, EventSystem)
+│   ├── Gameplay/        # Gameplay logic
+│   ├── UI/              # UI-related scripts
+│   └── Utils/           # Utility classes
+├── Shaders/             # Custom Shaders
+├── StreamingAssets/     # Files copied as-is to the build
+├── Textures/            # Textures (.png, .jpg, .tga)
+└── ThirdParty/          # Third-party assets (separated from owned assets)
 ```
 
-## 資料夾規則
+## Folder Rules
 
-### 必須遵守
-- **不要**將大量資產放在 `Resources/` — 所有 Resources 下的資產都會被打包，即使未被引用
-- **使用** Addressables 或 AssetBundle 取代 Resources.Load 進行動態載入
-- `Editor/` 資料夾中的腳本僅在 Unity Editor 中可用，不會被包含在建置中
-- `StreamingAssets/` 中的檔案會原封不動複製到建置產物中
-- 每個功能模組使用獨立的 Assembly Definition（.asmdef）以加速編譯
+The rules below split into "must follow" (breaking these usually creates a build- or runtime-level problem) and "recommended" (style and ergonomics). When scanning a project, treat the must-follow list as warnings worth surfacing immediately and the recommended list as suggestions only.
 
-### 建議遵守
-- 文件命名規範和資料夾結構應記錄在 Style Guide 中
-- 不要在檔案和資料夾名稱中使用空格（命令列工具會有問題）
-- 分離測試/沙盒區域，為非正式場景建立獨立資料夾
-- 避免在專案根目錄建立額外資料夾
+### Must Follow
+- **Do not** place large amounts of assets in `Resources/` — all assets under Resources are included in the build, even if unreferenced
+- **Use** Addressables or AssetBundles instead of Resources.Load for dynamic loading
+- Scripts in the `Editor/` folder are only available in the Unity Editor and are not included in builds
+- Files in `StreamingAssets/` are copied as-is to the build output
+- Use separate Assembly Definitions (.asmdef) for each feature module to speed up compilation
 
-## 資產命名規範
+### Recommended
+- Document file naming conventions and folder structure in a Style Guide
+- Do not use spaces in file and folder names (causes issues with command-line tools)
+- Separate test/sandbox areas; create dedicated folders for informal scenes
+- Avoid creating additional folders at the project root level
 
-### C# 腳本命名
-| 類型 | 慣例 | 範例 |
-|------|------|------|
-| 類別 | PascalCase | `PlayerController`, `GameManager` |
-| 介面 | I + PascalCase | `IDamageable`, `IInteractable` |
-| 方法 | PascalCase | `TakeDamage()`, `Initialize()` |
-| 私有欄位 | m_ + camelCase | `m_currentHealth`, `m_moveSpeed` |
-| 常數 | k_ + PascalCase | `k_MaxHealth`, `k_DefaultSpeed` |
-| 靜態欄位 | s_ + camelCase | `s_instance`, `s_sharedData` |
-| 公開屬性 | PascalCase | `MaxHealth`, `MoveSpeed` |
-| 列舉 | PascalCase | `GameState.Playing`, `DamageType.Fire` |
-| 事件 | 動詞片語 | `DoorOpened`, `PointsScored` |
+## Asset Naming Conventions
 
-### 資產命名
-| 類型 | 慣例 | 範例 |
-|------|------|------|
-| 場景 | PascalCase | `MainMenu.unity`, `Level01.unity` |
-| 預製物件 | PascalCase | `EnemySpider.prefab`, `HealthBar.prefab` |
-| 材質 | M_ + 描述 | `M_Character_Skin.mat` |
-| 貼圖 | T_ + 描述 + 類型 | `T_Character_Diffuse.png`, `T_Wall_Normal.png` |
-| 動畫 | Anim_ + 描述 | `Anim_Idle.anim`, `Anim_Run.anim` |
-| Shader | S_ + 描述 | `S_Toon_Outline.shader` |
+A common cause of merge conflicts on Unity projects is files that look the same in the Project window but differ by case or trailing space. The conventions below come from real production projects: PascalCase for classes and assets, prefixes for asset categories (M_, T_, S_), and Unity's official C# Style Guide for fields. If a team already has a different convention, keep theirs — consistency matters more than the specific scheme.
 
-## .meta 檔案管理
+### C# Script Naming
 
-- `.meta` 檔案包含引擎和編輯器特定的資料，**必須**納入版本控制
-- 在 Project Settings > Editor 中確認 Asset Serialization Mode 設為 Force Text
-- 使用 Force Text 模式讓場景檔案以文字格式儲存，有助於版本控制合併
-- `Library/` 資料夾是快取，**不需要**加入版本控制
+> Note: Prefix conventions come from the Unity official C# Style Guide. Each prefix uses a single letter as a memory aid:
+>
+> - `m_` = **m**ember (member field)
+> - `k_` = **k**onstant (prefix for constants, adopted from C++ style guides)
+> - `s_` = **s**tatic
+>
+> Teams can adjust as needed.
 
-## Prefab 最佳實踐
+| Type | Convention | Example |
+|------|-----------|---------|
+| Class | PascalCase | `PlayerController`, `GameManager` |
+| Interface | I + PascalCase | `IDamageable`, `IInteractable` |
+| Method | PascalCase | `TakeDamage()`, `Initialize()` |
+| Private field | m_ + camelCase (m_ = member) | `m_currentHealth`, `m_moveSpeed` |
+| Constant | k_ + PascalCase (k_ prefix for constants; from the German word "Konstante," adopted by C++ style guides) | `k_MaxHealth`, `k_DefaultSpeed` |
+| Static field | s_ + camelCase (s_ = static) | `s_instance`, `s_sharedData` |
+| Public property | PascalCase | `MaxHealth`, `MoveSpeed` |
+| Enum | PascalCase | `GameState.Playing`, `DamageType.Fire` |
+| Event | Verb phrase | `DoorOpened`, `PointsScored` |
 
-### 使用時機
-- 環境資產：重複使用的樹木、建築物
-- NPC：多次出現的角色類型，使用 Override 區分行為/外觀
-- 投射物/道具：需要在執行期實例化的 GameObject
-- 玩家角色：放置在每個關卡的起始點
+### Asset Naming
+| Type | Convention | Example |
+|------|-----------|---------|
+| Scene | PascalCase | `MainMenu.unity`, `Level01.unity` |
+| Prefab | PascalCase | `EnemySpider.prefab`, `HealthBar.prefab` |
+| Material | M_ + description | `M_Character_Skin.mat` |
+| Texture | T_ + description + type | `T_Character_Diffuse.png`, `T_Wall_Normal.png` |
+| Animation | Anim_ + description | `Anim_Idle.anim`, `Anim_Run.anim` |
+| Shader | S_ + description | `S_Toon_Outline.shader` |
 
-### Prefab Variant 工作流程
-1. 建立基礎 Prefab（Base Prefab）
-2. 從基礎 Prefab 建立 Variant（拖曳到 Project 視窗）
-3. 在 Variant 上覆寫需要變更的屬性
-4. 基礎 Prefab 的變更會自動傳播到所有 Variant
+## .meta File Management
 
-### Nested Prefab 注意事項
-- 使用 Nested Prefab 建立複雜的物件階層
-- 團隊成員可以同時在不同的 Prefab 上工作
-- 與版本控制系統配合良好
+- `.meta` files contain engine and editor-specific data and **must** be included in version control
+- In Project Settings > Editor, confirm Asset Serialization Mode is set to Force Text
+- Use Force Text mode so scene files are stored in text format, which helps with version control merging
+- The `Library/` folder is a cache and **does not need** to be added to version control
 
-## 版本控制建議
+## Prefab Best Practices
 
-### 推薦方案
-| 方案 | 適用場景 | 優點 |
-|------|---------|------|
-| Plastic SCM | Unity 官方推薦 | 處理大型二進位檔案最佳、簡化的藝術家模式 |
-| Git + LFS | 開源專案 | 社群廣泛、免費 |
-| Perforce | AAA 工作室 | 大規模團隊效能佳 |
+### When to Use
+- Environment assets: Reusable trees, buildings
+- NPCs: Character types that appear multiple times, using Overrides to differentiate behavior/appearance
+- Projectiles/Items: GameObjects that need to be instantiated at runtime
+- Player character: Placed at the starting point of each level
 
-### .gitignore 必要項目
+### Prefab Variant Workflow
+1. Create a Base Prefab
+2. Create a Variant from the Base Prefab (drag to the Project window)
+3. Override properties that need to change on the Variant
+4. Changes to the Base Prefab automatically propagate to all Variants
+
+### Nested Prefab Considerations
+
+Nested Prefabs are like building blocks within building blocks. They let you place one Prefab inside another, so a single Prefab can contain other Prefabs as part of its definition. For example, a Vehicle Prefab might contain a Wheel Prefab and a Driver Prefab, and any change you save to the Wheel Prefab automatically appears in every Vehicle that uses it.
+
+In more technical terms: a parent Prefab references and contains child Prefabs as part of its definition, creating a hierarchical structure where edits to a child propagate to every parent that nests it.
+
+- Use Nested Prefabs to build complex object hierarchies
+- Team members can work on different Prefabs simultaneously
+- Works well with version control systems
+
+## Version Control Recommendations
+
+### Recommended Solutions
+| Solution | Use Case | Advantages |
+|----------|----------|------------|
+| Plastic SCM | Unity officially recommended | Best for handling large binary files, simplified artist mode |
+| Git + LFS | Open source projects | Wide community support, free |
+| Perforce | AAA studios | Excellent performance for large-scale teams |
+
+### .gitignore Required Items
 ```
 Library/
 Temp/
@@ -126,69 +147,69 @@ UserSettings/
 *.booproj
 ```
 
-## 場景組織
+## Scene Organization
 
-- 使用多場景編輯（Multi-Scene Editing）讓團隊成員獨立工作
-- 將靜態和動態物件分離到不同的場景部分
-- 使用空的 GameObject 作為分隔符號組織 Hierarchy
-- 將維護用的 Prefab 和空 GameObject 放在世界原點 (0,0,0)
-- 將世界地板設在 y = 0
+- Use Multi-Scene Editing to allow team members to work independently
+- Separate static and dynamic objects into different scene sections
+- Use empty GameObjects as separators to organize the Hierarchy
+- Place maintenance Prefabs and empty GameObjects at the world origin (0,0,0)
+- Set the world floor at y = 0
 
-## 2D 專案特殊注意事項（來自 2D Art 電子書）
+## 2D Project Special Considerations (from the 2D Art e-book)
 
-### Sprite 解析度計算
+### Sprite Resolution Calculation
 ```
-最大垂直解析度 ÷ (正交相機大小 × 2) = Sprites PPU
+Maximum vertical resolution ÷ (orthographic camera size × 2) = Sprites PPU
 ```
-範例：4K (2160px) ÷ (相機大小 5 × 2) = 216 PPU
+Example: 4K (2160px) ÷ (camera size 5 × 2) = 216 PPU
 
-### Sorting Layer 規劃
-- 在設計 mockup 階段就規劃 Sorting Layer 結構
-- 2D Lights 依賴 Sorting Layers，需考慮燈光行為
-- 避免使用過多 Sorting Layers，改用 Order in Layer 進一步排序
-- 使用 Sorting Group 元件將多 Sprite 角色作為單一元素排序
+### Sorting Layer Planning
+- Plan the Sorting Layer structure during the design mockup phase
+- 2D Lights depend on Sorting Layers; consider lighting behavior
+- Avoid using too many Sorting Layers; use Order in Layer for further sorting
+- Use the Sorting Group component to sort multi-sprite characters as a single element
 
-### 2D 優化技巧
-- 使用 2D Light Batching Debugger 視覺化批次處理
-- 使用 Render Graph 自動最佳化渲染 pass
-- 使用 SRP Batcher（密集 mesh 或 skinned sprite 效能更好）
-- 使用 Sprite Atlas Analyzer 檢查 atlas 效能問題
-- 安裝 Burst package 改善 2D Animation 效能
-- 開啟 Animator 的 Culling 選項
+### 2D Optimization Tips
+- Use the 2D Light Batching Debugger to visualize batch processing
+- Use Render Graph for automatic render pass optimization
+- Use SRP Batcher (Scriptable Render Pipeline Batcher — a Unity optimization that reduces rendering overhead by grouping objects that share the same shader variant, resulting in better performance for scenes with many objects using similar visual styles)
+- Use Sprite Atlas Analyzer to check atlas performance issues
+- Install the Burst package to improve 2D Animation performance
+- Enable the Animator's Culling option
 
-## 多人遊戲專案組織（來自 Multiplayer 電子書）
+## Multiplayer Project Organization (from the Multiplayer e-book)
 
-### Netcode 架構選擇
-| 方案 | 適用場景 | 特點 |
-|------|---------|------|
-| Netcode for GameObjects | 休閒合作遊戲 | 簡單易用、MonoBehaviour 工作流程 |
-| Netcode for Entities | 競技/大規模遊戲 | DOTS/ECS、高效能、完整預測系統 |
+### Netcode Architecture Choices
+| Solution | Use Case | Features |
+|----------|----------|----------|
+| Netcode for GameObjects | Casual co-op games | Approachable, familiar MonoBehaviour workflow |
+| Netcode for Entities | Competitive/large-scale games | DOTS/ECS (Data-Oriented Technology Stack / Entity Component System — Unity's high-performance architecture that organizes data for cache-friendly processing, enabling efficient handling of large numbers of entities), full prediction system (client-side movement prediction that hides network latency by simulating results locally before server confirmation arrives) |
 
-### 多人遊戲效能考量
-- 使用 NetworkVariable 同步持續性資料（血量、位置）
-- 使用 RPC 處理離散事件（射擊、使用技能）
-- 最小化網路流量：只同步必要的資料
-- 使用 Data Culling 排除非必要更新
-- 使用 Delta Compression 只傳送變更
-- 使用 Interest Management 根據距離/可見性優先排序
+### Multiplayer Performance Considerations
+- Use NetworkVariable to synchronize persistent data (health, position)
+- Use RPCs (Remote Procedure Calls — methods invoked across the network) for discrete events (shooting, using abilities)
+- Minimize network traffic: only synchronize necessary data
+- Use Data Culling (excluding non-essential updates from network traffic so that only relevant data reaches each client, reducing unnecessary processing)
+- Use Delta Compression (sending only the differences since the last update rather than full state snapshots, significantly reducing bandwidth usage)
+- Use Interest Management (prioritizing network updates based on relevance criteria such as distance or visibility — nearby objects update frequently while distant ones update less often)
 
-## 關卡設計工作流程（來自 Level Design 電子書）
+## Level Design Workflow (from the Level Design e-book)
 
-### White-boxing 流程
-1. 使用 ProBuilder 建立簡單幾何形狀
-2. 為每個 blocky asset 命名（如 `wall_interior_w2_h4_l6`）
-3. 使用材質顏色標記不同功能（紅色=可破壞、綠色=可互動）
-4. 測試遊戲機制在 gym/zoo 場景中
-5. 確認後再讓美術替換為正式資產
+### White-boxing Process (creating placeholder geometry to test layout and gameplay before adding final art — also called "greyboxing" or "blockout"):
+1. Use ProBuilder to create simple geometric shapes
+2. Name each blocky asset (e.g., `wall_interior_w2_h4_l6`)
+3. Use material colors to mark different functions (red = destructible, green = interactable)
+4. Test game mechanics in gym/zoo scenes
+5. After confirmation, have artists replace with final assets
 
-### 玩家路徑規劃
-- **Critical Path**：完成遊戲的最長路徑
-- **Golden Path**：最佳遊戲體驗路徑
-- **Secondary/Tertiary Paths**：支線任務、秘密、捷徑
-- 避免讓玩家無獎勵地回溯已探索區域
+### Player Path Planning
+- **Critical Path**: The longest path to complete the game
+- **Golden Path**: The optimal gameplay experience path
+- **Secondary/Tertiary Paths**: Side quests, secrets, shortcuts
+- Avoid making players backtrack through explored areas without rewards
 
-### 三次法則（Rule of Three）
-新機制至少讓玩家執行三次才算熟悉：
-1. 首次遇到：學習基本操作
-2. 第二次：強化記憶，增加少量複雜度
-3. 第三次：需要更多技巧的變化版本
+### Rule of Three
+The Rule of Three is a design principle suggesting that a new mechanic or interaction should typically be performed at least three times to help most users become familiar with it. The actual number of repetitions needed varies based on mechanic complexity, target audience, and context — adjust accordingly:
+1. First encounter: Learn the basic operation
+2. Second time: Reinforce memory, add slight complexity
+3. Third time: A variation requiring more skill

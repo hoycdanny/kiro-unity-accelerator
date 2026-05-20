@@ -109,7 +109,9 @@ const ERROR_PATTERNS: ErrorPattern[] = [
         'Check shader syntax and ensure compatibility with the target graphics API. Consider using URP/HDRP compatible shaders.',
     }),
   },
-  // Missing asset: The referenced script on this Behaviour is missing!
+  // Missing asset: "The referenced script on this Behaviour is missing!"
+  // Note: Unity uses British English spelling ("Behaviour") in its API and error messages,
+  // as seen in MonoBehaviour. The regex below matches that exact spelling.
   // or: Missing Prefab with guid: ...
   {
     regex:
@@ -162,7 +164,7 @@ export function parseBuildLog(logText: string): BuildLogResult {
       if (match) {
         const extracted = pattern.extract(match);
         errors.push({ errorType: pattern.type, ...extracted });
-        break; // first matching pattern wins for this line
+        break; // use the first matching pattern for this line
       }
     }
   }

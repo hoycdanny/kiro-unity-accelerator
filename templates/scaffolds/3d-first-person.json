@@ -1,7 +1,7 @@
 {
   "id": "scaffold-3d-first-person",
   "name": "3D First Person",
-  "description": "3D 第一人稱場景，包含 FPS 控制器、主攝影機、地形、光源與 HUD",
+  "description": "3D first-person scene with FPS controller, main camera, terrain, lighting, and HUD",
   "category": "3D",
   "isBuiltIn": true,
   "hierarchy": [

@@ -1,8 +1,12 @@
 /**
- * Cloud_Assist routing module.
+ * Cloud-assist routing module.
  *
  * Determines whether a build task should be executed locally via MCP
- * or routed to the Kiro-managed cloud infrastructure.
+ * or routed to a remote cloud build service (e.g., AWS CodeBuild,
+ * Azure Pipelines, or any compatible CI backend).
+ *
+ * This module demonstrates a generic configurable local-vs-cloud
+ * routing pattern that can be adapted to any cloud CI provider.
  *
  * Requirement: 3.5
  */

@@ -21,10 +21,10 @@ export interface CompatibilityIssue {
 }
 
 /**
- * Check a set of assets against a platform profile.
+ * Check a set of assets against a platform profile (platform-specific capabilities and constraints).
  *
- * Identifies assets that use unsupported shader features and classifies
- * each issue as Error, Warning, or Suggestion.
+ * Identifies assets that use unsupported shader features (rendering capabilities that
+ * vary across platforms) and classifies each issue as Error, Warning, or Suggestion.
  */
 export function checkCompatibility(
   assets: AssetInfo[],
@@ -42,9 +42,9 @@ export function checkCompatibility(
         issues.push({
           assetPath: asset.path,
           severity: SeverityLevel.Error,
-          description: `Shader 功能 '${feature}' 在 ${profile.platform} 平台不受支援。`,
+          description: `Shader feature '${feature}' is not supported on ${profile.platform} platform.`,
           suggestion: alternative
-            ? `替代方案：${alternative}`
+            ? `Alternative: ${alternative}`
             : undefined,
         });
       }

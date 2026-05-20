@@ -22,123 +22,87 @@ interface SubscriptionMatch {
 }
 
 /**
- * Detect AddListener calls: e.g. `button.onClick.AddListener(OnClick)`
+ * Generic helper to detect regex patterns across lines of content.
+ * Reduces boilerplate in individual detection functions.
  */
-function detectAddListenerSubscriptions(content: string): SubscriptionMatch[] {
+function detectPatternMatches(
+  content: string,
+  regex: RegExp,
+  pattern: EventSubscriptionPattern,
+  options?: { skipComments?: boolean; filterFn?: (match: RegExpMatchArray, line: string) => boolean },
+): SubscriptionMatch[] {
   const matches: SubscriptionMatch[] = [];
   const lines = content.split('\n');
-  const regex = /\.AddListener\s*\(\s*(\w+)\s*\)/g;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const trimmed = line.trim();
+
+    if (options?.skipComments) {
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
+    }
+
     regex.lastIndex = 0;
     let m: RegExpMatchArray | null;
     while ((m = regex.exec(line)) !== null) {
-      matches.push({
-        pattern: 'AddListener',
-        handlerName: m[1],
-        lineNumber: i + 1,
-      });
+      if (options?.filterFn && !options.filterFn(m, line)) continue;
+      matches.push({ pattern, handlerName: m[1], lineNumber: i + 1 });
     }
   }
   return matches;
+}
+
+/**
+ * Detect AddListener calls: e.g. `button.onClick.AddListener(OnClick)`
+ */
+function detectAddListenerSubscriptions(content: string): SubscriptionMatch[] {
+  return detectPatternMatches(content, /\.AddListener\s*\(\s*(\w+)\s*\)/g, 'AddListener');
 }
 
 /**
  * Detect C# event += subscriptions: e.g. `someEvent += OnSomething;`
  */
 function detectCSharpEventSubscriptions(content: string): SubscriptionMatch[] {
-  const matches: SubscriptionMatch[] = [];
-  const lines = content.split('\n');
-  const regex = /\w+\s*\+=\s*(\w+)\s*;/g;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    // Skip comments
-    if (line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) continue;
-    // Skip string concatenation (+=) that isn't event subscription
-    if (/"\s*$/.test(line) || /\+\=\s*"/.test(line) || /\+\=\s*\d/.test(line)) continue;
-
-    regex.lastIndex = 0;
-    let m: RegExpMatchArray | null;
-    while ((m = regex.exec(lines[i])) !== null) {
-      // Filter out obvious non-event patterns (numeric assignments, string concat)
-      const fullMatch = m[0];
-      if (/\+=\s*\d/.test(fullMatch) || /\+=\s*"/.test(fullMatch)) continue;
-      matches.push({
-        pattern: 'CSharpEventSubscription',
-        handlerName: m[1],
-        lineNumber: i + 1,
-      });
-    }
-  }
-  return matches;
+  return detectPatternMatches(
+    content,
+    /\w+\s*\+=\s*(\w+)\s*;/g,
+    'CSharpEventSubscription',
+    {
+      skipComments: true,
+      filterFn: (m, line) => {
+        const trimmed = line.trim();
+        if (/"\s*$/.test(trimmed) || /\+\=\s*"/.test(trimmed) || /\+\=\s*\d/.test(trimmed)) return false;
+        const fullMatch = m[0];
+        if (/\+=\s*\d/.test(fullMatch) || /\+=\s*"/.test(fullMatch)) return false;
+        return true;
+      },
+    },
+  );
 }
 
 /**
  * Detect [SerializeField] UnityEvent fields: e.g. `[SerializeField] UnityEvent onClicked;`
  */
 function detectSerializedUnityEvents(content: string): SubscriptionMatch[] {
-  const matches: SubscriptionMatch[] = [];
-  const lines = content.split('\n');
-  const regex = /\[SerializeField\]\s*(?:private|protected)?\s*UnityEvent(?:<[^>]*>)?\s+(\w+)\s*;/g;
-
-  for (let i = 0; i < lines.length; i++) {
-    regex.lastIndex = 0;
-    let m: RegExpMatchArray | null;
-    while ((m = regex.exec(lines[i])) !== null) {
-      matches.push({
-        pattern: 'SerializedUnityEvent',
-        handlerName: m[1],
-        lineNumber: i + 1,
-      });
-    }
-  }
-  return matches;
+  return detectPatternMatches(
+    content,
+    /\[SerializeField\]\s*(?:private|protected)?\s*UnityEvent(?:<[^>]*>)?\s+(\w+)\s*;/g,
+    'SerializedUnityEvent',
+  );
 }
 
 /**
  * Detect SendMessage calls: e.g. `SendMessage("OnDamage")`
  */
 function detectSendMessageCalls(content: string): SubscriptionMatch[] {
-  const matches: SubscriptionMatch[] = [];
-  const lines = content.split('\n');
-  const regex = /\bSendMessage\s*\(\s*"(\w+)"/g;
-
-  for (let i = 0; i < lines.length; i++) {
-    regex.lastIndex = 0;
-    let m: RegExpMatchArray | null;
-    while ((m = regex.exec(lines[i])) !== null) {
-      matches.push({
-        pattern: 'SendMessage',
-        handlerName: m[1],
-        lineNumber: i + 1,
-      });
-    }
-  }
-  return matches;
+  return detectPatternMatches(content, /\bSendMessage\s*\(\s*"(\w+)"/g, 'SendMessage');
 }
 
 /**
  * Detect BroadcastMessage calls: e.g. `BroadcastMessage("OnDamage")`
  */
 function detectBroadcastMessageCalls(content: string): SubscriptionMatch[] {
-  const matches: SubscriptionMatch[] = [];
-  const lines = content.split('\n');
-  const regex = /\bBroadcastMessage\s*\(\s*"(\w+)"/g;
-
-  for (let i = 0; i < lines.length; i++) {
-    regex.lastIndex = 0;
-    let m: RegExpMatchArray | null;
-    while ((m = regex.exec(lines[i])) !== null) {
-      matches.push({
-        pattern: 'BroadcastMessage',
-        handlerName: m[1],
-        lineNumber: i + 1,
-      });
-    }
-  }
-  return matches;
+  return detectPatternMatches(content, /\bBroadcastMessage\s*\(\s*"(\w+)"/g, 'BroadcastMessage');
 }
 
 // ============================================================
@@ -269,7 +233,7 @@ function detectSingletonStateModifications(content: string): StateMutationMatch[
 function findFunctionLineNumber(content: string, functionName: string): number {
   const lines = content.split('\n');
   // Match method declarations like: void FunctionName( or public void FunctionName(
-  const regex = new RegExp(
+  const regex = safeRegExp(
     `(?:void|private|protected|public|internal|static|\\s)+\\s+${escapeRegex(functionName)}\\s*\\(`,
   );
 
@@ -289,7 +253,7 @@ function findMethodCallsInFunction(content: string, functionName: string): strin
   const calls: string[] = [];
 
   // Find the function start
-  const funcRegex = new RegExp(
+  const funcRegex = safeRegExp(
     `(?:void|private|protected|public|internal|static|\\s)+\\s+${escapeRegex(functionName)}\\s*\\(`,
   );
 
@@ -361,6 +325,18 @@ function findMethodCallsInFunction(content: string, functionName: string): strin
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Safely creates a RegExp from an escaped user-provided string.
+ * Validates the input length to prevent ReDoS on extremely long inputs.
+ */
+function safeRegExp(escapedPattern: string, flags?: string): RegExp {
+  if (escapedPattern.length > 500) {
+    throw new Error('Pattern too long for safe regex construction');
+  }
+  // nosemgrep: detect-non-literal-regexp -- input is escaped via escapeRegex() and length-validated above
+  return new RegExp(escapedPattern, flags);
 }
 
 // ============================================================
@@ -569,7 +545,7 @@ function determineNodeType(
  */
 function extractFunctionBody(content: string, functionName: string): string | null {
   const lines = content.split('\n');
-  const funcRegex = new RegExp(
+  const funcRegex = safeRegExp(
     `(?:void|private|protected|public|internal|static|\\s)+\\s+${escapeRegex(functionName)}\\s*\\(`,
   );
 
@@ -795,7 +771,7 @@ export function analyzeEventChain(
 function findEventLineNumber(content: string, eventName: string): number {
   const lines = content.split('\n');
   const escaped = escapeRegex(eventName);
-  const regex = new RegExp(`\\b${escaped}\\b`);
+  const regex = safeRegExp(`\\b${escaped}\\b`);
 
   for (let i = 0; i < lines.length; i++) {
     if (regex.test(lines[i])) {

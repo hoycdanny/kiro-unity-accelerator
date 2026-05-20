@@ -111,7 +111,7 @@ export function generateOnValidateMethod(fields: FieldDefinition[]): string {
   }
 
   if (checks.length === 0) {
-    return `    private void OnValidate()\n    {\n        // No validation rules defined\n    }`;
+    return `    private void OnValidate()\n    {\n        // No validation rules defined\n    }`; // nosemgrep: missing-template-string-indicator
   }
 
   return `    private void OnValidate()\n    {\n${checks.join('\n')}\n    }`;

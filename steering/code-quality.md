@@ -1,164 +1,167 @@
-# 程式碼品質與架構檢查 Steering
+# Code Quality & Architecture Check Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity C# code quality and architecture check steering guide / Unity C# 程式碼品質與架構檢查的 steering 指引，涵蓋架構模式（MVC/ECS/ScriptableObject）、循環依賴偵測、SOLID 原則檢查及常見程式碼異味。 -->
 
-你是 Unity C# 程式碼品質與架構專家。當開發者要求檢查程式碼架構、偵測違規或分析依賴關係時，你應該運用 MCP 工具掃描腳本、載入架構規則並生成結構化的違規報告。
+## Role and Purpose
 
-## 工作流程
+Maintaining clean architecture in Unity projects benefits from consistent patterns and dependency management. Architecture rules help keep classes focused on single responsibilities and dependency graphs manageable, which makes refactoring easier over time. This guide covers three architecture patterns commonly used in Unity — MVC, ECS, and ScriptableObject-based — along with cyclic dependency detection and SOLID principle validation via MCP tool scanning. Use it when a developer asks to check code quality, enforce naming conventions, or detect circular references.
 
-1. **取得專案資訊**：使用 `project_info` 取得專案結構與腳本目錄
-2. **列出腳本**：使用 `manage_script(action: "list")` 取得所有 C# 腳本清單
-3. **讀取腳本內容**：使用 `manage_script(action: "read", path: ...)` 讀取需要檢查的腳本
-4. **載入架構規則**：從 `templates/architecture-rules/` 或自訂位置載入啟用的 ArchitectureRule
-5. **分析程式碼**：比對腳本內容與架構規則，識別違規項目
-6. **偵測循環依賴**：分析腳本之間的 using/namespace 依賴關係，偵測循環路徑
-7. **生成報告**：產生違規報告，包含檔案路徑、行號、規則名稱與修正建議
+## Code Check Flow
 
-## 架構模式指引
+1. **Get project info**: Use `project_info` to get project structure and script directories
+2. **List scripts**: Use `manage_script(action: "list")` to get all C# script listings
+3. **Read script content**: Use `manage_script(action: "read", path: ...)` to read scripts that need checking
+4. **Load architecture rules**: Load enabled ArchitectureRule definitions from `templates/architecture-rules/` or custom locations
+5. **Analyze code**: Compare script content against architecture rules, identify violations
+6. **Detect cyclic dependencies**: Analyze using/namespace dependencies between scripts, detect cycle paths
+7. **Generate report**: Produce a violation report including file path, line number, rule name, and fix suggestion
 
-### MVC（Model-View-Controller）
-- **Model**：資料類別，不依賴 View 或 Controller，命名以 `Model` 或 `Data` 結尾
-- **View**：UI 與顯示邏輯，只依賴 Model，命名以 `View` 或 `UI` 結尾
-- **Controller**：業務邏輯，協調 Model 與 View，命名以 `Controller` 或 `Manager` 結尾
-- **規則**：View 不可直接引用 Controller；Model 不可引用 View 或 Controller
+## Architecture Pattern Guide
 
-### ECS（Entity-Component-System）
-- **Entity**：純資料容器，無邏輯
-- **Component**：純資料結構（struct），繼承 IComponentData，無方法
-- **System**：純邏輯，繼承 SystemBase，不持有狀態
-- **規則**：Component 不可包含方法；System 不可持有非暫時性欄位
+### MVC (Model-View-Controller)
+- **Model**: Data classes, no dependency on View or Controller, names end with `Model` or `Data`
+- **View**: UI and display logic, depends only on Model, names end with `View` or `UI`
+- **Controller**: Business logic, coordinates Model and View, names end with `Controller` or `Manager`
+- **Rule**: View must not directly reference Controller; Model must not reference View or Controller
 
-### ScriptableObject 架構
-- **ScriptableObject**：可序列化的資料容器，用於配置與共享資料
-- **規則**：ScriptableObject 不可引用 MonoBehaviour；避免在 ScriptableObject 中使用 static 欄位
-- **命名**：以 `SO` 或 `Config` 結尾
+### ECS (Entity-Component-System)
+- **Entity**: Pure data container, no logic
+- **Component**: Pure data struct, inherits IComponentData, no methods
+- **System**: Pure logic, inherits SystemBase, holds no state
+- **Rule**: Component must not contain methods; System must not hold non-transient fields
 
-## 循環依賴偵測指引
+### ScriptableObject Architecture
+- **ScriptableObject**: Serializable data container for configuration and shared data
+- **Rule**: ScriptableObject must not reference MonoBehaviour; avoid static fields in ScriptableObject
+- **Naming**: End with `SO` or `Config`
 
-### 偵測方法
-1. 解析每個 C# 腳本的 `using` 語句與 `namespace` 宣告
-2. 建構命名空間層級的依賴有向圖
-3. 使用 DFS（深度優先搜尋）偵測圖中的所有循環路徑
-4. 以文字描述循環路徑（例如：`A → B → C → A`）
+## Cyclic Dependency Detection Guide
 
-### 常見循環依賴模式
-- **雙向引用**：A 引用 B，B 也引用 A → 引入介面或事件系統解耦
-- **三角循環**：A → B → C → A → 提取共用介面至獨立命名空間
-- **Manager 互相引用**：多個 Manager 互相依賴 → 引入中介者模式（Mediator）
+### Detection Method
+1. Parse `using` statements and `namespace` declarations from each C# script
+2. Build a namespace-level directed dependency graph
+3. Use DFS (Depth-First Search — a graph traversal algorithm that explores as far as possible along each branch before backtracking; the tool handles this automatically, but understanding the concept helps interpret cycle-path output) to detect all cycles in the graph
+4. Describe cycle paths in text (e.g., `A → B → C → A`)
 
-## MCP 工具用法範例
+### Common Cyclic Dependency Patterns
+- **Bidirectional reference**: A references B, B also references A → Introduce interface or event system to decouple
+- **Triangle cycle**: A → B → C → A → Extract shared interface to independent namespace
+- **Manager cross-references**: Multiple Managers depend on each other → Introduce Mediator pattern
 
-### 取得專案結構
+## MCP Tool Usage Examples
+
+### Get Project Structure
 ```
 project_info
 → { projectName: "MyGame", scriptPaths: ["Assets/Scripts/..."], ... }
 ```
 
-### 列出所有腳本
+### List All Scripts
 ```
 manage_script(action: "list")
 → [{ path: "Assets/Scripts/PlayerController.cs", ... }, ...]
 ```
 
-### 讀取腳本內容
+### Read Script Content
 ```
 manage_script(action: "read", path: "Assets/Scripts/PlayerController.cs")
 → { content: "using UnityEngine;\n...", lineCount: 150 }
 ```
 
-## 增量式檢查
+## Incremental Checking
 
-- 當開發者儲存 C# 腳本時，僅對該檔案執行架構檢查
-- 增量式檢查結果應與完整檢查對同一檔案的結果一致
-- 在 Console 中顯示新增的違規項目
+- When a developer saves a C# script, run architecture check only on that file
+- Incremental check results should be consistent with full check results for the same file
+- Display newly detected violations in Console
 
-## 錯誤處理
+## Error Handling
 
-- 若腳本讀取失敗，記錄失敗的檔案路徑並繼續檢查其餘腳本
-- 若架構規則 JSON 格式錯誤，跳過該規則並告知開發者
-- 若專案中無 C# 腳本，告知開發者無需檢查
+- If script reading fails, record the failed file path and continue checking remaining scripts
+- If architecture rule JSON is malformed, skip that rule and inform you
+- If the project has no C# scripts, inform you that no check is needed
 
-## 最佳實踐
+## Code Quality Best Practices
 
-- 建議團隊在專案初期就選定架構模式並啟用對應規則
-- 定期執行完整架構檢查，避免技術債累積
-- 將自訂架構規則納入版本控制，確保團隊一致性
-- 優先修復循環依賴，這是最常見的架構退化來源
+- Recommend teams select an architecture pattern early and enable corresponding rules
+- Run full architecture checks regularly to avoid accumulating technical debt
+- Include custom architecture rules in version control to ensure team consistency
+- Prioritize fixing cyclic dependencies — the most common source of architecture degradation
 
+## Unity 6 Code Quality Advanced Guide (from official PDF best practices)
 
-## Unity 6 程式碼品質進階指引（來自官方 PDF 最佳實踐）
+### SOLID Principle Checks
 
-### SOLID 原則檢查
+Per the Unity official Design Patterns e-book, the following SOLID principles (a set of five object-oriented design guidelines — Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, and Dependency Inversion — that help keep code maintainable and extensible) should be included in architecture checks:
 
-根據 Unity 官方 Design Patterns 電子書，以下 SOLID 原則應納入架構檢查：
+#### Single Responsibility Principle (SRP)
+- Classes exceeding 200-300 lines should be considered for splitting
+- MonoBehaviour handling Input + Movement + Audio + UI simultaneously is an oversized-class symptom (a class that has taken on too many responsibilities, making it hard to test or modify — see Common Code Smells section below)
+- Suggest splitting into PlayerInput, PlayerMovement, PlayerAudio, etc.
 
-#### 單一職責原則 (SRP)
-- 類別超過 200-300 行應考慮拆分
-- MonoBehaviour 同時處理 Input + Movement + Audio + UI 是 God Object 的徵兆
-- 建議拆分為 PlayerInput、PlayerMovement、PlayerAudio 等獨立元件
+#### Open/Closed Principle (OCP)
+- Long switch/if-else chains suggest refactoring with polymorphism
+- Use abstract class or interface to define extensible behaviors
 
-#### 開放封閉原則 (OCP)
-- 過長的 switch/if-else 鏈暗示需要用多型重構
-- 使用 abstract class 或 interface 定義可擴展的行為
+#### Dependency Inversion Principle (DIP)
+- High-level modules should not depend directly on low-level modules; both should depend on abstractions
+- Use interfaces like ISwitchable to decouple Switch from Door
 
-#### 依賴反轉原則 (DIP)
-- 高層模組不應直接依賴低層模組，兩者都應依賴抽象
-- 使用 ISwitchable 等介面解耦 Switch 與 Door 的直接依賴
+### ScriptableObject Architecture Patterns
 
-### ScriptableObject 架構模式
+Per the Unity official ScriptableObject e-book, the following patterns should be recommended:
 
-根據 Unity 官方 ScriptableObject 電子書，以下模式應被推薦：
+#### Event Channel Pattern
+- Use ScriptableObject as event mediator, replacing Singleton
+- VoidEventChannelSO contains UnityAction delegate and RaiseEvent method
+- Any MonoBehaviour can subscribe/unsubscribe to event channels
 
-#### Event Channel 模式
-- 使用 ScriptableObject 作為事件中介，取代 Singleton
-- VoidEventChannelSO 包含 UnityAction 委派和 RaiseEvent 方法
-- 任何 MonoBehaviour 都可以訂閱/取消訂閱事件頻道
+#### Runtime Set Pattern
+- Use ScriptableObject to maintain GameObject collections, replacing FindObjectOfType
+- Objects add themselves to the set in OnEnable, remove in OnDisable
+- More efficient than searching Scene Hierarchy
 
-#### Runtime Set 模式
-- 使用 ScriptableObject 維護 GameObject 集合，取代 FindObjectOfType
-- 物件在 OnEnable 時加入集合，OnDisable 時移除
-- 比搜尋 Scene Hierarchy 更高效
+#### Delegate Object Pattern
+- ScriptableObject contains pluggable behavior logic (e.g., AI behaviors)
+- Use abstract ScriptableObject to define behavior interface
+- Drag-and-drop to swap different behaviors in Inspector
 
-#### Delegate Object 模式
-- ScriptableObject 包含可插拔的行為邏輯（如 AI 行為）
-- 使用 abstract ScriptableObject 定義行為介面
-- 在 Inspector 中拖放交換不同行為
+#### Flyweight Pattern
+- Use a memory-optimization pattern (Flyweight — where many objects share a single copy of common data instead of each storing its own) to store shared static data in ScriptableObject
+- Multiple GameObjects reference the same ScriptableObject instead of duplicating data
+- Significantly reduces memory usage
 
-#### Flyweight 模式
-- 將共享的靜態資料存放在 ScriptableObject 中
-- 多個 GameObject 引用同一個 ScriptableObject 而非各自複製資料
-- 大幅減少記憶體佔用
+### C# Naming Conventions (from Unity official Style Guide)
 
-### C# 命名慣例（來自 Unity 官方 Style Guide）
+| Type | Convention | Example |
+|------|-----------|---------|
+| Private field | m_ + camelCase | `m_currentHealth`, `m_moveSpeed` |
+| Constant | k_ + PascalCase | `k_MaxHealth`, `k_DefaultSpeed` |
+| Static field | s_ + camelCase | `s_instance`, `s_sharedData` |
+| Public property | PascalCase | `MaxHealth`, `MoveSpeed` |
+| Interface | I + PascalCase | `IDamageable`, `IMovable` |
+| Event | Verb phrase | `DoorOpened`, `PointsScored` |
+| Event handler | On + EventName | `OnDoorOpened`, `OnPointsScored` |
 
-| 類型 | 慣例 | 範例 |
-|------|------|------|
-| 私有欄位 | m_ + camelCase | `m_currentHealth`, `m_moveSpeed` |
-| 常數 | k_ + PascalCase | `k_MaxHealth`, `k_DefaultSpeed` |
-| 靜態欄位 | s_ + camelCase | `s_instance`, `s_sharedData` |
-| 公開屬性 | PascalCase | `MaxHealth`, `MoveSpeed` |
-| 介面 | I + PascalCase | `IDamageable`, `IMovable` |
-| 事件 | 動詞片語 | `DoorOpened`, `PointsScored` |
-| 事件處理方法 | On + 事件名 | `OnDoorOpened`, `OnPointsScored` |
+### UI Toolkit Naming Convention (BEM)
 
-### UI Toolkit 命名慣例（BEM）
-
-使用 Block Element Modifier 命名慣例：
+Use BEM (Block Element Modifier — a CSS naming methodology that structures class names as `block__element--modifier` to make UI component relationships explicit) naming convention:
 ```
 block-name__element-name--modifier-name
 ```
-範例：
+Examples:
 - `navbar-menu__shop-button--small`
 - `health-bar__progress--critical`
 - `inventory__slot--equipped`
 
-### 常見程式碼異味（Code Smells）
+> **Practical note**: In Unity projects with 50+ scripts, oversized classes and circular dependencies are the two most common architecture issues. Catching them early prevents cascading refactoring costs.
 
-| 異味 | 描述 | 修正方式 |
-|------|------|----------|
-| God Object | 單一類別處理過多職責 | 拆分為多個單一職責類別 |
-| 過長 switch | 超過 5 個 case 的 switch | 使用多型或策略模式 |
-| 重複程式碼 | 複製貼上的邏輯 | 提取為共用方法（DRY 原則）|
-| 空的 Update | 空的 MonoBehaviour 事件方法 | 移除或用 #if UNITY_EDITOR 包裹 |
-| Magic Numbers | 硬編碼的數值 | 使用常數或 ScriptableObject |
-| 過深巢狀 | 超過 3 層的 if/for 巢狀 | 提取方法或使用 Guard Clause |
+### Common Code Smells
+
+| Smell | Description | Fix |
+|-------|-------------|-----|
+| Oversized class | A single class that has taken on too many responsibilities, making it hard to test or modify | Split into multiple single-responsibility classes |
+| Long switch | Switch with more than 5 cases | Use polymorphism or Strategy pattern |
+| Duplicate code | Copy-pasted logic | Extract to shared method (DRY principle) |
+| Empty Update | Empty MonoBehaviour event methods | Remove or wrap with #if UNITY_EDITOR |
+| Magic Numbers | Hard-coded numeric values | Use constants or ScriptableObject |
+| Deep nesting | More than 3 levels of if/for nesting | Extract methods or use Guard Clause |

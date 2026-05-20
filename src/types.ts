@@ -803,7 +803,7 @@ export interface UIDependencyReportSummary {
 // Level Design Tooling — Editor Extension Generator
 // ============================================================================
 
-/** 目標類別的序列化欄位資訊 */
+/** Serialized field information for the target class */
 export interface SerializedFieldInfo {
   name: string;
   typeName: string;       // e.g. "int", "float", "string", "GameObject", "EnemyType"

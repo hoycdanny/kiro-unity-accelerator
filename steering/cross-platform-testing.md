@@ -1,42 +1,51 @@
-# 跨平台測試整合 Steering
+# Cross-Platform Testing Integration Steering
 
-## 你的角色
+<!-- File Purpose / 本檔案用途: Unity cross-platform testing steering guide / Unity 跨平台測試的 steering 指引，涵蓋本地測試執行、雲端裝置測試、測試套件格式轉換及失敗日誌處理。 -->
 
-你是 Unity 跨平台測試專家。當開發者要求執行跨平台測試、驗證多平台相容性或在真實裝置上測試時，你應該運用以下知識來規劃並執行測試流程。
+> **Note**: This document is part of the Unity Accelerator sample project.
+> References to "Cloud_Assist" represent one example of a remote device-testing
+> service. You may substitute any cloud device-testing service that supports
+> Unity test execution (e.g., AWS Device Farm, Firebase Test Lab, BrowserStack)
+> depending on your infrastructure. Cloud device testing is optional — all core testing
+> functionality works locally without requiring cloud service access.
 
-## 工作流程
+## Role and Purpose
 
-### 本地跨平台測試流程
+This document provides Unity cross-platform testing expertise. When developers request cross-platform testing, multi-platform compatibility verification, or real-device testing, use the following knowledge to plan and execute the testing workflow.
 
-1. **確認測試範圍**：詢問開發者要測試的目標平台（iOS、Android、WebGL 等）
-2. **執行測試**：使用 `run_tests` MCP 工具在 Unity Editor 中執行 Unity Test Framework 測試案例
-3. **結構化結果**：將原始測試結果格式化為每個平台的結構化報告（通過率、失敗清單）
-4. **回報結果**：以清晰的格式向開發者呈現測試結果
+## Cross-Platform Testing Execution Flow
 
-### Cloud_Assist 裝置測試流程（可選）
+### Local Cross-Platform Testing Flow
 
-1. **確認 Cloud_Assist 已啟用**：檢查配置中 `useCloudAssist` 是否為 true
-2. **轉換測試套件**：將 Unity Test Framework 測試套件轉換為 Cloud_Assist 可執行格式
-3. **提交測試任務**：將建置產物與測試套件交由 Kiro 管理的雲端裝置池執行
-4. **輪詢狀態**：每 30 秒查詢測試進度
-5. **下載結果**：測試完成後自動下載結果，包含每個裝置的通過率、失敗案例與螢幕截圖
-6. **回報結果**：在 Unity Editor 中以結構化格式顯示完整測試報告
+1. **Confirm test scope**: Ask the developer which target platforms to test (iOS, Android, WebGL, etc.)
+2. **Execute tests**: Use the `run_tests` MCP tool to run Unity Test Framework test cases in Unity Editor
+3. **Structure results**: Format raw test results into structured reports per platform (pass rate, failure list)
+4. **Report results**: Present test results to the developer in a clear format
 
-## MCP 工具用法
+### Remote Device Testing Flow (Optional — e.g., Cloud_Assist or equivalent service)
 
-### 執行本地測試
+1. **Confirm remote testing is enabled**: Check if `useCloudAssist` is true in configuration (or equivalent flag for your chosen service)
+2. **Convert test suite**: Convert Unity Test Framework test suite to the remote service's executable format
+3. **Submit test task**: Submit build artifacts and test suite to the remote cloud device pool for execution
+4. **Poll status**: Query test progress every 30 seconds
+5. **Download results**: After tests complete, automatically download results including per-device pass rates, failure cases, and screenshots
+6. **Report results**: Display the complete test report in structured format in Unity Editor
+
+## MCP Tool Usage
+
+### Execute Local Tests
 
 ```
 run_tests(action: "run", testFilter: "PlayMode", platform: "Android")
 ```
 
-### 讀取測試結果
+### Read Test Results
 
 ```
 read_console(filter: "TestRunner")
 ```
 
-### 批次執行多平台測試
+### Batch Execute Multi-Platform Tests
 
 ```
 batch_execute(commands: [
@@ -46,84 +55,86 @@ batch_execute(commands: [
 ])
 ```
 
-## 測試套件格式轉換指引
+> **Common patterns**: The most common cross-platform failures are shader incompatibilities on mobile (especially OpenGL ES 2.0 fallbacks) and memory pressure on devices with 2GB RAM or less. Prioritize testing on low-end target devices first.
 
-### Unity Test Framework 格式
+## Test Suite Format Conversion Guide
 
-Unity Test Framework 的測試套件定義包含：
-- `suiteName`：測試套件名稱
-- `testCases`：測試案例陣列，每個包含 `className`、`methodName`、`categories`
-- `platform`：目標平台
-- `timeout`：逾時設定（秒）
+### Unity Test Framework Format
 
-### Cloud_Assist 格式
+Unity Test Framework test suite definition includes:
+- `suiteName`: Test suite name
+- `testCases`: Array of test cases, each containing `className`, `methodName`, `categories`
+- `platform`: Target platform
+- `timeout`: Timeout setting (seconds)
 
-Cloud_Assist 的測試套件格式包含：
-- `name`：測試套件名稱（對應 suiteName）
-- `tests`：測試陣列，每個包含 `id`（className.methodName）、`name`（methodName）、`tags`（categories）
-- `targetPlatform`：目標平台（對應 platform）
-- `timeoutSeconds`：逾時設定（對應 timeout）
-- `devicePool`：裝置池配置（Cloud_Assist 專用）
+### Remote Service Format (e.g., Cloud_Assist)
 
-### 轉換規則
+The remote device-testing format (using Cloud_Assist as an example) includes:
+- `name`: Test suite name (maps to suiteName)
+- `tests`: Array of tests, each containing `id` (className.methodName), `name` (methodName), `tags` (categories)
+- `targetPlatform`: Target platform (maps to platform)
+- `timeoutSeconds`: Timeout setting (maps to timeout)
+- `devicePool`: Device pool configuration (service-specific)
 
-- `suiteName` ↔ `name`：直接對應
+### Conversion Rules
+
+- `suiteName` ↔ `name`: Direct mapping
 - `testCases[].className + "." + methodName` → `tests[].id`
 - `testCases[].methodName` → `tests[].name`
-- `testCases[].categories` ↔ `tests[].tags`：直接對應
-- `platform` ↔ `targetPlatform`：直接對應
-- `timeout` ↔ `timeoutSeconds`：直接對應
-- 反向轉換時，從 `tests[].id` 拆分出 `className` 和 `methodName`
+- `testCases[].categories` ↔ `tests[].tags`: Direct mapping
+- `platform` ↔ `targetPlatform`: Direct mapping
+- `timeout` ↔ `timeoutSeconds`: Direct mapping
+- For reverse conversion, split `tests[].id` to extract `className` and `methodName`
 
-## 測試失敗標記與日誌處理指引
+## Test Failure Marking and Log Handling Guide
 
-### 失敗標記規則
+### Failure Marking Rules
 
-- 任一測試案例失敗 → 該平台標記為「有失敗」
-- 任一裝置有測試失敗 → 該裝置標記為「失敗裝置」並附帶失敗日誌
-- 所有測試通過 → 平台標記為「全部通過」
+- Any test case failure → Mark that platform as "has failures"
+- Any device with test failures → Mark that device as "failed device" with failure logs attached
+- All tests pass → Mark platform as "all passed"
 
-### 失敗日誌處理
+### Failure Log Handling
 
-1. **提取失敗訊息**：從 `read_console` 輸出中提取 `[FAIL]` 或 `Assert` 開頭的行
-2. **結構化失敗資訊**：每個失敗案例包含：
-   - `testName`：失敗的測試名稱
-   - `message`：失敗訊息
-   - `stackTrace`：堆疊追蹤（如有）
-   - `screenshot`：螢幕截圖路徑（Cloud_Assist 裝置測試時）
-3. **分類失敗原因**：
-   - `AssertionError`：斷言失敗，測試邏輯問題
-   - `NullReferenceException`：空引用，可能是平台差異
-   - `TimeoutException`：逾時，可能是效能問題
-   - `PlatformNotSupportedException`：平台不支援的 API 呼叫
+1. **Extract failure messages**: Extract lines starting with `[FAIL]` or `Assert` from `read_console` output
+2. **Structure failure info**: Each failure case includes:
+   - `testName`: Name of the failed test
+   - `message`: Failure message
+   - `stackTrace`: Stack trace (if available)
+   - `screenshot`: Screenshot path (for remote device testing)
+3. **Classify failure reasons**:
+   - `AssertionError`: Assertion failure, test logic issue
+   - `NullReferenceException`: Null reference, possibly platform differences
+   - `TimeoutException`: Timeout, possibly performance issue
+   - `PlatformNotSupportedException`: Unsupported API call on the platform
 
-### 結果呈現格式
+### Result Presentation Format
 
 ```
-=== 跨平台測試報告 ===
+=== Cross-Platform Test Report ===
 
-[Android] 通過率: 95% (19/20)
+[Android] Pass rate: 95% (19/20)
   ✗ TestPlayerMovement.TestTouchInput — NullReferenceException: Touch input not available in editor mode
 
-[iOS] 通過率: 100% (20/20)
-  ✓ 全部通過
+[iOS] Pass rate: 100% (20/20)
+  ✓ All passed
 
-[WebGL] 通過率: 90% (18/20)
+[WebGL] Pass rate: 90% (18/20)
   ✗ TestAudioManager.TestSpatialAudio — PlatformNotSupportedException: Spatial audio not supported on WebGL
   ✗ TestFileIO.TestSaveGame — PlatformNotSupportedException: FileStream not available on WebGL
 ```
 
-## 錯誤處理
+## Test Failure and Environment Troubleshooting
 
-- 若 `run_tests` 回傳連線錯誤，提示開發者確認 Unity Editor 已開啟且 MCP Server 已啟動
-- 若測試執行逾時，建議開發者縮小測試範圍或增加逾時設定
-- 若 Cloud_Assist 不可用，自動降級至本地測試模式並通知開發者
-- 若測試套件格式轉換失敗，回報具體的格式錯誤並建議修正
+- If `run_tests` returns a connection error, prompt the developer to confirm Unity Editor is open and MCP Server is started
+- If test execution times out, suggest the developer narrow the test scope or increase the timeout setting
+- If the remote device-testing service is unavailable, automatically degrade to local test mode and notify the developer
+- If test suite format conversion fails, report the specific format error and suggest corrections
 
-## 最佳實踐
+## Cross-Platform Testing Strategy Recommendations
 
-- 先在本地執行快速測試確認基本功能，再使用 Cloud_Assist 進行完整裝置測試
-- 為不同平台建立專屬的測試分類（categories），方便篩選平台相關測試
-- 定期執行跨平台測試，避免平台相容性問題累積
-- 善用 `batch_execute` 同時觸發多平台測試，節省等待時間
-- Cloud_Assist 裝置測試結果包含螢幕截圖，善用截圖比對 UI 差異
+- Run quick local tests first to confirm basic functionality, then use remote device testing for full coverage
+- Create platform-specific test categories for easy filtering of platform-related tests
+- Run cross-platform tests regularly to avoid accumulating platform compatibility issues
+- Use `batch_execute` to trigger multi-platform tests simultaneously, saving wait time
+- Remote device test results include screenshots — use screenshot comparison to identify UI differences

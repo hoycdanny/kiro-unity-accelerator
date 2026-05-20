@@ -1,13 +1,13 @@
 {
   "enabled": true,
   "name": "Unity Power Auto Activate",
-  "description": "每次對話開始時自動提醒 AI 先 activate Unity Power 並讀取對應的 steering file",
+  "description": "Automatically activates Unity tooling and loads the relevant steering file at conversation start",
   "version": "1",
   "when": {
     "type": "promptSubmit"
   },
   "then": {
     "type": "askAgent",
-    "prompt": "Before responding, you MUST first:\n1. Call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") to load the Power\n2. Call kiroPowers(action=\"readSteering\", powerName=\"kiro-unity-accelerator\", steeringFile=\"<relevant>.md\") to read the appropriate steering file for this task\n3. Only THEN proceed with the user's request\n\nIf you have already activated the Power in this conversation, you may skip step 1.\n\nSteering file selection:\n- Scene/GameObject → scene-scaffolding.md\n- Asset import/config → asset-automation.md\n- Build/deploy → build-automation.md\n- Performance/FPS → performance-analysis.md\n- Code quality → code-quality.md\n- Platform targeting → platform-compatibility.md\n- Asset dependencies → asset-dependencies.md\n- Testing → cross-platform-testing.md\n- Multi-step workflow → workflow-automation.md\n- Knowledge/docs → knowledge-management.md\n- Level design/Editor tools → level-design-tooling.md\n- UI analysis → ui-dependency-analysis.md\n- General Unity questions → unity-general.md\n- Project structure/organization → project-organization.md"
+    "prompt": "If you haven't already activated the Unity Power in this conversation, call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") first, then read the relevant steering file for this task using kiroPowers(action=\"readSteering\"). Match the task domain to the appropriate file: scene/GameObject → scene-scaffolding.md, assets → asset-automation.md, builds → build-automation.md, performance → performance-analysis.md, code quality → code-quality.md, platforms → platform-compatibility.md, dependencies → asset-dependencies.md, testing → cross-platform-testing.md, workflows → workflow-automation.md, knowledge → knowledge-management.md, level design → level-design-tooling.md, UI analysis → ui-dependency-analysis.md, project structure → project-organization.md, general → unity-general.md."
   }
 }

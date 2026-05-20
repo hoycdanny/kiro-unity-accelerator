@@ -1,9 +1,11 @@
 /**
- * UIDependencyReport — 整合 UI 引用追蹤、事件調用鏈分析、耦合度評估與重構建議
- * 為完整的 UI 依賴分析報告。
+ * UIDependencyReport — Integrates UI reference tracking, event call chain analysis,
+ * coupling assessment, and refactoring suggestions into a complete UI dependency
+ * analysis report.
  *
- * 報告中的 couplingPairs 依 couplingScore 由高到低排序。
- * 報告摘要包含 UI 元件總數、引用總數、事件調用鏈總數、過深調用鏈數量與高耦合配對數量。
+ * couplingPairs in the report are sorted by couplingScore in descending order.
+ * The report summary includes total UI components, total references, total event
+ * call chains, number of overly deep call chains, and high-coupling pair count.
  */
 
 import {
@@ -16,14 +18,14 @@ import {
 } from './types';
 
 // ============================================================
-// 公開 API
+// Public API
 // ============================================================
 
 /**
- * 整合所有 UI 依賴分析結果為完整的 UIDependencyReport。
+ * Integrate all UI dependency analysis results into a complete UIDependencyReport.
  *
- * couplingPairs 依 couplingScore 由高到低排序。
- * summary 中的計數與明細資料保持一致。
+ * couplingPairs are sorted by couplingScore in descending order.
+ * Counts in summary are consistent with detailed data.
  */
 export function integrateUIDependencyReport(
   referenceResult: UIReferenceResult,
@@ -51,11 +53,11 @@ export function integrateUIDependencyReport(
 }
 
 // ============================================================
-// 內部輔助函式
+// Internal helper functions
 // ============================================================
 
 /**
- * 產生報告摘要，計數與明細資料保持一致。
+ * Generate report summary with counts consistent with detailed data.
  */
 function generateUIDependencyReportSummary(
   referenceResult: UIReferenceResult,

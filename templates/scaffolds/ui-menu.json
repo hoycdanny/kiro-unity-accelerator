@@ -1,7 +1,7 @@
 {
   "id": "scaffold-ui-menu",
   "name": "UI Menu",
-  "description": "UI 選單場景，包含主選單 Canvas、標題、按鈕群組與背景",
+  "description": "UI menu scene with main menu Canvas, title, button group, and background",
   "category": "UI",
   "isBuiltIn": true,
   "hierarchy": [

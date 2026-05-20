@@ -199,7 +199,7 @@ ${operationBody}
         }
 
         EditorUtility.ClearProgressBar();
-        Debug.Log($"${toolName}: Processed {total} objects.");
+        Debug.Log($"${toolName}: Processed {total} objects."); // nosemgrep: missing-template-string-indicator
     }
 }
 `;
@@ -236,7 +236,7 @@ export async function queryClassInfo(
   if (!result.success) {
     return {
       success: false,
-      error: result.error ?? `找不到類別 "${className}"，請確認類別名稱是否正確。`,
+      error: result.error ?? `Class "${className}" not found. Please verify the class name is correct.`,
     };
   }
 
@@ -294,7 +294,7 @@ export async function deployInspectorScript(
   if (!writeResult.success) {
     return {
       success: false,
-      error: writeResult.error ?? '腳本寫入失敗。',
+      error: writeResult.error ?? 'Failed to write script file.',
     };
   }
 
@@ -305,7 +305,7 @@ export async function deployInspectorScript(
     return {
       success: true,
       data: script,
-      error: `腳本已寫入但 Editor 刷新失敗：${refreshResult.error}`,
+      error: `Script written successfully but Editor refresh failed: ${refreshResult.error}`,
     };
   }
 
@@ -331,7 +331,7 @@ export async function deployBatchToolScript(
   if (!writeResult.success) {
     return {
       success: false,
-      error: writeResult.error ?? '腳本寫入失敗。',
+      error: writeResult.error ?? 'Failed to write script file.',
     };
   }
 
@@ -340,7 +340,7 @@ export async function deployBatchToolScript(
     return {
       success: true,
       data: script,
-      error: `腳本已寫入但 Editor 刷新失敗：${refreshResult.error}`,
+      error: `Script written successfully but Editor refresh failed: ${refreshResult.error}`,
     };
   }
 

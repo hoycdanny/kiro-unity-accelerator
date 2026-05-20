@@ -71,25 +71,37 @@ export function getThresholdsForPlatform(platform: PlatformType): PerformanceThr
 
 // Optimisation suggestion templates keyed by metric name.
 // Enhanced with specific advice from Unity 6 optimization guides.
+// Note: For developers new to optimization, begin with Static Batching (the most straightforward approach)
+// before implementing SRP Batcher and GPU Instancing.
 const SUGGESTIONS: Record<string, string> = {
   drawCalls:
-    '建議：(1) 啟用 SRP Batcher 減少 GPU setup 開銷 (2) 使用 GPU Instancing 合併重複物件 ' +
-    '(3) 標記靜態物件為 Batching Static (4) 啟用 Occlusion Culling 剔除不可見物件 ' +
-    '(5) Unity 6 可啟用 GPU Resident Drawer 大幅減少 draw calls (6) 使用 Frame Debugger 分析批次中斷原因。',
+    'Enable SRP Batcher (groups similar rendering operations to reduce per-object GPU setup overhead). ' +
+    'Use GPU Instancing (renders multiple copies of the same mesh in a single draw call) to merge duplicate objects. ' +
+    'Mark static objects as Batching Static. Enable Occlusion Culling (skips rendering objects hidden behind others) to cull invisible objects. ' +
+    'In Unity 6, enable GPU Resident Drawer (a rendering optimization that keeps mesh data on the GPU to significantly reduce CPU overhead) to significantly reduce draw calls. ' +
+    'Use Frame Debugger to analyze batch-breaking causes.',
   gcAllocation:
-    '建議：(1) 使用 UnityEngine.Pool 物件池取代 Instantiate/Destroy ' +
-    '(2) 在 Awake/Start 快取 GetComponent 結果 (3) 使用 StringBuilder 取代字串串接 ' +
-    '(4) 避免在 Update 中使用 LINQ 和 Regular Expressions (5) 快取 WaitForSeconds 物件 ' +
-    '(6) 使用 GameObject.CompareTag() 取代 .tag 字串比較 (7) 考慮啟用 Incremental GC。',
+    'Use UnityEngine.Pool for object pooling (a technique that reuses objects instead of repeatedly creating and destroying them, ' +
+    'which reduces memory allocation). Replace Instantiate/Destroy calls with pooling methods. ' +
+    'Cache GetComponent results in Awake/Start. Use StringBuilder instead of string concatenation. ' +
+    'Avoid LINQ and Regular Expressions in Update. Cache WaitForSeconds objects. ' +
+    'Use GameObject.CompareTag() instead of .tag string comparison. Consider enabling Incremental GC.',
   shaderComplexity:
-    '建議：(1) 使用 URP Lit/Simple Lit 取代自訂重型 Shader (2) 在 Shader Graph 中減少節點數量 ' +
-    '(3) 使用 half 精度取代 float（尤其行動平台）(4) 實作 Shader LOD 分級 ' +
-    '(5) 合併多張貼圖為 channel-packed atlas 減少取樣次數 (6) 使用 Strip Shader Variants 減少變體數量。',
+    'Use URP Lit/Simple Lit instead of custom heavy shaders. Reduce node count in Shader Graph. ' +
+    'Use half precision instead of float (especially on mobile). Implement Shader LOD levels. ' +
+    'Combine multiple textures into channel-packed atlas to reduce sampling. ' +
+    'Use Strip Shader Variants to reduce variant count.',
   frameRate:
-    '建議：(1) 使用 frame time (ms) 而非 FPS 作為效能基準（60fps = 16.66ms, 30fps = 33.33ms）' +
-    '(2) 行動平台預留 35% frame budget 給散熱（30fps 實際預算約 22ms）' +
-    '(3) 啟用 Spatial-Temporal Post-Processing (STP) 降低渲染解析度同時維持畫質 ' +
-    '(4) 使用 Profile Analyzer 比較最佳化前後的多幀數據 (5) 考慮使用 C# Job System + Burst 將重型計算移至 Worker Thread。',
+    'Use frame time (ms) rather than FPS as performance baseline (60fps = 16.66ms, 30fps = 33.33ms). ' +
+    'On mobile, reserve 35% frame budget for thermal throttling (30fps actual budget ~22ms). ' +
+    'Enable Spatial-Temporal Post-Processing (STP) to lower render resolution while maintaining quality. ' +
+    'Use Profile Analyzer to compare multi-frame data before/after optimization. ' +
+    'Consider using C# Job System + Burst to move heavy computation to Worker Threads.',
+  accessibility:
+    'Consider motion sensitivity: limit camera movement speed and provide reduced-motion options. ' +
+    'Add photosensitivity warnings for flashing effects (>3 flashes/second). ' +
+    'Manage cognitive load: limit simultaneous UI elements and provide clear visual hierarchy. ' +
+    'Reference WCAG 2.1 and Game Accessibility Guidelines for comprehensive standards.',
 };
 
 /**

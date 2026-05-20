@@ -1,29 +1,29 @@
 /**
- * UIDependencySerialization — 序列化、反序列化與格式化 UI 依賴分析報告。
+ * UIDependencySerialization — Serialize, deserialize, and format UI dependency analysis reports.
  *
- * - serializeUIDependencyReport：將 UIDependencyReport 序列化為 JSON 字串
- * - deserializeUIDependencyReport：將 JSON 字串反序列化為 UIDependencyReport，無效格式拋出描述性錯誤
- * - formatUIDependencyReportAsText：將報告格式化為人類可讀的文字
+ * - serializeUIDependencyReport: Serialize a UIDependencyReport to a JSON string
+ * - deserializeUIDependencyReport: Deserialize a JSON string into a UIDependencyReport; throws descriptive errors on invalid format
+ * - formatUIDependencyReportAsText: Format a report as human-readable text
  *
- * 遵循現有 profiler-serialization.ts 的三件組模式。
+ * Follows the existing profiler-serialization.ts trio pattern.
  */
 
 import { UIDependencyReport } from './types';
 
 // ============================================================
-// 公開 API
+// Public API
 // ============================================================
 
 /**
- * 將 UIDependencyReport 序列化為 JSON 字串。
+ * Serialize a UIDependencyReport to a JSON string.
  */
 export function serializeUIDependencyReport(report: UIDependencyReport): string {
   return JSON.stringify(report);
 }
 
 /**
- * 將 JSON 字串反序列化為 UIDependencyReport。
- * 若 JSON 格式無效或結構不符合 UIDependencyReport 型別，拋出描述性錯誤。
+ * Deserialize a JSON string into a UIDependencyReport.
+ * Throws a descriptive error if the JSON is invalid or the structure does not match the UIDependencyReport type.
  */
 export function deserializeUIDependencyReport(json: string): UIDependencyReport {
   let parsed: unknown;
@@ -39,9 +39,9 @@ export function deserializeUIDependencyReport(json: string): UIDependencyReport 
 }
 
 /**
- * 將 UIDependencyReport 格式化為人類可讀的文字報告。
- * 包含所有 ScriptReference 的 filePath、所有 CouplingPair 的 scriptA/scriptB、
- * 以及所有 RefactoringSuggestion 的 title。
+ * Format a UIDependencyReport as a human-readable text report.
+ * Includes all ScriptReference filePaths, all CouplingPair scriptA/scriptB,
+ * and all RefactoringSuggestion titles.
  */
 export function formatUIDependencyReportAsText(report: UIDependencyReport): string {
   const lines: string[] = [];
@@ -135,7 +135,7 @@ export function formatUIDependencyReportAsText(report: UIDependencyReport): stri
 }
 
 // ============================================================
-// 驗證輔助函式
+// Validation helpers
 // ============================================================
 
 function validateUIDependencyReport(value: unknown): void {

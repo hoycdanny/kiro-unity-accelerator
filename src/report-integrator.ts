@@ -1,8 +1,8 @@
 /**
- * ReportIntegrator — 整合截圖分析、程式碼掃描與最佳化建議為統一的效能報告。
+ * ReportIntegrator — Integrate screenshot analysis, code scan, and optimization suggestions into a unified performance report.
  *
- * 產生的 ProfilerReport 包含所有分析來源的資料，並依 Severity 排序。
- * 報告摘要包含熱點總數、各嚴重程度數量與前三項優先問題。
+ * The generated ProfilerReport contains data from all analysis sources, sorted by Severity.
+ * The report summary includes total hotspot count, counts per severity level, and the top three priority issues.
  */
 
 import {
@@ -18,7 +18,7 @@ import {
 } from './types';
 
 // ============================================================
-// Severity 排序權重（Error > Warning > Suggestion）
+// Severity sorting weight (Error > Warning > Suggestion)
 // ============================================================
 
 const SEVERITY_ORDER: Record<SeverityLevel, number> = {
@@ -28,14 +28,14 @@ const SEVERITY_ORDER: Record<SeverityLevel, number> = {
 };
 
 // ============================================================
-// 公開 API
+// Public API
 // ============================================================
 
 /**
- * 整合截圖分析、程式碼掃描與最佳化建議為完整的 ProfilerReport。
+ * Integrate screenshot analysis, code scan, and optimization suggestions into a complete ProfilerReport.
  *
- * 報告中的熱點依 Severity 由高到低排序（Error > Warning > Suggestion），
- * 反模式同樣依 Severity 排序。
+ * Hotspots in the report are sorted by Severity from high to low (Error > Warning > Suggestion);
+ * antipatterns are also sorted by Severity.
  */
 export function integrateReport(
   screenshotResult: ScreenshotAnalysisResult | null,
@@ -81,10 +81,10 @@ export function integrateReport(
 }
 
 /**
- * 產生報告摘要，包含：
- * - 熱點總數（截圖熱點 + 反模式數量）
- * - 各嚴重程度的問題數量
- * - 最優先處理的前三項問題（依 Severity 排序）
+ * Generate a report summary containing:
+ * - Total hotspot count (screenshot hotspots + antipattern count)
+ * - Issue count per severity level
+ * - Top three priority issues (sorted by Severity)
  */
 export function generateSummary(report: ProfilerReport): ReportSummary {
   const allIssues = collectAllIssues(report);
@@ -116,7 +116,7 @@ export function generateSummary(report: ProfilerReport): ReportSummary {
 }
 
 // ============================================================
-// 內部輔助函式
+// Internal helper functions
 // ============================================================
 
 interface NormalizedIssue {

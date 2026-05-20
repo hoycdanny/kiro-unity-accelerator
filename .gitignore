@@ -12,3 +12,12 @@ Thumbs.db
 
 # Documents
 document/
+
+# Kiro
+.kiro/
+
+# Tests
+tests/
+
+# TypeScript config
+tsconfig.json

@@ -115,7 +115,7 @@ function checkNamingConvention(
             filePath,
             line: i + 1,
             ruleName: `${ruleName}/NamingConvention`,
-            suggestion: `類別 '${className}' 位於 ${lc.directory} 目錄，建議名稱以 ${lc.suffixes.join(' 或 ')} 結尾。`,
+            suggestion: `Class '${className}' is located in ${lc.directory} directory. Consider naming it with suffix ${lc.suffixes.join(' or ')}.`,
           });
         }
       }
@@ -158,7 +158,7 @@ function checkLayerDependency(
           filePath,
           line: i + 1,
           ruleName: `${ruleName}/LayerDependency`,
-          suggestion: `${currentLayer} 層不應引用 ${forbiddenLayer} 層。請移除 'using ${ns}' 或重構依賴方向。`,
+          suggestion: `${currentLayer} layer should not reference ${forbiddenLayer} layer. Remove 'using ${ns}' or refactor the dependency direction.`,
         });
       }
     }
@@ -196,7 +196,7 @@ function checkInheritanceConstraint(
           filePath,
           line: i + 1,
           ruleName: `${ruleName}/InheritanceConstraint`,
-          suggestion: `${currentLayer} 層的類別不應繼承 ${base}。`,
+          suggestion: `Classes in ${currentLayer} layer should not inherit from ${base}.`,
         });
       }
     }

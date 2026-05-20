@@ -1,100 +1,103 @@
-# 關卡設計工具鏈 Steering
+# Level Design Tooling Steering
+<!-- File Purpose / 本檔案用途: Unity level design toolchain steering guide / Unity 關卡設計工具鏈的 steering 指引，涵蓋 Editor 擴展腳本生成、ScriptableObject 模板建立、場景物件批次設定及模板管理。 -->
 
-## 你的角色
+## Role and Purpose
 
-你是 Unity 關卡設計工具鏈專家。當開發者要求生成 Editor 擴展腳本（自定義 Inspector、批次處理工具）、建立 ScriptableObject 關卡配置模板、或自動化場景物件批次設定時，你應該運用本文件中的領域知識，將開發者的高階意圖轉化為精確的模組呼叫與 MCP 工具序列。
+Unity is used across diverse domains including games, architectural visualization, training simulations, and educational applications. Scene designers, level designers, and environment artists (roles responsible for scene layout, object placement, and workflow design — in smaller teams or solo projects, one person may fill multiple roles) need custom tools to efficiently configure scenes and manage data. This guide covers generating Editor extensions (custom Inspectors, batch tools), creating ScriptableObject templates, and automating batch scene operations through MCP tool sequences.
 
-## 功能概覽
+## Feature Overview
 
-| 功能 | 模組 | 說明 |
-|------|------|------|
-| Editor 擴展腳本生成 | `editor-extension-gen.ts` | 根據目標類別生成 Custom Inspector 與 EditorWindow 批次工具的 C# 腳本 |
-| ScriptableObject 模板建立 | `scriptableobject-template.ts` | 根據欄位定義生成 ScriptableObject C# 腳本與配套 Inspector |
-| 場景物件批次設定 | `scene-batch-config.ts` | 解析批次規則、篩選物件、產生並執行 MCP 呼叫序列 |
-| 模板與規則管理 | `template-registry.ts` | 管理 SO 模板與批次規則的 CRUD，複用 `config-crud.ts` |
+| Feature | Module | Description |
+|---------|--------|-------------|
+| Editor Extension Script Generation | `editor-extension-gen.ts` | Generates Custom Inspector and EditorWindow batch tool C# scripts based on target classes |
+| ScriptableObject Template Creation | `scriptableobject-template.ts` | Generates ScriptableObject C# scripts and accompanying Inspectors based on field definitions |
+| Scene Object Batch Configuration | `scene-batch-config.ts` | Parses batch rules, filters objects, generates and executes MCP call sequences |
+| Template & Rule Management | `template-registry.ts` | Manages CRUD operations for SO templates and batch rules, reuses `config-crud.ts` |
 
-## 工作流程
+> **Design rationale**: These three workflows (Editor extensions, ScriptableObject templates, batch configuration) cover the most common level designer requests. Each follows a similar pattern intentionally — consistency reduces cognitive load when switching between workflows.
 
-### Editor 擴展腳本生成流程
+## Editor Extension Generation Workflow
 
-```
-確認目標類別 → 查詢類別資訊 → 生成 C# 腳本 → 寫入檔案 → 觸發編譯
-```
-
-1. **確認目標類別**：與開發者確認需要生成 Inspector 或批次工具的目標 MonoBehaviour / ScriptableObject 類別名稱
-2. **查詢類別資訊**：使用 `manage_script(action: "read")` 取得目標類別的序列化欄位資訊
-3. **生成 C# 腳本**：呼叫 `generateInspectorScript` 或 `generateBatchToolScript` 生成腳本內容
-4. **寫入檔案**：使用 `create_script` 將腳本寫入 `Assets/Editor/` 目錄
-5. **觸發編譯**：使用 `manage_editor(action: "refresh")` 觸發 Unity Editor 重新編譯
-
-### ScriptableObject 模板建立流程
+### Editor Extension Script Generation Flow
 
 ```
-描述欄位結構 → 建立模板定義 → 生成 SO 腳本 + Inspector → 寫入檔案 → 儲存模板 → 觸發編譯
+Confirm target class → Query class info → Generate C# script → Write file → Trigger compilation
 ```
 
-1. **描述欄位結構**：與開發者確認關卡配置的欄位名稱、型別、驗證規則
-2. **建立模板定義**：組裝 `SOTemplateDefinition` 物件
-3. **生成腳本**：呼叫 `generateSOScript` 同時生成 SO 腳本與配套 Inspector
-4. **寫入檔案**：使用 `create_script` 分別寫入 `Assets/Scripts/` 與 `Assets/Editor/`
-5. **儲存模板**：使用 `saveTemplate` 將模板定義持久化為 JSON
-6. **觸發編譯**：使用 `manage_editor(action: "refresh")`
+1. **Confirm target class**: Confirm with the developer the target MonoBehaviour / ScriptableObject class name for which to generate an Inspector or batch tool
+2. **Query class info**: Use `manage_script(action: "read")` to retrieve the target class's serialized field information
+3. **Generate C# script**: Call `generateInspectorScript` or `generateBatchToolScript` to generate script content
+4. **Write file**: Use `create_script` to write the script to the `Assets/Editor/` directory
+5. **Trigger compilation**: Use `manage_editor(action: "refresh")` to trigger Unity Editor recompilation
 
-### 場景物件批次設定流程
+### ScriptableObject Template Creation Flow
 
 ```
-描述批次規則 → 解析規則 → 篩選物件 → 顯示預覽 → 確認執行 → 批次套用 → 產生報告
+Describe field structure → Create template definition → Generate SO script + Inspector → Write files → Save template → Trigger compilation
 ```
 
-1. **描述批次規則**：開發者以自然語言描述篩選條件與設定操作
-2. **解析規則**：呼叫 `parseBatchRules` 將描述轉為 `BatchRule` 物件
-3. **篩選物件**：使用 `find_gameobjects` 搜尋符合條件的 GameObject
-4. **顯示預覽**：呼叫 `generatePreview` 產生預覽清單，列出每個物件的預計變更
-5. **確認執行**：等待開發者確認後才繼續
-6. **批次套用**：呼叫 `translateToMcpCalls` 產生 MCP 呼叫序列，透過 `batch_execute` 執行
-7. **產生報告**：回傳變更摘要（成功數量、跳過數量與原因）
+1. **Describe field structure**: Confirm with the developer the field names, types, and validation rules for the level configuration
+2. **Create template definition**: Assemble the `SOTemplateDefinition` object
+3. **Generate scripts**: Call `generateSOScript` to generate both the SO script and accompanying Inspector
+4. **Write files**: Use `create_script` to write to `Assets/Scripts/` and `Assets/Editor/` respectively
+5. **Save template**: Use `saveTemplate` to persist the template definition as JSON
+6. **Trigger compilation**: Use `manage_editor(action: "refresh")`
 
-## MCP 工具對應關係
+### Scene Object Batch Configuration Flow
 
-| 操作 | MCP 工具 | 用途 |
-|------|----------|------|
-| 查詢類別資訊 | `manage_script(action: "read")` | 取得目標類別的欄位與型別 |
-| 寫入腳本 | `create_script(path, contents)` | 將生成的 C# 腳本寫入專案 |
-| 觸發編譯 | `manage_editor(action: "refresh")` | 腳本寫入後觸發 Unity 重新編譯 |
-| 篩選場景物件 | `find_gameobjects(search_term, search_method)` | 依名稱、Tag、Layer、組件搜尋物件 |
-| 設定 Layer/Tag | `manage_gameobject(action: "modify", target, layer/tag)` | 修改物件的 Layer 或 Tag |
-| 修改組件參數 | `manage_components(action: "set_property", target, ...)` | 修改物件上組件的屬性值 |
-| 批次執行 | `batch_execute(commands)` | 將多個 MCP 呼叫打包為單次批次操作 |
+```
+Describe batch rules → Parse rules → Filter objects → Show preview → Confirm execution → Batch apply → Generate report
+```
 
-## MCP 工具呼叫序列範例
+1. **Describe batch rules**: Developer describes filter conditions and configuration operations in natural language
+2. **Parse rules**: Call `parseBatchRules` to convert the description into a `BatchRule` object
+3. **Filter objects**: Use `find_gameobjects` to search for matching GameObjects
+4. **Show preview**: Call `generatePreview` to produce a preview list showing expected changes for each object
+5. **Confirm execution**: Wait for the developer's confirmation before proceeding
+6. **Batch apply**: Call `translateToMcpCalls` to generate MCP call sequences, execute via `batch_execute`
+7. **Generate report**: Return a change summary (success count, skipped count and reasons)
 
-### 生成 Custom Inspector
+## MCP Tool Mapping
+
+| Operation | MCP Tool | Purpose |
+|-----------|----------|---------|
+| Query class info | `manage_script(action: "read")` | Retrieve target class fields and types |
+| Write script | `create_script(path, contents)` | Write generated C# scripts to the project |
+| Trigger compilation | `manage_editor(action: "refresh")` | Trigger Unity recompilation after writing scripts |
+| Filter scene objects | `find_gameobjects(search_term, search_method)` | Search objects by name, Tag, Layer, or component |
+| Set Layer/Tag | `manage_gameobject(action: "modify", target, layer/tag)` | Modify an object's Layer or Tag |
+| Modify component properties | `manage_components(action: "set_property", target, ...)` | Modify property values on an object's components |
+| Batch execute | `batch_execute(commands)` | Package multiple MCP calls into a single batch operation |
+
+## MCP Tool Call Sequence Examples
+
+### Generate Custom Inspector
 
 ```
 1. manage_script(action: "read", name: "EnemyConfig", path: "Assets/Scripts")
-   → 取得 EnemyConfig 的序列化欄位
+   → Retrieve EnemyConfig's serialized fields
 2. create_script(path: "Assets/Editor/EnemyConfigInspector.cs", contents: "...")
-   → 寫入生成的 Inspector 腳本
+   → Write the generated Inspector script
 3. manage_editor(action: "refresh")
-   → 觸發重新編譯
+   → Trigger recompilation
 ```
 
-### 生成 ScriptableObject 模板
+### Generate ScriptableObject Template
 
 ```
 1. create_script(path: "Assets/Scripts/LevelConfig.cs", contents: "...")
-   → 寫入 SO 腳本
+   → Write SO script
 2. create_script(path: "Assets/Editor/LevelConfigInspector.cs", contents: "...")
-   → 寫入配套 Inspector
+   → Write accompanying Inspector
 3. manage_editor(action: "refresh")
-   → 觸發重新編譯
+   → Trigger recompilation
 ```
 
-### 批次設定場景物件
+### Batch Configure Scene Objects
 
 ```
 1. find_gameobjects(search_term: "Enemy*", search_method: "by_name")
-   → 搜尋名稱匹配 Enemy* 的物件
+   → Search for objects with names matching Enemy*
 2. batch_execute(commands: [
      { "tool": "manage_gameobject", "params": { "action": "modify", "target": "Enemy_01", "layer": "Enemy" } },
      { "tool": "manage_gameobject", "params": { "action": "modify", "target": "Enemy_02", "layer": "Enemy" } },
@@ -103,61 +106,91 @@
    ])
 ```
 
-## 持久化路徑
+## Persistence Paths
 
-| 資料類型 | 儲存路徑 |
-|----------|----------|
-| SO 模板定義 | `Assets/KiroUnityPower/Config/LevelDesign/Templates/{className}.json` |
-| 批次設定規則 | `Assets/KiroUnityPower/Config/LevelDesign/BatchRules/{name}.json` |
+| Data Type | Storage Path |
+|-----------|--------------|
+| SO Template Definitions | `Assets/UnityAccelerator/Config/LevelDesign/Templates/{className}.json` |
+| Batch Configuration Rules | `Assets/UnityAccelerator/Config/LevelDesign/BatchRules/{name}.json` |
 
-載入優先順序：自定義範本（Unity 專案目錄）優先於內建範本（Power 套件目錄）。
+Loading priority: Custom templates (Unity project directory) take precedence over built-in templates (Power package directory).
 
-## 使用情境
+## Usage Scenarios
 
-### 情境 1：為現有 MonoBehaviour 生成 Inspector
+### Scenario 1: Generate Inspector for a MonoBehaviour (Architectural Visualization)
 
-開發者說：「幫我為 EnemyConfig 生成一個自定義 Inspector」
+Example request: "Generate a custom Inspector for BuildingProperties"
 
-→ 查詢 EnemyConfig 的欄位 → 呼叫 `generateInspectorScript` → 寫入 `Assets/Editor/EnemyConfigInspector.cs` → 刷新
+→ Query BuildingProperties's fields → Call `generateInspectorScript` → Write to `Assets/Editor/BuildingPropertiesInspector.cs` → Refresh
 
-### 情境 2：建立關卡配置 ScriptableObject
+### Scenario 1b: Generate Inspector for a MonoBehaviour (Game Development)
 
-開發者說：「建立一個關卡配置，包含名稱、難度（1-10）、敵人波次列表、獎勵物品」
+Example request: "Generate a custom Inspector for EnemyConfig"
 
-→ 組裝 `SOTemplateDefinition`（含 `[Range(1,10)]` 驗證）→ 呼叫 `generateSOScript` → 寫入 SO 腳本 + Inspector → 儲存模板 JSON → 刷新
+→ Query EnemyConfig's fields → Call `generateInspectorScript` → Write to `Assets/Editor/EnemyConfigInspector.cs` → Refresh
 
-### 情境 3：批次設定場景物件 Layer
+### Scenario 2: Create a Configuration ScriptableObject (Training Simulation)
 
-開發者說：「把所有名稱包含 Enemy 的物件 Layer 設為 Enemy」
+Example request: "Create a training module config with module name, learning objectives (string list), assessment criteria, and resource links"
 
-→ 呼叫 `parseBatchRules` → 使用 `find_gameobjects` 篩選 → 顯示預覽 → 確認後透過 `batch_execute` 套用 → 回傳摘要
+→ Assemble `SOTemplateDefinition` → Call `generateSOScript` → Write SO script + Inspector → Save template JSON → Refresh
 
-### 情境 4：重複使用已儲存的模板
+### Scenario 2b: Create a Configuration ScriptableObject (Game Development)
 
-開發者說：「列出所有關卡配置模板」
+Example request: "Create a level config with name, difficulty (1-10), time limit, spawn points, and reward items"
 
-→ 呼叫 `listTemplates` → 顯示名稱、描述與欄位摘要
+→ Assemble `SOTemplateDefinition` (with `[Range(1,10)]` validation) → Call `generateSOScript` → Write SO script + Inspector → Save template JSON → Refresh
 
-開發者說：「載入 LevelConfig 模板並生成腳本」
+### Scenario 2c: Create an Architectural Project Configuration
 
-→ 呼叫 `loadTemplate("LevelConfig")` → 呼叫 `generateSOScript` → 寫入檔案 → 刷新
+Example request: "Create a building config with building name, floor count (int), material properties (nested: material name + cost), and lighting presets"
 
-## 錯誤處理
+→ Assemble `SOTemplateDefinition` (with `[Min(1)]` validation on floor count) → Call `generateSOScript` → Write SO script + Inspector → Save template JSON → Refresh
 
-| 錯誤情境 | 處理方式 |
-|----------|----------|
-| 目標類別不存在 | 回傳錯誤訊息，列出相似名稱的類別供選擇 |
-| Layer/Tag 不存在 | 回傳錯誤訊息，提供專案中已定義的 Layer 與 Tag 清單 |
-| 模板名稱衝突 | 提示開發者選擇覆蓋或重新命名 |
-| MCP 連線中斷 | 顯示連線錯誤訊息，引導確認 Unity Editor 與 MCP Server 狀態 |
-| Unity 正在編譯 | 等待編譯完成後再繼續執行 |
-| JSON 解析失敗 | 回傳解析錯誤訊息，回退至內建模板 |
+### Scenario 2d: Create a Simulation Parameter Configuration
 
-## 最佳實踐
+Example request: "Create a simulation config with simulation name, time scale (float, 0.1-10), particle count (int), physics material list (nested: name + friction + bounciness), and visualization mode enum"
 
-- 生成 Inspector 腳本前先確認目標類別存在，避免生成無效腳本
-- ScriptableObject 模板建議為每個欄位加上中文 Tooltip，方便企劃理解
-- 批次設定前務必確認預覽清單，避免誤改不相關的物件
-- 將常用的批次規則儲存為 JSON，方便跨關卡重複使用
-- 巢狀結構欄位建議使用 `[System.Serializable]` 類別，保持 Inspector 可展開編輯
-- 驗證規則優先使用 `[Range]`、`[Min]` 等內建屬性，複雜邏輯放在 `OnValidate`
+→ Assemble `SOTemplateDefinition` (with `[Range(0.1f, 10f)]` validation on time scale) → Call `generateSOScript` → Write SO script + Inspector → Save template JSON → Refresh
+
+### Scenario 3: Batch Set Scene Object Layers
+
+Example request: "Set the Layer of all objects with 'Enemy' in their name to Enemy"
+
+→ Call `parseBatchRules` → Use `find_gameobjects` to filter → Show preview → After confirmation, apply via `batch_execute` → Return summary
+
+### Scenario 3b: Batch Configure Architectural Walkthrough Objects
+
+Example request: "Set the Layer of all objects tagged 'Furniture' to Interactable and enable their MeshCollider"
+
+→ Call `parseBatchRules` → Use `find_gameobjects` to filter by tag → Show preview → After confirmation, apply via `batch_execute` → Return summary
+
+### Scenario 4: Reuse a Saved Template
+
+Example request: "List all level config templates"
+
+→ Call `listTemplates` → Display names, descriptions, and field summaries
+
+Example request: "Load the LevelConfig template and generate scripts"
+
+→ Call `loadTemplate("LevelConfig")` → Call `generateSOScript` → Write files → Refresh
+
+## Script Generation & Compilation Troubleshooting
+
+| Error Scenario | Handling |
+|----------------|----------|
+| Target class does not exist | Return error message, list similar class names for selection |
+| Layer/Tag does not exist | Return error message, provide list of defined Layers and Tags in the project |
+| Template name conflict | Prompt the developer to choose overwrite or rename |
+| MCP connection lost | Display connection error message, guide user to verify Unity Editor and MCP Server status |
+| Unity is compiling | Wait for compilation to complete before continuing |
+| JSON parse failure | Return parse error message, fall back to built-in template |
+
+## Level Tooling Design Principles
+
+- Confirm the target class exists before generating Inspector scripts to avoid generating invalid scripts
+- For ScriptableObject templates, add a Tooltip to each field for easier understanding by designers
+- Always confirm the preview list before batch configuration to avoid accidentally modifying unrelated objects
+- Save frequently used batch rules as JSON for reuse across levels
+- Use `[System.Serializable]` classes for nested structure fields to keep the Inspector expandable
+- Prefer built-in attributes like `[Range]`, `[Min]` for validation rules; place complex logic in `OnValidate`

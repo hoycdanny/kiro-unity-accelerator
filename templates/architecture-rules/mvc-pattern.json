@@ -1,7 +1,7 @@
 {
   "id": "builtin-mvc-pattern",
   "name": "MVC Pattern",
-  "description": "Model-View-Controller 架構規則：確保 Model、View、Controller 之間的依賴方向正確，View 不直接引用 Controller，Model 不引用 View 或 Controller。",
+  "description": "Model-View-Controller architecture rules: Ensures correct dependency direction between Model, View, and Controller. View does not directly reference Controller; Model does not reference View or Controller. / Model-View-Controller 架構規則：確保 Model、View、Controller 之間的依賴方向正確，View 不直接引用 Controller，Model 不引用 View 或 Controller。",
   "isBuiltIn": true,
   "enabled": true,
   "pattern": "MVC",
