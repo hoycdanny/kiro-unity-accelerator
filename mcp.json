@@ -1,9 +1,12 @@
 {
-  "mcpServers": {
-    "unity-mcp": {
-      "url": "<your-mcp-server-url>",
-      "transport": "http",
-      "_comment": "Replace <your-mcp-server-url> with your Unity MCP server endpoint (e.g. the address shown in Window > MCP for Unity). This endpoint communicates exclusively with the Unity Editor MCP server running on localhost. It is never exposed to external networks."
+  "powers": {
+    "mcpServers": {
+      "power-kiro-unity-accelerator-unity-mcp": {
+        "url": "http://127.0.0.1:8080/mcp",
+        "type": "http",
+        "env": {},
+        "disabled": false
+      }
     }
   }
 }

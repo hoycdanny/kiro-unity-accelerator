@@ -1,8 +1,7 @@
 {
-  "enabled": true,
   "name": "Unity Power Auto Activate",
+  "version": "1.0.0",
   "description": "Automatically activates Unity tooling and loads the relevant steering file at conversation start",
-  "version": "1",
   "when": {
     "type": "promptSubmit"
   },
