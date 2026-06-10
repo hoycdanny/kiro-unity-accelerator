@@ -1,0 +1,13 @@
+{
+  "name": "Unity MCP Tool Gate",
+  "version": "1.0.0",
+  "description": "在呼叫任何 Unity MCP 工具前，確保 Power 已啟動並已讀取 steering file",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [".*unityMCP.*", ".*unity.*"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before using this Unity tool, you MUST first:\n1. Call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") to load the Power\n2. Call kiroPowers(action=\"readSteering\", powerName=\"kiro-unity-accelerator\", steeringFile=\"<relevant>.md\") to read the appropriate steering file\n3. Only THEN proceed with the tool call\n\nIf you have already activated the Power AND read the relevant steering file in this conversation, proceed directly.\n\nSteering file selection:\n- Scene/GameObject → scene-scaffolding.md\n- Asset import/config → asset-automation.md\n- Build/deploy → build-automation.md\n- Performance/FPS → performance-analysis.md\n- Code quality → code-quality.md\n- Platform targeting → platform-compatibility.md\n- Asset dependencies → asset-dependencies.md\n- Testing → cross-platform-testing.md\n- Multi-step workflow → workflow-automation.md\n- Knowledge/docs → knowledge-management.md\n- Level design/Editor tools → level-design-tooling.md\n- UI analysis → ui-dependency-analysis.md\n- General Unity questions → unity-general.md\n- Project structure/organization → project-organization.md"
+  }
+}

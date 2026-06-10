@@ -1,12 +1,12 @@
 {
   "name": "Unity Power Auto Activate",
   "version": "1.0.0",
-  "description": "Automatically activates Unity tooling and loads the relevant steering file at conversation start",
+  "description": "每次對話和使用 Unity 工具前，自動 activate Power 並載入相關 steering file",
   "when": {
     "type": "promptSubmit"
   },
   "then": {
     "type": "askAgent",
-    "prompt": "If you haven't already activated the Unity Power in this conversation, call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") first, then read the relevant steering file for this task using kiroPowers(action=\"readSteering\"). Match the task domain to the appropriate file: scene/GameObject → scene-scaffolding.md, assets → asset-automation.md, builds → build-automation.md, performance → performance-analysis.md, code quality → code-quality.md, platforms → platform-compatibility.md, dependencies → asset-dependencies.md, testing → cross-platform-testing.md, workflows → workflow-automation.md, knowledge → knowledge-management.md, level design → level-design-tooling.md, UI analysis → ui-dependency-analysis.md, project structure → project-organization.md, general → unity-general.md."
+    "prompt": "If you haven't already activated the Unity Power in this conversation, call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") first, then read the relevant steering file for this task using kiroPowers(action=\"readSteering\", powerName=\"kiro-unity-accelerator\", steeringFile=\"<relevant>.md\"). Match the task domain to the appropriate file: scene/GameObject → scene-scaffolding.md, assets → asset-automation.md, builds → build-automation.md, performance → performance-analysis.md, code quality → code-quality.md, platforms → platform-compatibility.md, dependencies → asset-dependencies.md, testing → cross-platform-testing.md, workflows → workflow-automation.md, knowledge → knowledge-management.md, level design → level-design-tooling.md, UI analysis → ui-dependency-analysis.md, project structure → project-organization.md, general → unity-general.md. If you have already activated and read the relevant steering file, proceed directly."
   }
 }
