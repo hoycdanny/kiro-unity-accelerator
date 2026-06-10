@@ -2,9 +2,7 @@
   "mcpServers": {
     "unity-mcp": {
       "url": "http://127.0.0.1:8080/mcp",
-      "type": "http",
-      "env": {},
-      "disabled": false
+      "transport": "http"
     }
   }
 }
