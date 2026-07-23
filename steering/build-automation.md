@@ -1,9 +1,9 @@
 # Build Automation Steering
-<!-- File Purpose / 本檔案用途: Unity build automation steering guide / Unity 建置自動化的 steering 指引，涵蓋建置配置載入、本地建置觸發、Cloud_Assist 路由邏輯、建置錯誤解析及多平台建置管理。 -->
+<!-- File Purpose / 本檔案用途: Unity build automation steering guide / Unity 建置自動化的 steering 指引，涵蓋建置配置載入、manage_build 觸發本地建置、建置錯誤解析及多平台建置管理。 -->
 
 ## Role and Purpose
 
-Builds reveal integration issues — problems that occur when different parts of the project are combined, such as shader incompatibilities (rendering code that works on one platform but not another), missing assets, or configuration mismatches (settings that conflict between different parts of the project). CS errors (C# compilation errors) are also common. Based on common Unity build patterns, most failures fall into a small number of categories (CS errors, missing references, shader incompatibilities, oversized output (build artifacts that exceed platform size limits)). Regardless of Unity build experience level, this guide helps identify and resolve these issues efficiently. It also covers the routing logic between local builds and the optional Cloud_Assist (a managed cloud build infrastructure that offloads compilation to remote servers) mode. Use it whenever the developer needs to build the project, manage build configurations, or troubleshoot build errors. The MCP tool sequences below translate that high-level intent into concrete commands.
+Builds reveal integration issues — problems that occur when different parts of the project are combined, such as shader incompatibilities (rendering code that works on one platform but not another), missing assets, or configuration mismatches (settings that conflict between different parts of the project). CS errors (C# compilation errors) are also common. Based on common Unity build patterns, most failures fall into a small number of categories (CS errors, missing references, shader incompatibilities, oversized output (build artifacts that exceed platform size limits)). Regardless of Unity build experience level, this guide helps identify and resolve these issues efficiently. Use it whenever the developer needs to build the project, manage build configurations, or troubleshoot build errors. The MCP tool sequences below translate that high-level intent into concrete commands.
 
 ## Workflow
 
@@ -12,85 +12,66 @@ Builds reveal integration issues — problems that occur when different parts of
 The diagram below shows the standard successful build flow. In practice, step 4 (parsing logs) provides the most actionable information — Unity emits a lot of noise alongside the actual error. Extracting the actionable lines transforms "build failed" into specific guidance like "fix this CS0246 in PlayerController.cs:42."
 
 ```
-Load config → manage_editor build → Poll read_console → Parse logs → Report results
+Load config → manage_build build → Poll manage_build status / read_console → Parse logs → Report results
 ```
 
 1. **Load build configuration**: Load the corresponding BuildConfig JSON from `templates/build-configs/` (custom location takes priority; falls back to built-in template if not found)
-2. **Trigger build**: Use `manage_editor(action: "build")` to start the Unity build process
-3. **Poll progress**: Use `read_console()` to periodically read build logs and report progress in real-time
+2. **Trigger build**: Use `manage_build(action: "build")` to start the Unity build process — **this is the dedicated build tool; `manage_editor` has no build action**
+3. **Poll progress**: Use `manage_build(action: "status")` for the build job status and `read_console()` for compile logs, both periodically, to report progress in real-time
 4. **Parse logs**: After build completion, parse console logs to extract errors and warnings
 5. **Report results**: Display build results in a structured format (success/failure, duration, artifact path, error summary)
 
-### Cloud_Assist Routing Logic
-
-```
-Check useCloudAssist → true: cloud path / false: local MCP path
-```
-
-Before executing build or test operations, check the `useCloudAssist` field in the BuildConfig:
-
-| useCloudAssist | Execution Path | Description |
-|----------------|---------------|-------------|
-| `false` (default) | Local MCP | Use `manage_editor` to execute the build in the local Unity Editor |
-| `true` | Cloud_Assist | Delegate the build task to managed cloud infrastructure |
-
-#### Local Build Path
-
-```
-manage_editor(action: "build", target: config.target, scenes: config.scenes, outputPath: config.outputPath, options: config.options)
-→ Poll read_console() for progress
-→ Build complete, report results
-```
-
-#### Cloud_Assist Build Path
-
-```
-Submit build task to Cloud_Assist
-→ Poll build status every 30 seconds
-→ After build completion, automatically download artifacts to config.outputPath
-→ Report results
-```
-
-Cloud_Assist fallback strategy:
-- If the network is unavailable or the cloud service is experiencing issues, automatically fall back to local MCP execution
-- Inform you when switching to local mode
-- All core build features function normally in local mode
-
 ## MCP Tool Usage Examples
+
+> **Verified syntax**: confirmed against a live unity-mcp connection.
 
 ### Trigger Local Build
 
 ```
-manage_editor(action: "build", target: "StandaloneWindows64", scenes: [
-  "Assets/Scenes/MainMenu.unity",
-  "Assets/Scenes/GameLevel1.unity"
-], outputPath: "Builds/Windows/MyGame.exe", options: {
-  "development": false,
-  "allowDebugging": false,
-  "compression": "Lz4HC",          // LZ4 High Compression: smaller builds, fast decompression
-  "scriptingBackend": "IL2CPP"     // Intermediate Language To C++: ahead-of-time compilation for better performance
-})
+manage_build(
+  action: "build",
+  target: "windows64",
+  scenes: "[\"Assets/Scenes/MainMenu.unity\", \"Assets/Scenes/GameLevel1.unity\"]",
+  output_path: "Builds/Windows/MyGame.exe",
+  development: false,
+  scripting_backend: "il2cpp",
+  options: "[\"compress_lz4\"]"
+)
 ```
 
-> **IL2CPP** converts .NET IL code to C++ for better runtime performance and platform compatibility. **Lz4HC** produces smaller builds than standard LZ4 at the cost of longer compression time; decompression speed remains fast.
+Notes on real parameter names/values (differ from earlier drafts of this guide):
+- `target` uses lowercase short names: `windows64`, `osx`, `linux64`, `android`, `ios`, `webgl`, `uwp`, `tvos`, `visionos` — not `StandaloneWindows64`
+- `scenes` is a JSON array **string** (or comma-separated path string), not a native array literal
+- `output_path`, not `outputPath` (snake_case, not camelCase — unity-mcp's Python-side schema uses snake_case throughout)
+- There is no nested `options` object with `allowDebugging`/`compression`/`scriptingBackend` keys — those are top-level params: `scripting_backend` (`mono`/`il2cpp`), and general build options (`clean_build`, `auto_run`, `deep_profiling`, `compress_lz4`, `strict_mode`, `detailed_report`) go in the flat `options` array
+- `subtarget` (`player`/`server`) is separate from `target`
 
-### Poll Build Progress
+> **IL2CPP** converts .NET IL code to C++ for better runtime performance and platform compatibility.
 
-```
-read_console(filter: "build")
-```
-
-Call periodically to retrieve the latest build log output. Recommended polling intervals:
-- Local build: every 10 seconds
-- Cloud_Assist build: every 30 seconds
-
-### Get Project Scene List
+### Poll Build Status
 
 ```
-manage_scene(action: "list")
+manage_build(action: "status")
 ```
 
-Used to confirm the scene list to include before building.
+Call periodically to check the running build job. Also poll `read_console(filter_text: "Build")` for compiler/build log lines.
+
+### Check/Set Player Settings Before Building
+
+```
+manage_build(action: "settings", property: "scripting_backend")           // read (omit `value`)
+manage_build(action: "settings", property: "scripting_backend", value: "il2cpp")  // write
+```
+
+Confirmed properties: `product_name`, `company_name`, `version`, `bundle_id`, `scripting_backend`, `defines`, `architecture`.
+
+### Get Project Scene List (Build Settings)
+
+```
+manage_scene(action: "get_build_settings")
+```
+
+Used to confirm the scene list already registered in Build Settings before building (there is no `manage_scene(action: "list")` — that action doesn't exist).
 
 ## Build Error Parsing Guide
 
@@ -114,8 +95,8 @@ Pattern: `Assembly 'Assembly-CSharp.dll' references 'SomePlugin' which could not
 
 Fix suggestions:
 - Check if the corresponding UPM package or third-party plugin is installed
-- Use `manage_packages(action: "list")` to confirm installed packages
-- Use `manage_packages(action: "install")` to install missing packages
+- Use `manage_packages(action: "list_packages")` to confirm installed packages (this is asynchronous — poll with `action: "status", job_id: ...` until it resolves)
+- Use `manage_packages(action: "add_package", package: "com.example.plugin")` to install missing packages (also asynchronous)
 
 #### Shader Compilation Errors
 
@@ -123,7 +104,7 @@ Pattern: `Shader error in 'Custom/MyShader': undeclared identifier 'unity_Object
 
 Fix suggestions:
 - Check if the Shader syntax is compatible with the target platform's graphics API
-- Use `manage_shader(action: "list")` to check Shaders in the project
+- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate Shaders in the project (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`)
 - Suggest using URP/HDRP-compatible Shaders instead of custom Shaders
 
 #### Missing Asset Errors
@@ -132,7 +113,7 @@ Pattern: `The referenced script on this Behaviour is missing!`
 Pattern: `Missing Prefab with guid: {guid}`
 
 Fix suggestions:
-- Use `manage_asset(action: "find")` to search for the missing asset
+- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "...")` to search for the missing asset (there is no `find` action)
 - Check if `.meta` files are intact
 - Confirm the asset was not accidentally deleted or moved
 
@@ -193,15 +174,23 @@ Before triggering a build, perform the following checks:
 
 ### Platform-Specific Notes
 
-| Platform | Notes |
-|----------|-------|
-| Windows | Confirm .NET Framework version compatibility |
-| Android | Confirm Android SDK/NDK paths are set, minimum API Level is correct |
-| iOS | Must build on macOS, confirm Xcode version compatibility, signing settings are correct |
-| WebGL | Longer build times, be aware of memory limits, multithreading not supported |
+| Platform | `manage_build` `target` value | Notes |
+|----------|-------------------------------|-------|
+| Windows | `windows64` | Confirm .NET Framework version compatibility |
+| Android | `android` | Confirm Android SDK/NDK paths are set, minimum API Level is correct; prefer Vulkan as the primary Graphics API (OpenGL ES as fallback only) |
+| iOS | `ios` | Must build on macOS, confirm Xcode version compatibility, signing settings are correct |
+| WebGL | `webgl` | Longer build times, be aware of memory limits, multithreading not supported; GPU Resident Drawer is unavailable (no compute shader support) |
+| macOS | `osx` | |
+| Linux | `linux64` | |
 
-### Cloud_Assist Usage Recommendations
+### Scripting Backend Notes (Unity 6.x)
 
-- For large projects (build time > 30 minutes), Cloud_Assist can offload compilation work from the local machine
-- When building for multiple platforms simultaneously, Cloud_Assist can process multiple build tasks in parallel
-- Cloud infrastructure is managed automatically. Developers requiring custom cloud configurations can configure their own infrastructure to meet enterprise compliance, data residency, or security requirements
+- **IL2CPP** remains the recommended backend for release builds — best AOT runtime performance, required on iOS/consoles
+- **Mono** remains the recommended backend for fast-iterating development builds where the platform supports it
+- **CoreCLR** appears as a `ScriptingImplementation` option on several Unity 6.x releases (confirmed available as early as 6000.5, not just 6.6+ as changelogs might suggest) but remains experimental. Do not select it for production BuildConfigs — flag any BuildConfig with `scriptingBackend: "CoreCLR"` as experimental and confirm the developer explicitly wants to test it. Verify availability in the connected project via `execute_code` (`System.Enum.GetNames(typeof(UnityEditor.ScriptingImplementation))`) rather than assuming from version number alone
+- If the developer's project has Enter Play Mode Options set to skip domain reload (a default introduced for new projects in a Unity 6.x Update release — verify the actual setting via `UnityEditor.EditorSettings.enterPlayModeOptionsEnabled` rather than assuming from version number), remind them this does not affect standalone builds — it only affects Editor Play Mode behavior
+
+### Multi-Platform Builds
+
+- Use `manage_build(action: "batch", targets: [...], output_dir: "Builds/")` to build multiple platforms in one call (or `profiles: [...]` to batch-build Unity 6+ Build Profiles instead of raw target names)
+- Poll `manage_build(action: "status")` per job, or `action: "cancel"` to abort a running batch

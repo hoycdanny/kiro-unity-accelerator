@@ -4,6 +4,8 @@
 
 Unity 開發自動化加速器。透過 MCP（Model Context Protocol — 一種讓 AI 助手與開發工具互動的標準化協定，讓你可以用自然語言描述想做的事，而不需要手動操作選單或撰寫樣板腳本）以自然語言指揮 Unity Editor，涵蓋資產管理、場景建構、建置自動化、效能分析、程式碼品質檢查等功能 — 內建 40+ TypeScript 工具模組與 14 個領域知識檔案。
 
+> **支援 Unity 6.x 最新實踐，並以實際專案驗證為準**：Steering 指引涵蓋 Unity 6 各次要版本更新的行為變化，包括 URP 預設的 Render Graph 渲染路徑、GPU Resident Drawer（Forward+/Deferred+ 的 GPU Instancing 繪製呼叫優化）、部分版本新專案預設的「僅重載場景（不重載 Domain）」Play Mode 行為、實驗性的 CoreCLR 腳本後端，以及 Unity 官方宣布逐步淘汰 OculusXR 套件改用 OpenXR 的方向。本 Power 不會單憑記憶中的版本號斷言行為，而是透過 MCP 實際查詢連接專案的 Unity 版本、目前啟用的渲染管線、渲染路徑、Scripting Backend 與已安裝套件後，才套用版本相關建議。
+
 > **術語說明**：本文件使用的主要技術術語（首次出現時也會附帶簡短說明）：
 > - **MCP** (Model Context Protocol)：AI 助手與開發工具通訊的標準協定，讓開發者能用自然語言操作 Unity Editor
 > - **DAG** (Directed Acyclic Graph)：有向無環圖，用於決定任務依賴順序（例如「先匯入貼圖，才能建立材質」）

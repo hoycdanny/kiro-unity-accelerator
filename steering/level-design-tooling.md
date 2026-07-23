@@ -25,10 +25,10 @@ Confirm target class → Query class info → Generate C# script → Write file 
 ```
 
 1. **Confirm target class**: Confirm with the developer the target MonoBehaviour / ScriptableObject class name for which to generate an Inspector or batch tool
-2. **Query class info**: Use `manage_script(action: "read")` to retrieve the target class's serialized field information
+2. **Query class info**: Use `manage_script(action: "read", name: ..., path: ...)` to retrieve the target class's serialized field information
 3. **Generate C# script**: Call `generateInspectorScript` or `generateBatchToolScript` to generate script content
 4. **Write file**: Use `create_script` to write the script to the `Assets/Editor/` directory
-5. **Trigger compilation**: Use `manage_editor(action: "refresh")` to trigger Unity Editor recompilation
+5. **Trigger compilation**: Use `refresh_unity` to trigger Unity Editor recompilation — **not** `manage_editor(action: "refresh")`, which doesn't exist (`manage_editor` has no `refresh` action; refresh is its own dedicated tool)
 
 ### ScriptableObject Template Creation Flow
 
@@ -41,7 +41,7 @@ Describe field structure → Create template definition → Generate SO script +
 3. **Generate scripts**: Call `generateSOScript` to generate both the SO script and accompanying Inspector
 4. **Write files**: Use `create_script` to write to `Assets/Scripts/` and `Assets/Editor/` respectively
 5. **Save template**: Use `saveTemplate` to persist the template definition as JSON
-6. **Trigger compilation**: Use `manage_editor(action: "refresh")`
+6. **Trigger compilation**: Use `refresh_unity` (not `manage_editor(action: "refresh")`, which doesn't exist)
 
 ### Scene Object Batch Configuration Flow
 
@@ -59,15 +59,17 @@ Describe batch rules → Parse rules → Filter objects → Show preview → Con
 
 ## MCP Tool Mapping
 
+> **Verified syntax**: confirmed against a live unity-mcp connection.
+
 | Operation | MCP Tool | Purpose |
 |-----------|----------|---------|
-| Query class info | `manage_script(action: "read")` | Retrieve target class fields and types |
+| Query class info | `manage_script(action: "read", name: ..., path: ...)` | Retrieve target class fields and types (both `name` and `path` required — `path` is the containing folder) |
 | Write script | `create_script(path, contents)` | Write generated C# scripts to the project |
-| Trigger compilation | `manage_editor(action: "refresh")` | Trigger Unity recompilation after writing scripts |
-| Filter scene objects | `find_gameobjects(search_term, search_method)` | Search objects by name, Tag, Layer, or component |
+| Trigger compilation | `refresh_unity` | Trigger Unity recompilation after writing scripts — this is its own tool, not a `manage_editor` action |
+| Filter scene objects | `find_gameobjects(search_term, search_method)` | Search objects by name, Tag, Layer, or component (both params required) |
 | Set Layer/Tag | `manage_gameobject(action: "modify", target, layer/tag)` | Modify an object's Layer or Tag |
-| Modify component properties | `manage_components(action: "set_property", target, ...)` | Modify property values on an object's components |
-| Batch execute | `batch_execute(commands)` | Package multiple MCP calls into a single batch operation |
+| Modify component properties | `manage_components(action: "set_property", target, component_type, property, value)` | Modify property values on an object's components |
+| Batch execute | `batch_execute(commands)` | Package multiple MCP calls into a single batch operation — each command's second key is `params`, not `args` |
 
 ## MCP Tool Call Sequence Examples
 
@@ -78,7 +80,7 @@ Describe batch rules → Parse rules → Filter objects → Show preview → Con
    → Retrieve EnemyConfig's serialized fields
 2. create_script(path: "Assets/Editor/EnemyConfigInspector.cs", contents: "...")
    → Write the generated Inspector script
-3. manage_editor(action: "refresh")
+3. refresh_unity()
    → Trigger recompilation
 ```
 
@@ -89,20 +91,19 @@ Describe batch rules → Parse rules → Filter objects → Show preview → Con
    → Write SO script
 2. create_script(path: "Assets/Editor/LevelConfigInspector.cs", contents: "...")
    → Write accompanying Inspector
-3. manage_editor(action: "refresh")
+3. refresh_unity()
    → Trigger recompilation
 ```
 
 ### Batch Configure Scene Objects
 
 ```
-1. find_gameobjects(search_term: "Enemy*", search_method: "by_name")
-   → Search for objects with names matching Enemy*
+1. find_gameobjects(search_term: "Enemy_01", search_method: "by_name")
+   → `by_name` requires an exact match (confirmed: searching `"Enemy"` did not match a GameObject named `"EnemyTest01"`). To batch-select by naming pattern, either enumerate all objects and filter client-side, or search by a shared `component_type`/tag/layer instead if the batch rule can be expressed that way
 2. batch_execute(commands: [
      { "tool": "manage_gameobject", "params": { "action": "modify", "target": "Enemy_01", "layer": "Enemy" } },
      { "tool": "manage_gameobject", "params": { "action": "modify", "target": "Enemy_02", "layer": "Enemy" } },
-     { "tool": "manage_components", "params": { "action": "set_property", "target": "Enemy_01", "component_type": "BoxCollider", "property": "isTrigger", "value": true } },
-     ...
+     { "tool": "manage_components", "params": { "action": "set_property", "target": "Enemy_01", "component_type": "BoxCollider", "property": "isTrigger", "value": true } }
    ])
 ```
 

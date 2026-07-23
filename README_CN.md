@@ -4,6 +4,8 @@
 
 Unity 开发 AI 加速器。通过 MCP（Model Context Protocol）以自然语言指挥 Unity Editor，涵盖资产管理、场景构建、构建自动化、性能分析、代码质量检查等功能 — 内置 40+ TypeScript 工具模块与 14 个领域知识文件，为个人开发者和团队提供 Unity 开发 AI 支持。
 
+> **支持 Unity 6.x 最新实践，并以实际项目验证为准**：Steering 指南涵盖 Unity 6 各次要版本更新的行为变化，包括 URP 默认的 Render Graph 渲染路径、GPU Resident Drawer（Forward+/Deferred+ 的 GPU Instancing 绘制调用优化）、部分版本新项目默认的"仅重载场景（不重载 Domain）"Play Mode 行为、实验性的 CoreCLR 脚本后端，以及 Unity 官方宣布逐步淘汰 OculusXR 包改用 OpenXR 的方向。本 Power 不会仅凭记忆中的版本号断言行为，而是通过 MCP 实际查询所连接项目的 Unity 版本、当前启用的渲染管线、渲染路径、Scripting Backend 与已安装包之后，才套用版本相关建议。
+
 > **术语说明**：本文件使用的主要技术术语（首次出现时也会附带简短说明）：
 > - **MCP** (Model Context Protocol)：AI 助手与开发工具通信的标准协议，让开发者能用自然语言操作 Unity Editor
 > - **DAG** (Directed Acyclic Graph)：有向无环图，用于决定任务依赖顺序（例如「先导入贴图，才能创建材质」）

@@ -6,28 +6,28 @@
   "steps": [
     {
       "id": "load-config",
-      "name": "Load build configuration",
-      "mcpTool": "manage_editor",
-      "mcpAction": "get_settings",
-      "mcpArgs": {},
+      "name": "Load build configuration (read current Player Settings before building)",
+      "mcpTool": "manage_build",
+      "mcpAction": "settings",
+      "mcpArgs": { "property": "scripting_backend" },
       "dependsOn": [],
       "onFailure": "abort"
     },
     {
       "id": "execute-build",
       "name": "Execute Unity build",
-      "mcpTool": "manage_editor",
+      "mcpTool": "manage_build",
       "mcpAction": "build",
-      "mcpArgs": { "target": "StandaloneWindows64", "scenes": [], "outputPath": "Builds/" },
+      "mcpArgs": { "target": "windows64", "scenes": "[]", "output_path": "Builds/Windows/MyGame.exe" },
       "dependsOn": ["load-config"],
       "onFailure": "pause"
     },
     {
       "id": "monitor-progress",
-      "name": "Monitor build progress via console",
-      "mcpTool": "read_console",
-      "mcpAction": "read",
-      "mcpArgs": { "filter": "Build" },
+      "name": "Monitor build progress via job status and console",
+      "mcpTool": "manage_build",
+      "mcpAction": "status",
+      "mcpArgs": {},
       "dependsOn": ["execute-build"],
       "onFailure": "skip"
     },
@@ -36,7 +36,7 @@
       "name": "Verify build artifact exists",
       "mcpTool": "manage_asset",
       "mcpAction": "get_info",
-      "mcpArgs": { "path": "Builds/" },
+      "mcpArgs": { "path": "Builds/Windows/MyGame.exe" },
       "dependsOn": ["monitor-progress"],
       "onFailure": "pause"
     }

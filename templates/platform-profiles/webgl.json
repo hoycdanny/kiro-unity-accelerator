@@ -34,6 +34,11 @@
       "requiredDefines": [
         "UNITY_WEBGL"
       ]
+    },
+    "graphicsApi": {
+      "recommended": "WebGL2",
+      "fallback": "WebGL1",
+      "notes": "WebGL does not support compute shaders, so the URP GPU Resident Drawer and other compute-shader-based render features (Unity 6+) are unavailable regardless of rendering path. Unity's WebGPU backend is an emerging option for compute-class features but has a smaller browser support matrix than WebGL 2.0; verify current maturity against the target Unity version rather than assuming a specific release's status."
     }
   }
 }

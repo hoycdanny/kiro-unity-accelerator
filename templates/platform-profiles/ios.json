@@ -30,6 +30,11 @@
       "requiredDefines": [
         "UNITY_IOS"
       ]
+    },
+    "graphicsApi": {
+      "recommended": "Metal",
+      "fallback": "n/a",
+      "notes": "Metal supports compute shaders, so the URP GPU Resident Drawer and Forward+/Deferred+ rendering paths (Unity 6+) are supported on iOS. VisionOS (Apple's spatial computing platform) is a separate profile — GPU Resident Drawer is explicitly unsupported there even though it shares the Metal API."
     }
   }
 }

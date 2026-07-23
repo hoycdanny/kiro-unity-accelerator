@@ -27,26 +27,34 @@ Multi-step workflows in Unity — "import these assets, configure them, build, t
 
 ## MCP Tool Usage
 
+> **Verified syntax**: confirmed against a live unity-mcp connection.
+
 ### Execute a Single Workflow Step
 
 ```
-manage_asset(action: "list", path: "Assets/", recursive: true)
+manage_asset(action: "search", path: "Assets/", search_pattern: "*")
 ```
+
+There is no `list` action or `recursive` flag — `search` under a folder path already covers subfolders; use `search_pattern` to filter by glob.
 
 ### Batch Execute Multiple Steps
 
 ```
 batch_execute(commands: [
-  { "tool": "manage_asset", "args": { "action": "list", "path": "Assets/" } },
-  { "tool": "manage_asset", "args": { "action": "set_import_settings", ... } }
+  { "tool": "manage_asset", "params": { "action": "search", "path": "Assets/", "search_pattern": "*.fbx" } },
+  { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/hero.fbx", "properties": { "rigType": "Humanoid" } } }
 ])
 ```
+
+Each command's second key is `params`, not `args`.
 
 ### Trigger Build Step
 
 ```
-manage_editor(action: "build", target: "Android", scenes: [...], outputPath: "Builds/Android")
+manage_build(action: "build", target: "android", scenes: "[\"Assets/Scenes/Main.unity\"]", output_path: "Builds/Android")
 ```
+
+Use `manage_build`, not `manage_editor` — `manage_editor` has no build action. `target` uses the lowercase short name (`android`, not `Android`), and `scenes`/`output_path` are the real param names (a JSON array string and snake_case, respectively).
 
 ## Step Dependency Validation (DAG Topological Sort)
 
@@ -94,7 +102,7 @@ manage_editor(action: "build", target: "Android", scenes: [...], outputPath: "Bu
 [Workflow Name] Step "Step Name" (ID: step-id) execution failed
   Error Type: MCP tool call failed
   Tool: manage_asset
-  Action: set_import_settings
+  Action: modify
   Error Message: Asset path not found: Assets/Missing/file.fbx
   onFailure Strategy: pause
   Awaiting your decision...

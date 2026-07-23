@@ -59,7 +59,8 @@
       ],
       "children": [],
       "mcpTool": "manage_camera",
-      "mcpArgs": { "action": "create", "name": "LobbyCamera", "tag": "MainCamera" }
+      "mcpArgs": { "action": "create_camera", "properties": { "name": "LobbyCamera" } },
+      "note": "manage_camera has no tag param — set the MainCamera tag afterward via manage_gameobject(action: 'modify', target: 'LobbyCamera', tag: 'MainCamera')"
     },
     {
       "name": "LobbyUI",
@@ -82,12 +83,12 @@
                 { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Players", "fontSize": 28 } }
               ],
               "children": [],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_text", "name": "PlayerListTitle", "parent": "PlayerListPanel" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "PlayerListTitle", "parent": "PlayerListPanel", "components_to_add": ["UnityEngine.UI.Text"] }
             }
           ],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_panel", "name": "PlayerListPanel", "parent": "LobbyUI" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "PlayerListPanel", "parent": "LobbyUI", "components_to_add": ["UnityEngine.UI.Image", "UnityEngine.UI.VerticalLayoutGroup"] }
         },
         {
           "name": "ChatPanel",
@@ -101,8 +102,8 @@
                 { "typeName": "UnityEngine.UI.ScrollRect", "properties": {} }
               ],
               "children": [],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_panel", "name": "ChatLog", "parent": "ChatPanel" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "ChatLog", "parent": "ChatPanel", "components_to_add": ["UnityEngine.UI.ScrollRect"] }
             },
             {
               "name": "ChatInput",
@@ -110,12 +111,12 @@
                 { "typeName": "UnityEngine.UI.InputField", "properties": { "placeholder": "Type a message..." } }
               ],
               "children": [],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_input", "name": "ChatInput", "parent": "ChatPanel" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "ChatInput", "parent": "ChatPanel", "components_to_add": ["UnityEngine.UI.InputField"] }
             }
           ],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_panel", "name": "ChatPanel", "parent": "LobbyUI" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "ChatPanel", "parent": "LobbyUI", "components_to_add": ["UnityEngine.UI.Image"] }
         },
         {
           "name": "RoomControls",
@@ -130,8 +131,8 @@
                 { "typeName": "UnityEngine.UI.Image", "properties": {} }
               ],
               "children": [],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_button", "name": "ReadyButton", "parent": "RoomControls" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "ReadyButton", "parent": "RoomControls", "components_to_add": ["UnityEngine.UI.Button", "UnityEngine.UI.Image"] }
             },
             {
               "name": "StartGameButton",
@@ -140,8 +141,8 @@
                 { "typeName": "UnityEngine.UI.Image", "properties": {} }
               ],
               "children": [],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_button", "name": "StartGameButton", "parent": "RoomControls" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "StartGameButton", "parent": "RoomControls", "components_to_add": ["UnityEngine.UI.Button", "UnityEngine.UI.Image"] }
             },
             {
               "name": "LeaveButton",
@@ -150,16 +151,17 @@
                 { "typeName": "UnityEngine.UI.Image", "properties": {} }
               ],
               "children": [],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_button", "name": "LeaveButton", "parent": "RoomControls" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "LeaveButton", "parent": "RoomControls", "components_to_add": ["UnityEngine.UI.Button", "UnityEngine.UI.Image"] }
             }
           ],
           "mcpTool": "manage_gameobject",
-          "mcpArgs": { "action": "create", "name": "RoomControls", "parent": "LobbyUI" }
+          "mcpArgs": { "action": "create", "name": "RoomControls", "parent": "LobbyUI", "components_to_add": ["UnityEngine.UI.HorizontalLayoutGroup"] }
         }
       ],
-      "mcpTool": "manage_ui",
-      "mcpArgs": { "action": "create_canvas", "name": "LobbyUI" }
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "LobbyUI", "components_to_add": ["UnityEngine.Canvas", "UnityEngine.UI.CanvasScaler", "UnityEngine.UI.GraphicRaycaster"] },
+      "note": "manage_ui manages UI Toolkit (UXML/USS), not legacy uGUI — this whole hierarchy is built via manage_gameobject + components_to_add, then configured via manage_components(action: 'set_property', ...)"
     },
     {
       "name": "EventSystem",

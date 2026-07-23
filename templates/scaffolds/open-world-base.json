@@ -81,7 +81,8 @@
               ],
               "children": [],
               "mcpTool": "manage_camera",
-              "mcpArgs": { "action": "create", "name": "MainCamera", "parent": "PlayerController", "tag": "MainCamera" }
+              "mcpArgs": { "action": "create_camera", "properties": { "name": "MainCamera" } },
+              "note": "manage_camera has no parent/tag param — reparent and tag afterward via manage_gameobject(action: 'modify', target: 'MainCamera', parent: 'PlayerController', tag: 'MainCamera')"
             }
           ],
           "mcpTool": "manage_gameobject",
@@ -104,8 +105,8 @@
             { "typeName": "UnityEngine.UI.RawImage", "properties": {} }
           ],
           "children": [],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_panel", "name": "MinimapPanel", "parent": "WorldUI" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "MinimapPanel", "parent": "WorldUI", "components_to_add": ["UnityEngine.UI.RawImage"] }
         },
         {
           "name": "CompassBar",
@@ -113,12 +114,13 @@
             { "typeName": "UnityEngine.UI.Image", "properties": {} }
           ],
           "children": [],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_image", "name": "CompassBar", "parent": "WorldUI" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "CompassBar", "parent": "WorldUI", "components_to_add": ["UnityEngine.UI.Image"] }
         }
       ],
-      "mcpTool": "manage_ui",
-      "mcpArgs": { "action": "create_canvas", "name": "WorldUI" }
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "WorldUI", "components_to_add": ["UnityEngine.Canvas", "UnityEngine.UI.GraphicRaycaster"] },
+      "note": "manage_ui manages UI Toolkit (UXML/USS), not legacy uGUI — built via manage_gameobject + components_to_add as shown here"
     },
     {
       "name": "EventSystem",

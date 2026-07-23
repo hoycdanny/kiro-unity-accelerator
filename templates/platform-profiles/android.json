@@ -30,6 +30,11 @@
       "requiredDefines": [
         "UNITY_ANDROID"
       ]
+    },
+    "graphicsApi": {
+      "recommended": "Vulkan",
+      "fallback": "OpenGLES3",
+      "notes": "Unity 6 recommends Vulkan as the primary Graphics API on Android. OpenGL ES 3 remains a compatibility fallback for older/unsupported devices, but the URP GPU Resident Drawer (draw-call reduction via BatchRendererGroup GPU instancing) and other compute-shader-based render features are unavailable on OpenGL ES."
     }
   }
 }

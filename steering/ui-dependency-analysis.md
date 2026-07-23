@@ -114,11 +114,13 @@ manage_script(action: "read", name: "UIManager", path: "Assets/Scripts/UI/")
 
 ```
 batch_execute(commands: [
-  { "tool": "manage_script", "args": { "action": "read", "name": "UIManager", "path": "Assets/Scripts/UI/" } },
-  { "tool": "manage_script", "args": { "action": "read", "name": "InventoryPanel", "path": "Assets/Scripts/UI/" } },
-  { "tool": "manage_script", "args": { "action": "read", "name": "ShopController", "path": "Assets/Scripts/Shop/" } }
+  { "tool": "manage_script", "params": { "action": "read", "name": "UIManager", "path": "Assets/Scripts/UI/" } },
+  { "tool": "manage_script", "params": { "action": "read", "name": "InventoryPanel", "path": "Assets/Scripts/UI/" } },
+  { "tool": "manage_script", "params": { "action": "read", "name": "ShopController", "path": "Assets/Scripts/Shop/" } }
 ])
 ```
+
+Each command's second key is `params`, not `args`.
 
 ### Build Dependency Graph
 

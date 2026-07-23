@@ -17,7 +17,7 @@ This package provides Unity development automation capabilities that can execute
 3. **Knowledge-Driven**: Architecture separates domain knowledge (steering files) from execution logic (MCP tools)
 4. **Natural Language Driven**: Developers describe intent; the AI translates to MCP tool call sequences
 5. **Composable Architecture**: Complex workflows are composed from multiple MCP tool calls chained via `batch_execute`
-6. **Local First**: All core features run locally; Cloud_Assist is an optional transparent acceleration layer
+6. **Local First**: All operations run through the local Unity Editor via MCP — there is no cloud build or remote device-testing layer in the current tool surface
 
 ### Core Behaviors
 
@@ -54,9 +54,17 @@ Before executing any multi-step operation, read the relevant steering file(s) to
 #### Safety & Quality Checks
 
 - **Post-operation**: After scene modifications adding 10+ objects (which can impact rendering performance by increasing draw calls and memory usage), run a quick performance check (draw calls, memory estimate) and check for common issues (missing colliders, shader incompatibilities). Report findings to the developer. For guidance on interpreting these metrics, see the `performance-analysis.md` steering file.
-- **Render pipeline**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets. Flag shader incompatibilities immediately.
+- **Render pipeline**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets — verify via `GraphicsSettings.currentRenderPipeline` rather than assuming. Flag shader incompatibilities immediately. URP is the default and Unity-recommended pipeline for new Unity 6 projects; Built-in remains usable for existing projects and Unity has not committed to a firm removal version.
 - **Play Mode**: Never make permanent scene changes while in Play Mode. Verify editor state before modifying and saving scenes.
 - **Batch operations**: When placing multiple objects, ensure proper physics, vary rotation/scale for natural appearance, check performance impact for large quantities (50+), and respect the project's existing organizational structure.
+
+#### Unity 6.7 Baseline
+
+This Power targets **Unity 6.7** and the MCP tool surface of **[CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)** as currently published. Older Unity versions and older unity-mcp releases are not a design goal — if a tool call fails with an "Unknown action" or validation error, the connected unity-mcp build is likely older than expected; tell the developer to update the package rather than trying to work around it with legacy syntax.
+
+Two things are still worth a runtime check rather than an assumption, because they vary per-project regardless of Unity version:
+- **Render pipeline**: confirm URP vs. Built-in via `manage_graphics(action: "pipeline_get_info")` before recommending pipeline-specific features like the GPU Resident Drawer (see `performance-analysis.md`)
+- **GPU Resident Drawer eligibility**: requires Forward+/Deferred+ rendering path, compute-shader-capable Graphics API (not OpenGL ES/VisionOS), and is unavailable on the 2D Renderer — check before recommending it, don't assume it's on
 
 ## Setup
 
@@ -129,7 +137,7 @@ To switch to stdio mode, update `mcp.json`:
 ### Connection Health Check
 
 Before executing any MCP operation, perform a lightweight health check:
-1. Attempt to read the `project_info` resource
+1. Attempt a cheap read-only call, e.g. `manage_scene(action: "get_active")` or `execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")`
 2. If successful → MCP connection is healthy
 3. If failed → prompt the developer to:
    - Confirm Unity Editor is open
@@ -145,66 +153,85 @@ Before executing any MCP operation, perform a lightweight health check:
 2. 讀取對應的 steering file 以獲取該任務的最佳實踐指引
 3. 依照 Power 文件中定義的 workflow 執行操作
 
-**涵蓋的工具**：所有 unity-mcp 工具，包括 `manage_scene`、`manage_gameobject`、`manage_components`、`manage_camera`、`manage_asset`、`manage_build`、`manage_editor`、`manage_material`、`manage_animation`、`manage_physics`、`manage_prefabs`、`manage_packages`、`manage_shader`、`manage_texture`、`manage_ui`、`manage_vfx`、`manage_probuilder`、`manage_profiler`、`manage_graphics`、`find_gameobjects`、`read_console`、`run_tests`、`batch_execute`、`execute_code`、`create_script`、`refresh_unity`、`script_apply_edits` 等。
+**涵蓋的工具**：所有 unity-mcp 工具，包括 `manage_scene`、`manage_gameobject`、`manage_components`、`manage_camera`、`manage_asset`、`manage_build`、`manage_editor`、`manage_material`、`manage_animation`、`manage_physics`、`manage_prefabs`、`manage_packages`、`manage_shader`、`manage_texture`、`manage_ui`、`manage_vfx`、`manage_probuilder`、`manage_profiler`、`manage_graphics`、`manage_scriptable_object`、`find_gameobjects`、`read_console`、`run_tests`、`get_test_job`、`batch_execute`、`execute_code`、`create_script`、`delete_script`、`validate_script`、`apply_text_edits`、`script_apply_edits`、`refresh_unity`、`unity_docs`、`unity_reflect` 等。建置請使用 `manage_build`（不是 `manage_editor`）。
 
 **使用方式**：安裝本 Power 後，此 hook 會自動生效。開發者無需手動設定。如需停用，可刪除或重新命名 `hooks/pre-unity-tool.json` 檔案。
 
 
 ## Available MCP Tools
 
-### Asset & Material Management
+> **Verified against a live connection.** The tool names, `action` values, and parameter names below were confirmed by calling each tool against a running Unity Editor via unity-mcp — not assumed from documentation. If a call still fails with an "Unknown action" or a Pydantic validation error, treat that error message as authoritative (it lists the actual valid values) over anything written here, since unity-mcp evolves independently of this Power.
 
-| Tool | Description |
-|------|-------------|
-| `manage_asset` | Configure how Unity imports models, textures, and audio files. Use for batch operations when applying presets to multiple assets, or to query asset metadata before modification. Actions: `list`, `get_info`, `set_import_settings`, `get_dependencies` |
-| `manage_material` | Create, modify, and assign materials. Manage shader properties and material parameters. Pairs with `manage_shader` for compatibility checks |
-| `manage_texture` | Import and configure texture assets. Set compression, max size, filter mode, mip maps. Critical for platform-specific optimization |
-| `manage_shader` | List, inspect, and manage shaders. Check shader features and compatibility across target platforms |
+### Asset Management
+
+| Tool | Key Actions | Notes |
+|------|-------------|-------|
+| `manage_asset` | `import`, `create`, `modify`, `delete`, `duplicate`, `move`, `rename`, `search`, `get_info`, `create_folder`, `get_components` | There is **no `list` action** — use `search` with `path` + `search_pattern` (e.g. `"*.fbx"`) to enumerate assets. Use `get_info` for import settings/metadata on a single asset |
+| `manage_material` | `ping`, `get_material_info`, `create`, `set_material_shader_property`, `set_material_color`, `assign_material_to_renderer`, `set_renderer_color` | |
+| `manage_texture` | `create`, `modify`, `delete`, `create_sprite`, `apply_pattern`, `apply_gradient`, `apply_noise`, `set_import_settings` | Procedural texture generation, not just import-setting management |
+| `manage_shader` | `read` (read-only); `create`, `update`, `delete` (modifying) | Requires `name` + `path`; there is no `list` action — use `manage_asset(action: "search", search_pattern: "*.shader")` to enumerate shaders first |
 
 ### Scene & GameObject Management
 
-| Tool | Description |
-|------|-------------|
-| `manage_scene` | Create, load, save, and manage scenes. Actions: `create`, `load`, `save`, `list` |
-| `manage_gameobject` | Create, modify, delete GameObjects. Set name, tag, layer, parent-child hierarchy |
-| `manage_components` | Add, remove, modify components on GameObjects. Set component properties |
-| `manage_prefabs` | Create, instantiate, and manage prefabs. Apply overrides and unpack |
+| Tool | Key Actions | Notes |
+|------|-------------|-------|
+| `manage_scene` | Read-only: `get_hierarchy`, `get_active`, `get_build_settings`, `get_loaded_scenes`, `scene_view_frame`. Modifying: `create`, `load`, `save`, `close_scene`, `set_active_scene`, `move_to_scene`, `validate` | No `list` action — use `get_loaded_scenes` for currently loaded scenes or `get_build_settings` for the Build Settings scene list |
+| `manage_gameobject` | `create`, `modify`, `delete`, `duplicate`, `move_relative`, `look_at` | For CRUD only. Use `find_gameobjects` to search |
+| `manage_components` | `add`, `remove`, `set_property` | Requires `target` (instance ID preferred) + `component_type` |
+| `manage_prefabs` | `get_info`, `get_hierarchy`, `create_from_gameobject`, `modify_contents`, `open_prefab_stage`, `save_prefab_stage`, `close_prefab_stage` | `modify_contents` supports `create_child`/`delete_child`/`component_properties` for headless prefab edits |
 
 ### UI & Visual
 
-| Tool | Description |
-|------|-------------|
-| `manage_ui` | Create and manage UI elements (Canvas, Button, Text, Image, etc.) |
-| `manage_camera` | Create and configure cameras. Set projection, FOV, clipping planes, render settings |
-| `manage_animation` | Manage animation clips, controllers, and animation state machines |
-| `manage_graphics` | Get and set graphics/rendering settings. Actions: `get_rendering_stats`, `get_settings` |
+| Tool | Key Actions | Notes |
+|------|-------------|-------|
+| `manage_ui` | Read-only: `ping`, `read`, `get_visual_tree`, `list`. Modifying: `create`, `update`, `delete`, `attach_ui_document`, `detach_ui_document`, `create_panel_settings`, `update_panel_settings`, `modify_visual_element`, `render_ui`, `link_stylesheet` | This manages **UI Toolkit** (UXML/USS/UIDocument), not legacy uGUI Canvas/Button/Text. For legacy uGUI, create the GameObject + components via `manage_gameobject`/`manage_components` directly |
+| `manage_camera` | `ping`, `ensure_brain`, `get_brain_status`, `create_camera`, `set_target`, `set_priority`, `set_lens`, `set_body`, `set_aim`, `set_noise`, `add_extension`, `remove_extension`, `set_blend`, `force_camera`, `release_override`, `list_cameras`, `screenshot`, `screenshot_multiview` | `create_camera` supports presets (`third_person`, `freelook`, `follow`, `dolly`, `static`, `top_down`, `side_scroller`) and works with or without Cinemachine installed |
+| `manage_animation` | Prefixed actions: `animator_*`, `controller_*`, `clip_*` | Action-specific params go in the `properties` dict |
+| `manage_vfx` | Prefixed actions: `particle_*`, `vfx_*`, `line_*`, `trail_*` | ParticleSystem, VisualEffect, LineRenderer, TrailRenderer |
+| `manage_probuilder` | `create_shape`, `extrude_faces`, `bevel_edges`, `subdivide`, `get_mesh_info`, and many more mesh-editing actions | Requires `com.unity.probuilder` package |
+| `manage_graphics` | Action-prefixed by area — `stats_get`/`stats_list_counters`/`stats_get_memory` (rendering stats); `pipeline_get_info`/`pipeline_get_settings`/`pipeline_set_settings`/`pipeline_set_quality` (render pipeline); `feature_list`/`feature_add`/`feature_remove`/`feature_configure`/`feature_toggle` (URP renderer features); `skybox_get`/`skybox_set_*` (environment/fog/ambient); `volume_*` (Volume/post-processing, requires URP/HDRP); `bake_*` (lightmap/probe baking, Edit mode only) | There is **no `get_settings` or `get_rendering_stats` action** — those are `pipeline_get_settings` and `stats_get` respectively |
 
 ### Project & Editor
 
-| Tool | Description |
-|------|-------------|
-| `manage_packages` | List, add, remove UPM packages. Check package versions and dependencies |
-| `manage_editor` | Control Unity Editor operations. Actions: `build`, `play`, `pause`, `refresh` |
-| `manage_script` | List, read, and manage C# scripts. Actions: `list`, `read`, `get_info` |
-| `create_script` | Create new C# scripts from templates or custom content |
+| Tool | Key Actions | Notes |
+|------|-------------|-------|
+| `manage_packages` | `list_packages`, `search_packages`, `get_package_info`, `add_package`, `remove_package`, `list_registries`, `add_registry`, `remove_registry`, `embed_package`, `resolve_packages`, `ping`, `status` | **Asynchronous**: `list_packages`/`search_packages`/`add_package`/`remove_package` return `{job_id}` immediately with `_mcp_status: "pending"`; poll with `action: "status", job_id: "..."` until it resolves |
+| `manage_build` | `build`, `status`, `platform`, `settings`, `scenes`, `profiles`, `batch`, `cancel` | **This is the build tool — `manage_editor` has no build action.** Supports Build Profiles (Unity 6+) via the `profile` param, and `batch` for multi-target builds |
+| `manage_editor` | Read-only: `telemetry_status`, `telemetry_ping`. Modifying: `play`, `pause`, `stop`, `set_active_tool`, `add_tag`, `remove_tag`, `add_layer`, `remove_layer`, `deploy_package`, `restore_package`, `undo`, `redo` | Does **not** build or refresh — use `manage_build` for builds and `refresh_unity` for asset-database refresh/recompile |
+| `refresh_unity` | N/A (single-purpose) | Params: `mode`, `scope`, `compile`, `wait_for_ready`. Use after script/asset changes made outside Unity's own import pipeline |
+| `create_script` / `delete_script` / `validate_script` / `get_sha` | N/A (single-purpose each) | Modern script CRUD; prefer these over the legacy `manage_script` router |
+| `apply_text_edits` / `script_apply_edits` | N/A | Line/column-based and structured (method/class-level) C# edits respectively; prefer `script_apply_edits` for method-level changes |
+| `manage_script` | `create`, `read`, `delete` only | Legacy compatibility router — **no `list` or `get_info` action**. To enumerate scripts, use `manage_asset(action: "search", search_pattern: "*.cs")` |
+| `manage_scriptable_object` | `create`, `modify` | Uses SerializedObject property paths for patches |
+| `manage_physics` | `ping`, `get_settings`, `set_settings`, collision matrix, materials, joints, raycasts, `apply_force`, `simulate_step`, `validate` | 3D and 2D via the `dimension` param |
 
 ### Execution & Query
 
-| Tool | Description |
-|------|-------------|
-| `run_tests` | Execute Unity Test Framework tests. Filter by category, platform, or test name |
-| `read_console` | Read Unity Editor console output. Get logs, warnings, errors |
-| `batch_execute` | Execute multiple MCP tool calls in sequence. Essential for complex workflows that combine scanning, configuration, and verification steps |
-| `find_gameobjects` | Search for GameObjects by name, tag, layer, component type, or custom filter. Use before scene modifications to detect conflicts |
+| Tool | Key Actions | Notes |
+|------|-------------|-------|
+| `run_tests` | N/A — params: `mode` (`EditMode`/`PlayMode`), `test_names`, `category_names`, `assembly_names` | **Asynchronous**: returns `{job_id}` immediately; poll with `get_test_job(job_id, wait_timeout: 30)` until the run completes. There is no `platform` filter param — filtering is by test mode/category/assembly, not target platform |
+| `get_test_job` | N/A | Poll target for `run_tests`; supports `wait_timeout` (seconds) to reduce polling round-trips |
+| `read_console` | `get` (default), `clear` | Supports `filter_text`, `types`, `page_size`/`cursor` for paging |
+| `batch_execute` | N/A | Each command is `{"tool": "...", "params": {...}}` — **the per-command key is `params`, not `args`**. Supports `parallel`/`fail_fast`/`max_parallelism` |
+| `find_gameobjects` | N/A — params: `search_term` (required), `search_method` (name/tag/layer/component/path), `include_inactive`, `page_size`, `cursor` | **No `filter` param** — both `search_term` and `search_method` are required. Returns instance IDs only (paginated); fetch full data via the `mcpforunity://scene/gameobject/{id}` resource |
+| `execute_code` | `execute`, `get_history`, `replay`, `clear_history` | Runs arbitrary C# in-Editor. Default `compiler: "auto"` falls back to `codedom` (C# 6 syntax only) unless Roslyn is installed — avoid C# 7+ syntax (e.g. `var x = (a, b);` tuples, pattern matching) unless you've confirmed Roslyn is available |
+| `manage_profiler` | Session: `profiler_start/stop/status/set_areas`. Counters: `get_frame_timing`, `get_counters`, `get_object_memory`. Memory: `memory_take_snapshot/list_snapshots/compare_snapshots`. Frame Debugger: `frame_debugger_*` | Memory snapshot actions require `com.unity.memoryprofiler` package |
+| `unity_docs` / `unity_reflect` | `get_doc`/`get_manual`/`get_package_doc`/`lookup`; `get_type`/`get_member`/`search` | Use `unity_reflect` to confirm an API exists on the connected Editor version before writing code against it, then `unity_docs` for usage examples |
 
 ### MCP Resources (Read-Only)
 
+unity-mcp exposes some read-only data as `mcpforunity://`-scheme resources rather than tools. Two are confirmed from tool documentation:
+
 | Resource | Description |
 |----------|-------------|
-| `project_info` | Project structure, Unity version, installed packages, build settings |
-| `editor_state` | Current editor state (play mode, scene, selection) |
-| `gameobject` | Detailed info about a specific GameObject |
-| `editor_selection` | Currently selected objects in the editor |
+| `mcpforunity://scene/gameobject/{id}` | Full detail for a specific GameObject, paired with `find_gameobjects` (which returns instance IDs only) |
+| `mcpforunity://scene/gameobject/{id}/components` | Component list/detail for a GameObject, or use `mcpforunity://scene/gameobject/{id}/component/{name}` for a single component |
+| `mcpforunity://path/Assets/...` | Alternate addressing scheme for script/asset paths, used by `apply_text_edits`/`find_in_file`/`get_sha`/`delete_script` (these also accept a plain `Assets/...` path or `file://...`) |
+
+**Do not assume other resource URIs exist** (e.g. a `project_info` or `editor_state` resource) without confirming — prefer the equivalent tool call instead:
+- For project/Unity-version info: `execute_code` (`UnityEngine.Application.unityVersion`, `SystemInfo.graphicsDeviceType`, etc.) or `manage_packages(action: "list_packages")`
+- For editor/scene state: `manage_scene(action: "get_active")` or `manage_scene(action: "get_hierarchy")`
+- For current selection: not directly exposed as a tool as of this writing — use `find_gameobjects` with an appropriate search instead
 
 
 ## Workflow Guides
@@ -214,7 +241,7 @@ Before executing any MCP operation, perform a lightweight health check:
 **To batch-configure assets (e.g., "Set all models in Characters folder to Humanoid rig"):**
 
 **Step-by-step:**
-1. **Scan** — `manage_asset(action: "list", path: "Assets/Characters/", recursive: true, filter: "*.fbx,*.obj")`
+1. **Scan** — `manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "*.fbx")` (repeat per extension, e.g. `*.obj`; `manage_asset` has no `list` action)
 2. **Detect type** — Match filenames against naming patterns to suggest appropriate Asset_Preset:
    - `*_char_*`, `*_character_*`, `*_hero_*` → `3d-character` preset
    - `*_env_*`, `*_prop_*`, `*_building_*` → `3d-environment` preset
@@ -222,7 +249,7 @@ Before executing any MCP operation, perform a lightweight health check:
    - `*_sfx_*`, `*_bgm_*`, `*_music_*` → `audio-sfx` preset
    - `*_sprite_*`, `*_2d_*` → `2d-sprite` preset
 3. **Load preset** — Read the matching JSON preset from `templates/presets/`
-4. **Batch apply** — `batch_execute([manage_asset(action: "set_import_settings", path: each, settings: preset.config) × N])`
+4. **Batch apply** — `batch_execute(commands: [{tool: "manage_asset", params: {action: "modify", path: each, properties: preset.config}} × N])` (each command uses a `params` key, not `args`)
 5. **Report** — Generate a change summary listing each asset and the parameters that were modified
 
 **Error handling:**
@@ -240,11 +267,11 @@ Before executing any MCP operation, perform a lightweight health check:
 1. **Identify scene type** — Confirm which Scene_Scaffold the developer needs
 2. **Load scaffold** — Read the matching JSON scaffold from `templates/scaffolds/`
 3. **Create scene** — `manage_scene(action: "create", name: "NewScene")`
-4. **Check conflicts** — `find_gameobjects(filter: ...)` to detect name conflicts with existing objects
-5. **Build hierarchy** — `batch_execute([manage_gameobject(action: "create", ...) × N])` following the scaffold's hierarchy definition, including:
+4. **Check conflicts** — `find_gameobjects(search_term: name, search_method: "by_name")` for each planned object name, to detect name conflicts with existing objects (there is no generic `filter` param — `search_term` + `search_method` are both required)
+5. **Build hierarchy** — `batch_execute(commands: [{tool: "manage_gameobject", params: {action: "create", ...}} × N])` following the scaffold's hierarchy definition (each command uses `params`, not `args`), including:
    - `manage_gameobject` for standard objects
-   - `manage_camera` for camera objects
-   - `manage_ui` for UI Canvas and elements
+   - `manage_camera(action: "create_camera", ...)` for camera objects — note this creates a Cinemachine-aware camera if Cinemachine is installed, or a basic Camera otherwise
+   - `manage_ui` for UI Toolkit elements (UXML/USS); for legacy uGUI Canvas/Button/Text/Image, create them via `manage_gameobject` + `manage_components` (e.g. add `UnityEngine.UI.Canvas`, `UnityEngine.UI.Button` component types directly)
    - `manage_components` for adding components to objects
 6. **Save scene** — `manage_scene(action: "save")`
 7. **Report** — Display generation summary: total objects created, component list
@@ -268,18 +295,15 @@ Before executing any MCP operation, perform a lightweight health check:
 
 **Step-by-step:**
 1. **Load config** — Read the matching BuildConfig from `templates/build-configs/` or the developer's custom config
-2. **Trigger build** — `manage_editor(action: "build", target: "StandaloneWindows64", scenes: [...], outputPath: "...")`
-3. **Monitor progress** — Poll `read_console()` to get build progress and logs
+2. **Trigger build** — `manage_build(action: "build", target: "windows64", scenes: "[\"Assets/Scenes/Main.unity\"]", output_path: "Builds/Windows/MyGame.exe", development: false)` — **use `manage_build`, not `manage_editor`; `manage_editor` has no build action.** Valid `target` values: `windows64`, `osx`, `linux64`, `android`, `ios`, `webgl`, `uwp`, `tvos`, `visionos`
+3. **Monitor progress** — Poll `manage_build(action: "status", job_id: ...)` for the build job, and `read_console()` for compile logs
 4. **Handle result:**
    - On success → report build output path and summary
    - On failure → parse console logs, extract errors, provide structured error summary with fix suggestions
 5. **Report** — Build result with duration, output size, and any warnings
 
-**Cloud_Assist mode (optional):**
-- When `useCloudAssist: true` in the build config, route the build task to managed cloud infrastructure
-- The developer does NOT need to configure any cloud accounts or access keys — this is managed automatically. Teams with enterprise or compliance requirements can configure custom cloud settings (such as specific regions, VPCs, or private infrastructure)
-- Poll build status every 30 seconds and display progress in Unity Editor
-- On completion, automatically download build artifacts to the specified local output path
+**Multi-platform builds:**
+- Use `manage_build(action: "batch", targets: [...])` (or `profiles: [...]` for Unity 6+ Build Profiles) to build multiple targets in one call, with `output_dir` as the base output directory
 
 **Common build error patterns:**
 - `CS` compilation errors → suggest code fixes
@@ -292,25 +316,20 @@ Before executing any MCP operation, perform a lightweight health check:
 - `ios-release` — iOS release build
 - `webgl-release` — WebGL release build
 
+> Historical note: earlier drafts of this Power described an optional "Cloud_Assist" cloud build/device-testing layer. That layer is not part of the current unity-mcp tool surface — all build and test automation here runs through the local Unity Editor via `manage_build`/`run_tests`. If cloud build/device farm integration is needed, it would have to be wired up as a separate custom tool.
+
 
 ### Workflow 4: Cross-Platform Testing (Requirement 4)
 
-**To run cross-platform tests (e.g., "Run tests for Android and iOS"):**
+**To run cross-platform tests (e.g., "Run EditMode and PlayMode tests"):**
 
 **Step-by-step:**
-1. **Run local tests** — `run_tests(platform: "Android")` to execute Unity Test Framework tests in simulated environment
-2. **Format results** — Structure results per platform: pass rate, failed test cases list
-3. **Report** — Display structured test results for each target platform
+1. **Start tests** — `run_tests(mode: "EditMode")` or `run_tests(mode: "PlayMode")` to execute Unity Test Framework tests. This returns `{job_id}` immediately — `run_tests` is asynchronous, not a blocking call. There is no `platform` param on `run_tests`; Unity Test Framework runs in the Editor (EditMode/PlayMode), not against a specific build target, so "testing for Android" in practice means building for that platform first (`manage_build`) and then reasoning about platform-specific code paths, not passing `platform` to `run_tests`
+2. **Poll for completion** — `get_test_job(job_id: ..., wait_timeout: 30)` until `status` is no longer `"running"`; use `include_failed_tests: true` to get failure details without a huge payload
+3. **Format results** — Structure results into pass rate + failed test case list
+4. **Report** — Display structured test results
 
-**Cloud_Assist device testing (optional):**
-- When enabled, submit build artifacts to managed cloud device pool
-- Developer does NOT need to configure cloud accounts or device pool settings — this is managed automatically. Teams with enterprise or compliance requirements can configure custom device pools or specific testing regions
-- On completion, automatically download test results including per-device pass rates, failed test cases, and screenshots
-- If any device has test failures, mark that device and provide detailed failure logs
-
-**Test suite format conversion:**
-- Unity Test Framework test suites can be automatically converted to Cloud_Assist executable format
-- The conversion is round-trip safe: convert → execute → convert back produces equivalent results
+> Historical note: an earlier draft of this Power described an optional cloud device-testing layer ("Cloud_Assist") with automatic test-suite format conversion and per-device screenshots. No such capability exists in the current unity-mcp tool surface — remote/device-farm testing would need a separate integration outside this Power's current tools.
 
 
 ### Workflow 5: Workflow Automation (Requirement 5)
@@ -344,9 +363,9 @@ Before executing any MCP operation, perform a lightweight health check:
 **To analyze performance (e.g., "Analyze the current scene's performance"):**
 
 **Step-by-step:**
-1. **Collect metrics** — `manage_graphics(action: "get_rendering_stats")` to get Draw Calls, Shader complexity, frame rate
-2. **Read logs** — `read_console()` to collect performance-related logs and GC Allocation data
-3. **Locate bottlenecks** — `find_gameobjects(filter: ...)` to identify objects causing high draw calls or complex shaders
+1. **Collect metrics** — `manage_graphics(action: "stats_get")` for Draw Calls, batches, triangles, etc. (this is the real action name — there is no `get_rendering_stats`); `manage_profiler(action: "get_frame_timing")` for frame-time data; `manage_profiler(action: "get_counters", category: "Memory")` for GC/memory counters
+2. **Read logs** — `read_console()` to collect performance-related logs
+3. **Locate bottlenecks** — `find_gameobjects(search_term: "MeshRenderer", search_method: "by_component")` to identify objects with heavy renderers (params are `search_term`+`search_method`, not `filter`)
 4. **Compare thresholds** — Compare collected metrics against thresholds (custom from `Assets/UnityAccelerator/Config/thresholds.json` or built-in defaults)
 5. **Generate report** — Create a PerformanceReport containing:
    - Draw Calls (average, peak)
@@ -371,9 +390,9 @@ Before executing any MCP operation, perform a lightweight health check:
 **To check code quality (e.g., "Check the project's code architecture"):**
 
 **Step-by-step:**
-1. **Get project info** — `project_info` resource to understand project structure
-2. **List scripts** — `manage_script(action: "list")` to get all C# scripts
-3. **Read scripts** — `manage_script(action: "read", path: each)` to read script content
+1. **Get project info** — `execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")` or `manage_packages(action: "list_packages")` to understand the project/environment
+2. **List scripts** — `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to get all C# script paths (`manage_script` has no `list` action)
+3. **Read scripts** — `manage_script(action: "read", name: scriptName, path: folderPath)` to read script content (both `name` and `path` are required — `path` is the containing folder, not the full file path)
 4. **Load rules** — Read enabled ArchitectureRule definitions from `templates/architecture-rules/`
 5. **Analyze** — Check each script against the active rules, looking for:
    - Naming convention violations
@@ -415,10 +434,10 @@ Before executing any MCP operation, perform a lightweight health check:
 
 **Step-by-step:**
 1. **Load profile** — Read the target PlatformProfile from `templates/platform-profiles/`
-2. **Scan shaders** — `manage_shader(action: "list")` to get all shaders in the project
-3. **Get graphics settings** — `manage_graphics(action: "get_settings")` to get current graphics configuration
+2. **Scan shaders** — `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate shader assets (`manage_shader` itself has no `list` action — it only reads/creates/updates/deletes a shader by `name`+`path`), then `manage_shader(action: "read", name: ..., path: ...)` per shader for content inspection if needed
+3. **Get graphics settings** — `manage_graphics(action: "pipeline_get_info")` and `manage_graphics(action: "pipeline_get_settings")` to get current render pipeline configuration (there is no `get_settings` action)
 4. **Check shader compatibility** — Compare shader features against the platform's supported feature list
-5. **Estimate memory** — `manage_asset(action: "get_info")` to estimate asset memory usage against the platform's memory budget
+5. **Estimate memory** — `manage_asset(action: "get_info", path: assetPath)` per asset to estimate memory usage against the platform's memory budget
 6. **Generate report** — Classify issues into three severity levels:
    - **Error** — Build will fail (e.g., unsupported shader feature)
    - **Warning** — May cause issues on specific devices (e.g., high memory usage)
@@ -440,10 +459,10 @@ Before executing any MCP operation, perform a lightweight health check:
 **To analyze asset dependencies (e.g., "Analyze dependencies of hero.fbx"):**
 
 **Step-by-step:**
-1. **Get dependencies** — `manage_asset(action: "get_dependencies", path: "Assets/Characters/hero.fbx")`
-2. **Recursive analysis** — Recursively analyze each dependency's own dependencies
-3. **Build tree** — Construct a complete dependency tree (DependencyTree JSON)
-4. **Detect cycles** — Check for circular references in the dependency graph
+1. **Get dependencies** — `manage_asset` has **no `get_dependencies` action**. Use `execute_code` to call Unity's own API directly: `execute_code(action: "execute", code: "return string.Join(\",\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Characters/hero.fbx\", false));")` — the `false` argument means direct (non-recursive) dependencies only
+2. **Recursive analysis** — Either pass `true` as the second argument to `GetDependencies` to get the full transitive closure in one call, or call it per-asset with `false` and walk the graph manually if you need per-level structure
+3. **Build tree** — Construct a complete dependency tree (DependencyTree JSON) from the `execute_code` results
+4. **Detect cycles** — Check for circular references in the dependency graph (note: `AssetDatabase.GetDependencies` on a Unity project's actual asset graph rarely produces true cycles since Unity's import pipeline doesn't allow them for most asset types — cyclic-reference concerns mostly apply to C# script namespace dependencies, covered in `code-quality.md`, not asset dependencies)
 5. **Report** — Present the dependency tree structure textually, highlight any circular references with resolution suggestions
 
 **Orphaned asset detection:**
@@ -518,10 +537,11 @@ The `templates/` directory contains pre-built JSON templates that can be used di
 
 | File | Description | Key Checks |
 |------|-------------|------------|
-| `ios.json` | iOS platform | Metal shaders, memory budget ~1GB, no JIT |
-| `android.json` | Android platform | OpenGL ES 3.0 / Vulkan, ASTC textures, memory budget ~1.5GB |
+| `ios.json` | iOS platform | Metal shaders (compute-capable, supports GPU Resident Drawer), memory budget ~1GB, no JIT |
+| `android.json` | Android platform | Vulkan recommended / OpenGL ES 3.0 fallback, ASTC textures, memory budget ~1.5GB |
 | `console.json` | Console platform | Platform-specific shader features, generous memory |
-| `webgl.json` | WebGL platform | WebGL 2.0 limits, strict memory budget ~256MB, no threads |
+| `webgl.json` | WebGL platform | WebGL 2.0 limits, strict memory budget ~256MB, no threads, no compute shaders (GPU Resident Drawer unavailable) |
+| `xr.json` | XR/VR platform | OpenXR (OculusXR reported deprecated/removed per Unity's roadmap — verify via `manage_packages` before citing a version), 72-90fps frame budget, comfort guidelines |
 
 ### Built-in Architecture Rules (`templates/architecture-rules/`)
 
@@ -565,7 +585,7 @@ The `steering/` directory contains domain-specific knowledge files that guide th
 | `unity-general.md` | General Unity best practices, MCP health checks, error handling | Always (base knowledge) |
 | `asset-automation.md` | Asset pipeline, import settings, naming conventions, batch operations | Asset-related requests |
 | `scene-scaffolding.md` | Scene architecture, GameObject hierarchies, conflict handling | Scene creation requests |
-| `build-automation.md` | Build process, error parsing, Cloud_Assist routing | Build-related requests |
+| `build-automation.md` | Build process (`manage_build`), error parsing | Build-related requests |
 | `cross-platform-testing.md` | Test execution, result formatting, device testing | Testing requests |
 | `workflow-automation.md` | Multi-step workflows, dependency validation, progress tracking | Workflow requests |
 | `performance-analysis.md` | Profiling, metrics, thresholds, optimization suggestions | Performance requests |
@@ -581,17 +601,11 @@ The `steering/` directory contains domain-specific knowledge files that guide th
 | Category | Example | Response |
 |----------|---------|----------|
 | MCP connection failure | Server not started, network issue | Prompt: "Please confirm Unity Editor is open and MCP Server is started (Window → MCP for Unity → Start Server)" |
+| MCP tool schema mismatch | "Unknown action" or Pydantic validation error naming valid values | The connected unity-mcp version differs from what this Power expects — trust the error message's list of valid values over this document, and suggest the developer update the `com.coplaydev.unity-mcp` package if core actions seem missing |
 | MCP operation timeout | Unity compiling or building | Wait and retry; inform the developer Unity may be busy |
 | MCP tool error | Asset path not found, invalid params | Parse error, suggest correct path or parameters |
 | Asset operation error | Preset apply failed, file locked | Record failure, continue with remaining assets, report at end |
-| Build error | Compilation failed, missing dependency | Parse `read_console` logs, provide structured error summary |
-| Cloud_Assist error | Network timeout, auth failure | Degrade to local MCP execution, notify the developer |
+| Build error | Compilation failed, missing dependency | Parse `read_console` logs and `manage_build(action: "status")`, provide structured error summary |
+| Async job stuck/failed | `run_tests`, `manage_build`, or `manage_packages` job never reaches a terminal status | Poll with a reasonable timeout (e.g. `get_test_job(..., wait_timeout: 30)`); if still running after several polls, inform the developer rather than polling indefinitely |
 | Workflow error | Step execution failed | Pause workflow, offer Retry / Skip / Abort |
 | Template load error | Invalid JSON, file not found | Fall back to built-in template, inform the developer |
-
-### Cloud_Assist Degradation
-
-- All Cloud_Assist errors must NOT block the developer's workflow
-- On network unavailability or service error, automatically degrade to local MCP execution
-- Inform the developer that local mode is active
-- All core features (except cloud builds and device testing) work normally in local mode

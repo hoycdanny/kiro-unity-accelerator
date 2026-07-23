@@ -28,9 +28,15 @@
       "disallowedAPIs": [
         "Application.targetFrameRate (use VR SDK refresh rate)",
         "Screen.SetResolution (managed by VR SDK)",
-        "Camera.main in Update (cache reference)"
+        "Camera.main in Update (cache reference)",
+        "Unity.XR.Oculus.* (OculusXR package deprecated/being removed per Unity's public roadmap — verify current status via manage_packages before assuming; migrate to com.unity.xr.openxr regardless)"
       ],
       "requiredDefines": []
+    },
+    "graphicsApi": {
+      "recommended": "OpenXR",
+      "fallback": "n/a",
+      "notes": "Unity's public communications describe the OculusXR package as deprecated and being removed in the Unity 6.5-6.7 timeframe, in favor of the OpenXR Plugin package -- confirm actual package presence/removal via manage_packages(action: 'list') for the specific project rather than assuming from version number alone. The URP GPU Resident Drawer is unsupported on VisionOS regardless of Graphics API; verify compute shader support per headset/runtime before enabling it."
     },
     "renderingConstraints": {
       "targetFrameRate": "72-90 fps (platform dependent)",

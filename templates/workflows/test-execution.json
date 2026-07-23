@@ -6,28 +6,28 @@
   "steps": [
     {
       "id": "run-editmode",
-      "name": "Run EditMode tests",
+      "name": "Start EditMode tests (returns job_id; poll separately with get_test_job)",
       "mcpTool": "run_tests",
-      "mcpAction": "run",
-      "mcpArgs": { "testMode": "EditMode" },
+      "mcpAction": "n/a",
+      "mcpArgs": { "mode": "EditMode" },
       "dependsOn": [],
       "onFailure": "pause"
     },
     {
       "id": "run-playmode",
-      "name": "Run PlayMode tests",
+      "name": "Start PlayMode tests (returns job_id; poll separately with get_test_job)",
       "mcpTool": "run_tests",
-      "mcpAction": "run",
-      "mcpArgs": { "testMode": "PlayMode" },
+      "mcpAction": "n/a",
+      "mcpArgs": { "mode": "PlayMode" },
       "dependsOn": [],
       "onFailure": "pause"
     },
     {
       "id": "aggregate-results",
-      "name": "Aggregate test results",
+      "name": "Aggregate test results from console output",
       "mcpTool": "read_console",
-      "mcpAction": "read",
-      "mcpArgs": { "filter": "TestRunner" },
+      "mcpAction": "get",
+      "mcpArgs": { "filter_text": "TestRunner" },
       "dependsOn": ["run-editmode", "run-playmode"],
       "onFailure": "skip"
     }

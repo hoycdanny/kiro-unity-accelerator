@@ -16,14 +16,14 @@ This document provides Unity team knowledge management expertise. When the devel
 3. **Related Query**: When the developer selects a script or component, query documents matching relatedAssets and display links
 
 ### API Change Detection
-1. Use `manage_packages(action: "list")` to get Unity package versions used in the project
-2. Use `manage_script(action: "list")` to scan all C# scripts in the project
+1. Use `manage_packages(action: "list_packages")` to get Unity package versions used in the project (asynchronous — returns `{job_id}`; poll with `action: "status", job_id: ...`)
+2. Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to enumerate all C# scripts in the project (`manage_script` has no `list` action), then `manage_script(action: "read", name: ..., path: ...)` per script to read content
 3. Parse Unity APIs used in scripts (using statements and method calls)
 4. Compare against API change list, identify affected APIs in the project
 5. Generate migration guides for each affected API and store in Knowledge_Base
 
 ### Onboarding Checklist Generation
-1. Use `project_info` to get project structure
+1. Use `execute_code` (e.g. `return UnityEngine.Application.unityVersion;`) or `manage_packages(action: "list_packages")` to understand project structure/environment — there is no standalone `project_info` tool call
 2. Scan core documents in Knowledge_Base (tags containing "architecture", "setup", "convention")
 3. Auto-generate onboarding checklist items based on project structure
 4. Includes: project architecture overview, naming conventions, build process, test process, common issues
@@ -61,6 +61,31 @@ This document provides Unity team knowledge management expertise. When the devel
 - {compatibility considerations}
 ```
 
+### Worked Example (Reported Unity 6.x Breaking Change — Verify Before Trusting)
+
+```markdown
+## API Migration Guide: OculusXR Package Deprecation/Removal
+
+### Change Summary
+- **Old API**: `com.unity.xr.oculus` (OculusXR package)
+- **New API**: `com.unity.xr.openxr` (OpenXR Plugin package)
+- **Change Type**: Deprecated/Removed — Unity's public "planned breaking changes" communications describe OculusXR as deprecated starting Unity 6.5 and removed around Unity 6.7. This has not been independently verified against a live project with the package installed; confirm via `manage_packages(action: "list_packages")` (asynchronous — poll `action: "status", job_id: ...`) on the actual target project before treating removal as settled fact for that project's specific Unity version
+
+### Affected Scripts
+- Any script referencing `Unity.XR.Oculus` namespace APIs
+
+### Migration Steps
+1. Install the OpenXR Plugin package via `manage_packages(action: "add_package", package: "com.unity.xr.openxr")` (asynchronous — poll `action: "status", job_id: ...`)
+2. Enable the Meta Quest feature group under Project Settings → XR Plug-in Management → OpenXR
+3. Replace any direct `Unity.XR.Oculus` API calls with OpenXR-equivalent APIs or the Meta XR SDK's OpenXR-based interfaces
+4. Re-test on-device input, hand tracking, and passthrough features, as OpenXR's abstraction layer may surface slightly different feature-availability checks
+
+### Notes
+- Recommend migrating to OpenXR regardless of the exact Unity version, since OculusXR is deprecated either way — but verify current package presence for the specific project before citing a precise removal version to the developer
+```
+
+When Unity publishes a version-specific breaking-changes list, treat it as a high-value input to API Change Detection, but cross-reference the project's actual installed packages (`manage_packages(action: "list_packages")` — asynchronous, poll with `action: "status"`) against the announced removals/deprecations before presenting them as confirmed for that project — public breaking-changes lists describe Unity's intent, not necessarily the exact state of every individual project's installed packages.
+
 ## Document Staleness Detection Guide
 
 ### 180-Day Threshold Rules
@@ -76,23 +101,26 @@ This document provides Unity team knowledge management expertise. When the devel
 
 ## MCP Tool Usage Examples
 
+> **Verified syntax**: confirmed against a live unity-mcp connection.
+
 ### Get Project Package Info
 ```
-manage_packages(action: "list")
-→ [{ name: "com.unity.render-pipelines.universal", version: "14.0.8" }, ...]
+manage_packages(action: "list_packages")
+→ { data: { job_id: "..." } }  // asynchronous — poll with action: "status", job_id: "..."
+→ { data: { packages: [{ name: "com.unity.render-pipelines.universal", version: "17.5.0", ... }, ...] } }
 ```
 
 ### Scan API Usage in Scripts
 ```
-manage_script(action: "read", path: "Assets/Scripts/PlayerController.cs")
+manage_script(action: "read", name: "PlayerController", path: "Assets/Scripts")
 → { content: "using UnityEngine;\nusing UnityEngine.UI;\n...", lineCount: 150 }
 ```
 
+`name` (no `.cs` extension) and `path` (containing folder) are both required — there is no single full-path param.
+
 ### Query Related Documents
-```
-find_gameobjects(filter: "PlayerController")
-→ Query Knowledge_Base for documents where relatedAssets contains this script
-```
+
+There is no scene-search-based way to query a knowledge base via unity-mcp tools (`find_gameobjects` searches scene GameObjects by name/tag/layer/component/path, not documentation). The relatedAssets lookup described here is application logic on top of the Knowledge_Base storage (JSON/Markdown files), not an MCP tool call — implement it as a plain text/JSON search over `Assets/UnityAccelerator/Knowledge/`.
 
 ## Error Handling
 

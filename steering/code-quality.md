@@ -8,9 +8,9 @@ Maintaining clean architecture in Unity projects benefits from consistent patter
 
 ## Code Check Flow
 
-1. **Get project info**: Use `project_info` to get project structure and script directories
-2. **List scripts**: Use `manage_script(action: "list")` to get all C# script listings
-3. **Read script content**: Use `manage_script(action: "read", path: ...)` to read scripts that need checking
+1. **Get project info**: Use `execute_code` (e.g. `return UnityEngine.Application.unityVersion;`) or `manage_packages(action: "list_packages")` to understand the project/environment — there is no standalone `project_info` tool call
+2. **List scripts**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to get all C# script paths (`manage_script` has no `list` action — it's a legacy router supporting only `create`/`read`/`delete`)
+3. **Read script content**: Use `manage_script(action: "read", name: scriptName, path: folderPath)` to read scripts that need checking — both `name` (filename without `.cs`) and `path` (containing folder) are required; there is no single-string full-path param
 4. **Load architecture rules**: Load enabled ArchitectureRule definitions from `templates/architecture-rules/` or custom locations
 5. **Analyze code**: Compare script content against architecture rules, identify violations
 6. **Detect cyclic dependencies**: Analyze using/namespace dependencies between scripts, detect cycle paths
@@ -50,23 +50,29 @@ Maintaining clean architecture in Unity projects benefits from consistent patter
 
 ## MCP Tool Usage Examples
 
+> **Verified syntax**: confirmed against a live unity-mcp connection.
+
 ### Get Project Structure
+
 ```
-project_info
-→ { projectName: "MyGame", scriptPaths: ["Assets/Scripts/..."], ... }
+execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")
 ```
 
 ### List All Scripts
+
 ```
-manage_script(action: "list")
-→ [{ path: "Assets/Scripts/PlayerController.cs", ... }, ...]
+manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")
+→ { data: { totalAssets: N, assets: [{ path: "Assets/Scripts/PlayerController.cs", guid: "...", ... }, ...] } }
 ```
 
 ### Read Script Content
+
 ```
-manage_script(action: "read", path: "Assets/Scripts/PlayerController.cs")
+manage_script(action: "read", name: "PlayerController", path: "Assets/Scripts")
 → { content: "using UnityEngine;\n...", lineCount: 150 }
 ```
+
+`name` is the filename without `.cs`; `path` is the containing folder (the tool internally builds `path/name.cs`). Passing a full file path in a single param does not work.
 
 ## Incremental Checking
 
@@ -165,3 +171,13 @@ Examples:
 | Empty Update | Empty MonoBehaviour event methods | Remove or wrap with #if UNITY_EDITOR |
 | Magic Numbers | Hard-coded numeric values | Use constants or ScriptableObject |
 | Deep nesting | More than 3 levels of if/for nesting | Extract methods or use Guard Clause |
+| Reflection-based access modifier bypass | Code uses `System.Reflection` (`GetField`/`GetMethod` with `BindingFlags.NonPublic`) to read or invoke `private`/`internal` members of another class | Refactor to expose an intentional public API (property, method, or `[InternalsVisibleTo]`) instead of reaching into internals. See CoreCLR note below — this pattern is expected to become stricter, not more lenient |
+| Cached reflection objects held long-term | `Type.GetType()`, `GetMethod()`, etc. results stored in static fields or long-lived collections without pooling | Per Unity's official reflection-overhead guidance, cache reflection lookups but be aware the GC continuously scans cached reflection objects for the object's lifetime — prefer compiled delegates (`Expression.Compile`) or source generators for hot paths |
+
+## Unity 6.x CoreCLR Impact on Code Quality Checks
+
+> **Status note**: CoreCLR is an **experimental** scripting backend option. Its exact version availability should not be assumed from memory — it has been confirmed present as a `ScriptingImplementation` enum value as early as Unity 6000.5 via live reflection against a connected project, earlier than some public changelogs might suggest. The separate, more clearly version-gated feature is the **CoreCLR Editor** (running the Editor itself on CoreCLR), which Unity discussion threads place around Unity 6.6+ with a stated target of full support by Unity 6.8. Treat the items below as forward-looking guidance to flag during code review, not as build-breaking errors — most current projects still run on Mono/IL2CPP. When in doubt, verify directly against the connected project via `execute_code` rather than citing a specific version number.
+
+- **Stricter access modifier enforcement**: CoreCLR enforces `public`/`internal`/`private` more strictly than the Mono runtime historically has. Code that relies on reflection (`BindingFlags.NonPublic | BindingFlags.Instance`) to read or invoke another class's private members — a pattern sometimes used to work around missing public APIs — is a maintainability risk regardless of backend, and is more likely to break when a project eventually migrates to CoreCLR. Flag this pattern as a violation during architecture checks and suggest an explicit public/internal API instead
+- **Serialization changes**: Unity's serialization system is being updated alongside the CoreCLR migration (a new, faster binary serializer is replacing some legacy paths). Custom `ISerializationCallbackReceiver` implementations and heavy reliance on non-standard serialization tricks (e.g., serializing through reflection-based custom formatters) are worth flagging as "verify after CoreCLR migration" items, since exact byte-level serialization behavior may change
+- **No action needed for typical MonoBehaviour/ScriptableObject code**: Standard `[SerializeField]` fields, public properties, and conventional C# code are unaffected — these CoreCLR notes only matter for code that leans on reflection internals or custom serialization plumbing

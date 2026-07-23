@@ -15,11 +15,11 @@ Unity's asset import pipeline can be automated through batch operations and pres
 Scan → Detect type → Load Preset → batch_execute apply → Generate change summary
 ```
 
-1. **Scan folder**: Use `manage_asset(action: "list")` to recursively scan the specified folder and retrieve a list of all asset files
+1. **Scan folder**: Use `manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "*.fbx")` to scan the specified folder and retrieve matching asset paths (there is no `list` action — `search` with `search_pattern` is the real syntax; run it once per extension since `search_pattern` takes a single glob, not a comma-separated list)
 2. **Detect asset type**: Automatically determine asset type based on file naming conventions (see rules below) and suggest the applicable Asset_Preset
 3. **Load Preset**: Load the corresponding Asset_Preset JSON from `templates/presets/` (custom location takes priority; falls back to built-in template if not found)
-4. **Batch apply**: Use `batch_execute` to batch-apply the parameters defined in the Preset to all selected assets
-5. **Generate summary**: Compare each asset's parameters before and after application, producing a structured change summary
+4. **Batch apply**: Use `batch_execute` to batch-apply the parameters defined in the Preset to all selected assets via `manage_asset(action: "modify", path: ..., properties: {...})`
+5. **Generate summary**: Compare each asset's parameters before and after application (via `manage_asset(action: "get_info")`), producing a structured change summary
 
 ## Naming Convention Rules
 
@@ -40,20 +40,22 @@ Matching rules:
 
 ## MCP Tool Usage Examples
 
+> **Verified syntax**: The calls below were confirmed against a live unity-mcp connection. `manage_asset` has no `list` or `set_import_settings` action — use `search` (with `search_pattern`, a single glob) to enumerate assets, and `modify` (with a `properties` dict) to change import settings.
+
 The examples below cover the three operations the developer will use most often: scanning, applying settings to a single asset, and applying settings in batch. Real workflows usually chain these together — scan first to confirm the file list, dry-run on one asset, then batch-execute. A brief manual review between scan and batch-execute is recommended, especially the first time a Preset is run against a new folder.
 
 ### Scan Folder
 
 ```
-manage_asset(action: "list", path: "Assets/Characters/", recursive: true, filter: "*.fbx,*.obj")
+manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "*.fbx")
 ```
 
-Returns a list of all asset paths matching the filter conditions under the specified folder.
+Returns a paginated list of asset paths matching the pattern under the specified folder. Run once per extension (e.g. a second call with `search_pattern: "*.obj"`) since the pattern is a single glob, not a comma-separated list. Use `page_size`/`page_number` if the folder has more assets than one page.
 
 ### Set Model Import Parameters
 
 ```
-manage_asset(action: "set_import_settings", path: "Assets/Characters/hero.fbx", settings: {
+manage_asset(action: "modify", path: "Assets/Characters/hero.fbx", properties: {
   "rigType": "Humanoid",
   "materialImportMode": "ImportViaMaterialDescription",
   "meshCompression": "Medium",
@@ -65,10 +67,12 @@ manage_asset(action: "set_import_settings", path: "Assets/Characters/hero.fbx", 
 
 ```
 batch_execute(commands: [
-  { "tool": "manage_asset", "args": { "action": "set_import_settings", "path": "Assets/Characters/hero.fbx", "settings": { "rigType": "Humanoid" } } },
-  { "tool": "manage_asset", "args": { "action": "set_import_settings", "path": "Assets/Characters/npc_guard.fbx", "settings": { "rigType": "Humanoid" } } }
+  { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/hero.fbx", "properties": { "rigType": "Humanoid" } } },
+  { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/npc_guard.fbx", "properties": { "rigType": "Humanoid" } } }
 ])
 ```
+
+Each command's second key is `params`, not `args` — a mismatch there causes a validation error rather than silently being ignored.
 
 ### Get Current Asset Settings (for change summary comparison)
 

@@ -82,7 +82,8 @@
       ],
       "children": [],
       "mcpTool": "manage_camera",
-      "mcpArgs": { "action": "create", "name": "Main Camera", "tag": "MainCamera" }
+      "mcpArgs": { "action": "create_camera", "properties": { "name": "Main Camera" } },
+      "note": "manage_camera has no tag param — set the MainCamera tag afterward via manage_gameobject(action: 'modify', target: 'Main Camera', tag: 'MainCamera')"
     },
     {
       "name": "GameUI",
@@ -97,8 +98,8 @@
             { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Score: 0", "fontSize": 24 } }
           ],
           "children": [],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_text", "name": "ScoreText", "parent": "GameUI" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "ScoreText", "parent": "GameUI", "components_to_add": ["UnityEngine.UI.Text"] }
         },
         {
           "name": "HealthBar",
@@ -106,12 +107,13 @@
             { "typeName": "UnityEngine.UI.Slider", "properties": { "value": 1.0 } }
           ],
           "children": [],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_slider", "name": "HealthBar", "parent": "GameUI" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "HealthBar", "parent": "GameUI", "components_to_add": ["UnityEngine.UI.Slider"] }
         }
       ],
-      "mcpTool": "manage_ui",
-      "mcpArgs": { "action": "create_canvas", "name": "GameUI" }
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "GameUI", "components_to_add": ["UnityEngine.Canvas", "UnityEngine.UI.GraphicRaycaster"] },
+      "note": "manage_ui manages UI Toolkit (UXML/USS), not legacy uGUI — Canvas/Text/Slider elements are built via manage_gameobject + components_to_add, then configured via manage_components(action: 'set_property', ...)"
     },
     {
       "name": "EventSystem",

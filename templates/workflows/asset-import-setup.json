@@ -8,17 +8,17 @@
       "id": "scan-folder",
       "name": "Scan asset folder",
       "mcpTool": "manage_asset",
-      "mcpAction": "list",
-      "mcpArgs": { "path": "Assets/", "recursive": true },
+      "mcpAction": "search",
+      "mcpArgs": { "path": "Assets/", "search_pattern": "*" },
       "dependsOn": [],
       "onFailure": "abort"
     },
     {
       "id": "detect-types",
-      "name": "Detect asset types by naming patterns",
+      "name": "Detect asset types by naming patterns (per matched asset)",
       "mcpTool": "manage_asset",
       "mcpAction": "get_info",
-      "mcpArgs": { "detectType": true },
+      "mcpArgs": { "path": "" },
       "dependsOn": ["scan-folder"],
       "onFailure": "pause"
     },
@@ -35,8 +35,8 @@
       "id": "generate-summary",
       "name": "Generate change summary",
       "mcpTool": "read_console",
-      "mcpAction": "read",
-      "mcpArgs": { "filter": "ImportSettings" },
+      "mcpAction": "get",
+      "mcpArgs": { "filter_text": "ImportSettings" },
       "dependsOn": ["apply-presets"],
       "onFailure": "skip"
     }

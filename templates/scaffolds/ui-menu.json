@@ -19,8 +19,8 @@
             { "typeName": "UnityEngine.UI.Image", "properties": { "color": [0.1, 0.1, 0.15, 1.0] } }
           ],
           "children": [],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_panel", "name": "BackgroundPanel", "parent": "MenuCanvas" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "BackgroundPanel", "parent": "MenuCanvas", "components_to_add": ["UnityEngine.UI.Image"] }
         },
         {
           "name": "TitleText",
@@ -28,8 +28,8 @@
             { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Game Title", "fontSize": 48, "alignment": "MiddleCenter" } }
           ],
           "children": [],
-          "mcpTool": "manage_ui",
-          "mcpArgs": { "action": "create_text", "name": "TitleText", "parent": "MenuCanvas" }
+          "mcpTool": "manage_gameobject",
+          "mcpArgs": { "action": "create", "name": "TitleText", "parent": "MenuCanvas", "components_to_add": ["UnityEngine.UI.Text"] }
         },
         {
           "name": "ButtonGroup",
@@ -50,12 +50,12 @@
                     { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Start Game", "fontSize": 24 } }
                   ],
                   "children": [],
-                  "mcpTool": "manage_ui",
-                  "mcpArgs": { "action": "create_text", "name": "StartButtonText", "parent": "StartButton" }
+                  "mcpTool": "manage_gameobject",
+                  "mcpArgs": { "action": "create", "name": "StartButtonText", "parent": "StartButton", "components_to_add": ["UnityEngine.UI.Text"] }
                 }
               ],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_button", "name": "StartButton", "parent": "ButtonGroup" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "StartButton", "parent": "ButtonGroup", "components_to_add": ["UnityEngine.UI.Button", "UnityEngine.UI.Image"] }
             },
             {
               "name": "SettingsButton",
@@ -70,12 +70,12 @@
                     { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Settings", "fontSize": 24 } }
                   ],
                   "children": [],
-                  "mcpTool": "manage_ui",
-                  "mcpArgs": { "action": "create_text", "name": "SettingsButtonText", "parent": "SettingsButton" }
+                  "mcpTool": "manage_gameobject",
+                  "mcpArgs": { "action": "create", "name": "SettingsButtonText", "parent": "SettingsButton", "components_to_add": ["UnityEngine.UI.Text"] }
                 }
               ],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_button", "name": "SettingsButton", "parent": "ButtonGroup" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "SettingsButton", "parent": "ButtonGroup", "components_to_add": ["UnityEngine.UI.Button", "UnityEngine.UI.Image"] }
             },
             {
               "name": "QuitButton",
@@ -90,20 +90,21 @@
                     { "typeName": "UnityEngine.UI.Text", "properties": { "text": "Quit", "fontSize": 24 } }
                   ],
                   "children": [],
-                  "mcpTool": "manage_ui",
-                  "mcpArgs": { "action": "create_text", "name": "QuitButtonText", "parent": "QuitButton" }
+                  "mcpTool": "manage_gameobject",
+                  "mcpArgs": { "action": "create", "name": "QuitButtonText", "parent": "QuitButton", "components_to_add": ["UnityEngine.UI.Text"] }
                 }
               ],
-              "mcpTool": "manage_ui",
-              "mcpArgs": { "action": "create_button", "name": "QuitButton", "parent": "ButtonGroup" }
+              "mcpTool": "manage_gameobject",
+              "mcpArgs": { "action": "create", "name": "QuitButton", "parent": "ButtonGroup", "components_to_add": ["UnityEngine.UI.Button", "UnityEngine.UI.Image"] }
             }
           ],
           "mcpTool": "manage_gameobject",
-          "mcpArgs": { "action": "create", "name": "ButtonGroup", "parent": "MenuCanvas" }
+          "mcpArgs": { "action": "create", "name": "ButtonGroup", "parent": "MenuCanvas", "components_to_add": ["UnityEngine.UI.VerticalLayoutGroup"] }
         }
       ],
-      "mcpTool": "manage_ui",
-      "mcpArgs": { "action": "create_canvas", "name": "MenuCanvas" }
+      "mcpTool": "manage_gameobject",
+      "mcpArgs": { "action": "create", "name": "MenuCanvas", "components_to_add": ["UnityEngine.Canvas", "UnityEngine.UI.CanvasScaler", "UnityEngine.UI.GraphicRaycaster"] },
+      "note": "manage_ui manages UI Toolkit (UXML/USS), not legacy uGUI. This entire hierarchy (Canvas/Panel/Text/Button) is built via manage_gameobject + components_to_add, then configured via manage_components(action: 'set_property', ...) for things like Button.onClick, Text.text, colors, etc."
     },
     {
       "name": "UICamera",
@@ -112,7 +113,7 @@
       ],
       "children": [],
       "mcpTool": "manage_camera",
-      "mcpArgs": { "action": "create", "name": "UICamera" }
+      "mcpArgs": { "action": "create_camera", "properties": { "name": "UICamera" } }
     },
     {
       "name": "EventSystem",

@@ -8,10 +8,12 @@ Asset relationships in Unity can be overlooked during rapid development, but und
 
 ## Workflow
 
-1. **Get dependency info**: Use `manage_asset(action: "get_dependencies", path: ...)` to get the direct dependency list for a specified asset
-2. **Recursive analysis**: Repeat step 1 for each direct dependency to build the complete dependency tree
+> **Tool correction**: `manage_asset` has **no `get_dependencies` action** (confirmed against a live unity-mcp connection — the valid actions are `import`, `create`, `modify`, `delete`, `duplicate`, `move`, `rename`, `search`, `get_info`, `create_folder`, `get_components`). Dependency queries go through `execute_code`, calling Unity's own `AssetDatabase.GetDependencies` API directly — there is no dedicated MCP tool action for this.
+
+1. **Get dependency info**: Use `execute_code(action: "execute", code: "return string.Join(\"|\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Characters/hero.fbx\", false));")` to get the direct dependency list for a specified asset. Passing `true` as the second argument returns the full transitive closure in one call instead of requiring manual recursion
+2. **Recursive analysis**: Either use the recursive (`true`) form directly, or call with `false` per-asset and walk the graph yourself if you need per-level tree structure rather than a flat closure
 3. **Build dependency tree**: Organize all nodes into a DependencyTree structure, recording each node's dependencies and referencedBy
-4. **Detect circular references**: Use DFS (Depth-First Search) algorithm to detect all cycles in the dependency graph
+4. **Detect circular references**: Use DFS (Depth-First Search) algorithm to detect all cycles in the dependency graph — in practice, true cycles are rare in `AssetDatabase.GetDependencies` output since Unity's own import pipeline doesn't generally allow them; this matters more for hand-rolled reference graphs (e.g. ScriptableObjects referencing each other) than for standard asset-to-asset dependencies
 5. **Report results**: Present the dependency tree, cycles, orphan assets, and other analysis results in structured format
 
 ## Dependency Tree Analysis
@@ -22,29 +24,33 @@ Asset relationships in Unity can be overlooked during rapid development, but und
 - Avoid revisiting already-analyzed nodes (use a visited set)
 - Support deep nested dependencies (Material → Shader → Shader Include → ...)
 
-### MCP Tool Call Sequence
+### MCP Tool Call Sequence (verified against a live connection)
 ```
-manage_asset(action: "get_dependencies", path: "Assets/Characters/hero.fbx")
-→ { dependencies: ["Assets/Materials/hero_mat.mat", "Assets/Textures/hero_diffuse.png", "Assets/Textures/hero_normal.png"] }
+execute_code(action: "execute", code: "return string.Join(\"|\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Characters/hero.fbx\", false));")
+→ "Assets/Materials/hero_mat.mat|Assets/Textures/hero_diffuse.png|Assets/Textures/hero_normal.png"
 
-manage_asset(action: "get_dependencies", path: "Assets/Materials/hero_mat.mat")
-→ { dependencies: ["Assets/Shaders/Character.shader", "Assets/Textures/hero_normal.png"] }
+execute_code(action: "execute", code: "return string.Join(\"|\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Materials/hero_mat.mat\", false));")
+→ "Assets/Shaders/Character.shader|Assets/Textures/hero_normal.png"
 
-manage_asset(action: "get_dependencies", path: "Assets/Shaders/Character.shader")
-→ { dependencies: [] }  // Leaf node — no further dependencies
+execute_code(action: "execute", code: "return string.Join(\"|\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Shaders/Character.shader\", false));")
+→ ""  // Leaf node — no further dependencies
 
 // Continue recursing for each dependency until all leaf nodes (assets with no
 // further dependencies) are reached. In production projects, dependency trees
 // typically reach 3-5 levels deep. If a circular dependency is detected during
 // traversal (e.g., A → B → C → A), record the cycle path and stop recursing
-// that branch to avoid infinite loops.
+// that branch to avoid infinite loops. Note: GetDependencies returns package
+// and built-in engine dependencies too (e.g. render pipeline runtime scripts) —
+// filter to Assets/ paths if only project-owned assets matter for the report.
 ```
+
+> **Default compiler note**: the `string.Join` + array pattern above works under the default `codedom` compiler (C# 6). If building more complex analysis logic inline, avoid C# 7+ syntax (tuples, pattern matching, `var` with anonymous types in some contexts) unless Roslyn is confirmed available via the `compiler` param.
 
 ## Orphan Asset Detection Guide
 
 ### Detection Method
-1. Use `manage_asset(action: "list", recursive: true)` to get all assets in the project
-2. Build a complete reference graph (referencedBy list for each asset)
+1. Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*")` (paginated — use `page_size`/`page_number` to walk the full list) to get all assets in the project — there is no `list` action or a `recursive` flag; `search` under a folder path covers subfolders
+2. Build a complete reference graph (referencedBy list for each asset) using `execute_code` calls to `AssetDatabase.GetDependencies` for every asset, then inverting the resulting edges
 3. Identify in-degree zero nodes — assets not referenced by any other asset or scene
 4. Exclude root-level assets (scene files themselves don't need to be referenced)
 
@@ -54,14 +60,13 @@ manage_asset(action: "get_dependencies", path: "Assets/Shaders/Character.shader"
 - Unused content from Asset Store imports
 - Prefabs no longer referenced after refactoring
 
-### MCP Tool Usage
+### MCP Tool Usage (verified against a live connection)
 ```
-manage_asset(action: "list", path: "Assets/", recursive: true)
-→ [{ path: "Assets/Textures/old_texture.png", ... }, ...]
+manage_asset(action: "search", path: "Assets/", search_pattern: "*")
+→ { data: { assets: [{ path: "Assets/Textures/old_texture.png", guid: "...", ... }, ...] } }
+```
 
-find_gameobjects(filter: "references:Assets/Textures/old_texture.png")
-→ [] // Empty result means no references
-```
+There is no direct "find what references this asset" tool call — build the reverse index yourself: call `AssetDatabase.GetDependencies` (via `execute_code`) for every asset in the project, then for the target asset, check which other assets' dependency lists include its path. `find_gameobjects` searches **scene GameObjects**, not asset-to-asset references, and has no `references:`-style filter syntax — it is not usable for this check.
 
 ## AssetBundle Duplication Detection Guide
 
@@ -84,22 +89,30 @@ find_gameobjects(filter: "references:Assets/Textures/old_texture.png")
 ## Deletion Impact Analysis Guide
 
 ### Analysis Method
-1. Use `manage_asset(action: "get_dependencies")` to get the referenced-by list of the target asset
-2. Recursively analyze all referencers' referencers (indirect impact)
+1. There is no direct "referenced-by" MCP tool call. Build the reverse index once (as described in Orphan Asset Detection above) via `execute_code` + `AssetDatabase.GetDependencies` across the project's assets, then look up which entries include the target asset's path
+2. Recursively analyze all referencers' referencers (indirect impact) using the same reverse index
 3. Specifically flag scene references — deleting an asset referenced by a scene causes scene load errors
 4. Return the complete list of all affected items
 
-### MCP Tool Call Sequence
+### MCP Tool Call Sequence (verified pattern)
 ```
-// Analyze deletion impact of hero_mat.mat
-manage_asset(action: "get_dependencies", path: "Assets/Materials/hero_mat.mat")
-→ { referencedBy: ["Assets/Prefabs/Hero.prefab"] }
-
-manage_asset(action: "get_dependencies", path: "Assets/Prefabs/Hero.prefab")
-→ { referencedBy: ["Assets/Scenes/MainLevel.unity", "Assets/Scenes/BossLevel.unity"] }
-
-// Impact list: Hero.prefab, MainLevel.unity, BossLevel.unity
+// Build the reverse-dependency index once per analysis session, e.g.:
+execute_code(action: "execute", code: "
+  var allAssets = UnityEditor.AssetDatabase.FindAssets(\"\", new[] { \"Assets\" });
+  var lines = new System.Collections.Generic.List<string>();
+  foreach (var guid in allAssets) {
+    var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+    var deps = UnityEditor.AssetDatabase.GetDependencies(path, false);
+    foreach (var d in deps) { if (d != path) lines.Add(path + \"=>\" + d); }
+  }
+  return string.Join(\"|\", lines);
+")
+// Then, to find what references Assets/Materials/hero_mat.mat, filter the
+// returned "X=>Y" pairs for Y == "Assets/Materials/hero_mat.mat" and collect
+// the X values. Repeat one more pass on those X values to get indirect impact.
 ```
+
+> This scan can be slow and payload-heavy on large projects — for a single asset's impact analysis, it's often more practical to narrow `FindAssets` to a relevant subfolder filter, or to only build the reverse index for asset types likely to reference the target (e.g. Prefabs and Materials when checking a Texture).
 
 ### Impact Level Classification
 - **Direct impact**: Items that directly reference the deleted asset (material referencing a texture, Prefab referencing a material)

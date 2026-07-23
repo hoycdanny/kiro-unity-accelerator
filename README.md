@@ -6,6 +6,8 @@
 
 Transform your IDE into a Unity development AI assistant. Use natural language to command Unity Editor via MCP (Model Context Protocol — a standardized way for AI assistants to interact with development tools, allowing developers to describe what they want in plain language instead of manually navigating menus or writing boilerplate scripts). This Power covers asset management, scene building, build automation, performance analysis, code quality checks, and more — with 40+ TypeScript tool modules and 14 domain knowledge files.
 
+> **Unity 6.x aware, verified live**: Steering guidance covers current Unity 6 Update-release behavior — URP Render Graph as the default rendering path, the GPU Resident Drawer (Forward+/Deferred+ GPU instancing), the newer "scene reload only" Enter Play Mode default, the experimental CoreCLR scripting backend, and Unity's reported move away from the OculusXR package toward OpenXR. Rather than trusting a remembered version number, the Power checks the actual connected project via MCP — reading the real Unity version, active render pipeline, rendering path, scripting backend, and installed packages — before applying any version-specific advice.
+
 > **Key Concepts**: Technical terms used throughout this document (if you are new to Unity development, these concepts will become clearer as you work through the examples — you do not need to understand them all upfront):
 > - **MCP** (Model Context Protocol): A standardized protocol for AI assistants to communicate with development tools, enabling developers to use natural language to operate Unity Editor
 > - **DAG** (Directed Acyclic Graph): A directed graph with no cycles, used to determine task dependency order (e.g., "import textures before creating materials")

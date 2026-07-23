@@ -8,9 +8,9 @@ Performance problems in Unity typically involve a few key metrics: Draw Calls, G
 
 ## Performance Analysis Execution Flow
 
-1. **Collect rendering metrics**: Use `manage_graphics(action: "get_rendering_stats")` to get Draw Calls, Shader complexity, and other rendering statistics
+1. **Collect rendering metrics**: Use `manage_graphics(action: "stats_get")` to get Draw Calls, batches, triangles, and other rendering statistics (there is no `get_rendering_stats` action); use `manage_profiler(action: "get_frame_timing")` for frame-time data
 2. **Collect Console logs**: Use `read_console()` to get GC Allocation warnings and frame rate related logs
-3. **Locate bottleneck objects**: Use `find_gameobjects(filter: ...)` to search for high-polygon models, complex Shader objects
+3. **Locate bottleneck objects**: Use `find_gameobjects(search_term: "MeshRenderer", search_method: "by_component")` to search for objects with heavy renderers (both `search_term` and `search_method` are required — there is no generic `filter` param)
 4. **Load threshold settings**: Load thresholds from a project-local config file (e.g., `Assets/Config/performance-thresholds.json`) or built-in defaults
 5. **Compare against thresholds**: Compare collected metrics against thresholds item by item
 6. **Generate report**: Produce a Performance_Report JSON including metric values, bottleneck list, and optimization suggestions
@@ -78,27 +78,33 @@ Performance problems in Unity typically involve a few key metrics: Draw Calls, G
 
 ## MCP Tool Usage Examples
 
+> **Verified syntax**: confirmed against a live unity-mcp connection — `manage_graphics(action: "stats_get")` returned real fields like `draw_calls`, `batches`, `triangles`, `vertices`, `render_textures_bytes` (snake_case, not the camelCase shown in older drafts of this guide).
+
 ### Get Rendering Statistics
 ```
-manage_graphics(action: "get_rendering_stats")
-→ { drawCalls: 850, triangles: 1200000, ... }
+manage_graphics(action: "stats_get")
+→ { draw_calls: 850, batches: 12, triangles: 1200000, vertices: 640000, render_textures: 23, ... }
 ```
 
 ### Read Console Performance Logs
 ```
-read_console(filter: "GC|performance|frame")
-→ [{ message: "GC.Alloc: 4.2 KB", ... }, ...]
+read_console(filter_text: "GC")
+→ { data: ["<b>GC.Alloc</b>: 4.2 KB", ...] }
 ```
+
+The param is `filter_text`, not `filter`.
 
 ### Search High-Polygon Objects
 ```
-find_gameobjects(filter: "MeshFilter")
-→ [{ name: "HeroModel", path: "/Characters/HeroModel", ... }, ...]
+find_gameobjects(search_term: "MeshRenderer", search_method: "by_component")
+→ { data: { instanceIDs: [...], totalCount: N, ... } }
 ```
+
+Fetch full detail per result via the `mcpforunity://scene/gameobject/{id}` resource, or `manage_components(action: "..." )`/direct inspection as needed — `find_gameobjects` itself returns instance IDs only.
 
 ## Analysis Tool Troubleshooting
 
-- If `manage_graphics` returns empty data, prompt the developer to confirm they are in Play Mode
+- If `manage_graphics(action: "stats_get")` returns all-zero data, prompt the developer to confirm they are in Play Mode (rendering stats are typically only meaningful once something has actually rendered a frame)
 - If `read_console` has no performance-related logs, inform the developer they may need to enable Profiler or Deep Profiling
 - If threshold config file fails to load, automatically use built-in default thresholds and inform the developer
 - If Unity Editor frame rate is below 10 FPS, suggest reducing analysis sampling frequency
@@ -145,11 +151,14 @@ Use the Profiler Timeline view to identify which applies:
 
 ### Unity 6 New Features
 
-- **GPU Resident Drawer** (Unity 6 feature): Enable Instanced Drawing in URP Asset to significantly reduce draw calls (requires Forward+ renderer)
-- **GPU Occlusion Culling**: Use with GPU Resident Drawer to reduce rendering of invisible objects
+- **GPU Resident Drawer** (URP, Unity 6+): Uses the `BatchRendererGroup` API to draw GameObjects with GPU instancing, cutting CPU draw-call overhead — reports of up to 50% CPU rendering cost reduction in object-dense scenes. Hard requirements: renderer must use **Forward+** or **Deferred+** (not classic Forward/Deferred), the target Graphics API must support compute shaders (**not supported on OpenGL ES or VisionOS**), and Realtime GI (Enlighten) must be disabled. Enable via: Project Settings → Graphics → Shader Stripping → BatchRendererGroup Variants = "Keep All" → enable SRP Batcher on the URP Asset → set GPU Resident Drawer = "Instanced Drawing" → set the Universal Renderer's Rendering Path = "Forward+". Trade-off: longer build times (all BatchRendererGroup shader variants get compiled in). Also note: LOD animated cross-fading is unsupported (falls back to distance-based cross-fade) and `Light.shadowMatrixOverride` has no effect on shadow-caster culling while it's active
+- **GPU Occlusion Culling**: Pairs with GPU Resident Drawer to cull invisible objects on the GPU; also supports Dynamic Occlusion alongside its own culling system
+- **Render Graph (URP 17+, default since Unity 6.0)**: URP's render pass system now runs through the Render Graph API by default, reducing memory usage by only allocating resources a frame actually needs. "Compatibility Mode (Render Graph Disabled)" in Project Settings → Graphics → URP Global Settings is a legacy fallback for old-style `ScriptableRenderPass` code and should be treated as technical debt, not a target architecture
 - **Spatial-Temporal Post-Processing (STP)**: Lower rendering resolution while maintaining quality, suitable for mobile
 - **Split Graphics Jobs**: Enable in Player Settings to leverage multi-core CPU for faster render command submission
 - **Incremental GC**: Spread GC workload across multiple frames to reduce single-frame stuttering
+- **CoreCLR scripting backend (Experimental)**: `ScriptingImplementation.CoreCLR` is available as a Player-build option across multiple Unity 6.x releases (confirmed via reflection as early as 6000.5 — do not assume it's exclusive to a later minor version). The separately-tracked **CoreCLR Editor** effort (running the Editor process itself on CoreCLR, distinct from just offering it as a Player backend) is the part under active, more clearly version-gated development. Either way, it's experimental — continue profiling against Mono (dev builds) and IL2CPP (release builds) for production performance baselines. Verify actual availability/status in the connected project via `execute_code` rather than assuming from a remembered version number
+- **Enter Play Mode without scene reload**: Some Unity 6.x releases changed the default for *new* projects to skip domain reload on Play Mode entry, so static state can persist across Play sessions. Verify the actual project setting via `UnityEditor.EditorSettings.enterPlayModeOptionsEnabled` / `enterPlayModeOptions` (through `execute_code`) rather than assuming the default from version number alone — existing projects keep whatever setting they were created with regardless of the Editor version they're later opened in. If domain reload is disabled, stale state (leftover subscriptions, cached singletons) can accumulate across repeated Play Mode entries and distort profiling results — recommend a full Editor restart or explicit domain reload before establishing a performance baseline
 
 ### Profiler Tips
 

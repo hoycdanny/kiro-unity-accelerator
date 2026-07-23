@@ -37,55 +37,64 @@ Confirm type → Load Scaffold → Create scene → Build hierarchy → Check co
 
 ## MCP Tool Call Sequence Examples
 
-### 3D First-Person Scene Generation
+> **Verified syntax**: These sequences were confirmed against a live unity-mcp connection. Key corrections versus older drafts:
+> - `manage_gameobject(action: "create", ...)` takes `components_to_add: [...]` (a list of component type names), **not** `components:`
+> - `manage_camera(action: "create_camera", ...)` takes the camera name inside `properties: {"name": ...}`, **not** a top-level `name` param; it creates a basic `UnityEngine.Camera` unless Cinemachine is installed, in which case presets (`third_person`, `follow`, `static`, etc.) unlock richer behavior — pass the preset via `properties: {"preset": "static", ...}`
+> - `manage_ui` manages **UI Toolkit** (UXML/USS/UIDocument) — there is no `create_canvas`/`create_panel`/`create_button`/`create_text` action. For legacy uGUI (`Canvas`, `Button`, `Text`, `Image`), build them with `manage_gameobject(action: "create", components_to_add: ["UnityEngine.UI.Canvas", "UnityEngine.UI.GraphicRaycaster"])` etc., then `manage_components(action: "set_property", ...)` to configure them
+> - `batch_execute` commands use a `params` key, not `args`
+
+### 3D First-Person Scene Generation (legacy uGUI HUD)
 
 ```
 1. manage_scene(action: "create", name: "FPSLevel")
 2. manage_gameobject(action: "create", name: "---Environment---")
-3. manage_gameobject(action: "create", name: "Directional Light", components: ["Light"])
-4. manage_gameobject(action: "create", name: "Terrain", components: ["Terrain", "TerrainCollider"])
+3. manage_gameobject(action: "create", name: "Directional Light", components_to_add: ["UnityEngine.Light"])
+4. manage_gameobject(action: "create", name: "Terrain", components_to_add: ["UnityEngine.Terrain", "UnityEngine.TerrainCollider"])
 5. manage_gameobject(action: "create", name: "---Player---")
-6. manage_gameobject(action: "create", name: "FPSController", components: ["CharacterController"])
-7. manage_camera(action: "create", name: "MainCamera", parent: "FPSController")
-8. manage_ui(action: "create_canvas", name: "HUDCanvas")
-9. manage_scene(action: "save")
+6. manage_gameobject(action: "create", name: "FPSController", components_to_add: ["UnityEngine.CharacterController"])
+7. manage_camera(action: "create_camera", properties: { "name": "MainCamera" })
+8. manage_gameobject(action: "modify", target: "MainCamera", parent: "FPSController")
+9. manage_gameobject(action: "create", name: "HUDCanvas", components_to_add: ["UnityEngine.Canvas", "UnityEngine.UI.CanvasScaler", "UnityEngine.UI.GraphicRaycaster"])
+10. manage_scene(action: "save")
 ```
+
+> Step 8 is needed because `create_camera` does not take a `parent` param — reparent afterward via `manage_gameobject(action: "modify", target, parent)`.
 
 ### 2D Platformer Scene Generation
 
 ```
 1. manage_scene(action: "create", name: "PlatformerLevel")
 2. manage_gameobject(action: "create", name: "---Environment---")
-3. manage_gameobject(action: "create", name: "Tilemap Grid", components: ["Grid"])
-4. manage_gameobject(action: "create", name: "Ground Tilemap", parent: "Tilemap Grid", components: ["Tilemap", "TilemapRenderer", "TilemapCollider2D"])
+3. manage_gameobject(action: "create", name: "Tilemap Grid", components_to_add: ["UnityEngine.Grid"])
+4. manage_gameobject(action: "create", name: "Ground Tilemap", parent: "Tilemap Grid", components_to_add: ["UnityEngine.Tilemaps.Tilemap", "UnityEngine.Tilemaps.TilemapRenderer", "UnityEngine.Tilemaps.TilemapCollider2D"])
 5. manage_gameobject(action: "create", name: "---Player---")
-6. manage_gameobject(action: "create", name: "Player", components: ["SpriteRenderer", "Rigidbody2D", "BoxCollider2D"])
-7. manage_camera(action: "create", name: "Main Camera", tag: "MainCamera")
-8. manage_ui(action: "create_canvas", name: "GameUI")
+6. manage_gameobject(action: "create", name: "Player", components_to_add: ["UnityEngine.SpriteRenderer", "UnityEngine.Rigidbody2D", "UnityEngine.BoxCollider2D"])
+7. manage_camera(action: "create_camera", properties: { "name": "Main Camera" })
+8. manage_gameobject(action: "create", name: "GameUI", components_to_add: ["UnityEngine.Canvas", "UnityEngine.UI.GraphicRaycaster"])
 9. manage_scene(action: "save")
 ```
 
-### UI Menu Scene Generation
+### UI Menu Scene Generation (UI Toolkit approach)
 
 ```
 1. manage_scene(action: "create", name: "MainMenu")
-2. manage_ui(action: "create_canvas", name: "MenuCanvas")
-3. manage_ui(action: "create_panel", name: "BackgroundPanel", parent: "MenuCanvas")
-4. manage_ui(action: "create_text", name: "TitleText", parent: "MenuCanvas", text: "Game Title")
-5. manage_ui(action: "create_button", name: "StartButton", parent: "MenuCanvas", text: "Start Game")
-6. manage_ui(action: "create_button", name: "SettingsButton", parent: "MenuCanvas", text: "Settings")
-7. manage_ui(action: "create_button", name: "QuitButton", parent: "MenuCanvas", text: "Quit")
-8. manage_camera(action: "create", name: "UICamera")
-9. manage_scene(action: "save")
+2. manage_ui(action: "create", path: "Assets/UI/MainMenu.uxml", contents: "<ui:UXML xmlns:ui=\"UnityEngine.UIElements\">...</ui:UXML>")
+3. manage_ui(action: "create", path: "Assets/UI/MainMenu.uss", contents: ".menu-button { ... }")
+4. manage_ui(action: "link_stylesheet", target: "Assets/UI/MainMenu.uxml", stylesheet: "Assets/UI/MainMenu.uss")
+5. manage_gameobject(action: "create", name: "MenuUIDocument")
+6. manage_ui(action: "attach_ui_document", target: "MenuUIDocument", source_asset: "Assets/UI/MainMenu.uxml")
+7. manage_scene(action: "save")
 ```
+
+> This builds the menu as a single UXML document (buttons/text/panels are `<ui:Button>`/`<ui:Label>`/`<ui:VisualElement>` elements inside the UXML content), which matches how `manage_ui` actually works. If the developer specifically wants legacy uGUI Canvas/Button/Text objects instead, build those via `manage_gameobject` + `manage_components` as described above, one GameObject per element.
 
 ### Batch Create Object Hierarchy
 
 ```
 batch_execute(commands: [
-  { "tool": "manage_gameobject", "args": { "action": "create", "name": "FPSController", "components": ["CharacterController"] } },
-  { "tool": "manage_components", "args": { "action": "add", "target": "FPSController", "component": "AudioListener" } },
-  { "tool": "manage_camera", "args": { "action": "create", "name": "MainCamera", "parent": "FPSController" } }
+  { "tool": "manage_gameobject", "params": { "action": "create", "name": "FPSController", "components_to_add": ["UnityEngine.CharacterController"] } },
+  { "tool": "manage_components", "params": { "action": "add", "target": "FPSController", "component_type": "AudioListener" } },
+  { "tool": "manage_camera", "params": { "action": "create_camera", "properties": { "name": "MainCamera" } } }
 ])
 ```
 
@@ -96,8 +105,10 @@ batch_execute(commands: [
 Before creating objects, use `find_gameobjects` to check if objects with the same name already exist in the target scene:
 
 ```
-find_gameobjects(name: "FPSController")
+find_gameobjects(search_term: "FPSController", search_method: "by_name")
 ```
+
+Both `search_term` and `search_method` are required — there is no generic `name:` or `filter:` shorthand.
 
 ### Conflict Handling Options
 
@@ -159,6 +170,13 @@ Status: Complete
 | 2D Platform | Rigidbody2D + BoxCollider2D | 2D physics interaction foundation (enables collision detection and physics-based movement) |
 | UI Menu | Canvas + GraphicRaycaster + EventSystem | Required components for UI interaction |
 | Open World | Terrain + WindZone + ReflectionProbe | Large scene environment foundation |
+
+### Unity 6 Rendering & Lighting Notes for New Scenes
+
+- New scenes created in a URP project default to **Render Graph** (URP 17+) rather than the legacy Compatibility Mode — no scaffold action is needed, this is a project-level Graphics setting, not a per-scene one
+- When scaffolding scenes with many repeated static meshes (e.g., `open-world-base`), mention to the developer that enabling the **GPU Resident Drawer** (Forward+ rendering path required) can reduce draw calls significantly — this is a Project Settings change, not something `manage_gameobject` configures per-object, so surface it as a follow-up suggestion rather than doing it automatically
+- For baked lighting, **Adaptive Probe Volumes (APV)** are URP's modern replacement/complement to manually placed Light Probe Groups — Unity places probes automatically based on scene geometry density. When a scaffold calls for baked GI (e.g., architectural walkthroughs, static environments), suggest APV via Lighting window → Light Probe Lighting → Adaptive Probe Volumes instead of manually authored Light Probe Groups
+- `ReflectionProbe` with `"mode": "Baked"` (as used in `open-world-base.json`) remains valid in Unity 6 — Forward+ and Deferred+ both support reflection probes with indirect draws
 
 ### Custom Scaffold Recommendations
 
