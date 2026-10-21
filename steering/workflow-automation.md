@@ -27,7 +27,7 @@ Multi-step workflows in Unity — "import these assets, configure them, build, t
 
 ## MCP Tool Usage
 
-> **Verified syntax**: confirmed against a live unity-mcp connection.
+> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** connected to Unity **6000.4.6f1** — **read-only calls only; no mutating action was exercised and nothing in the project was changed.** The `search` syntax and the `params` key on `batch_execute` are live-verified; the `manage_asset(action: "modify", ...)` and `manage_build(action: "build", ...)` calls below are reconciled against the MCP for Unity v10.3.0 generated tool reference, not live-verified.
 
 ### Execute a Single Workflow Step
 
@@ -43,10 +43,10 @@ There is no `list` action or `recursive` flag — `search` under a folder path a
 batch_execute(commands: [
   { "tool": "manage_asset", "params": { "action": "search", "path": "Assets/", "search_pattern": "*.fbx" } },
   { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/hero.fbx", "properties": { "rigType": "Humanoid" } } }
-])
+], fail_fast: false)
 ```
 
-Each command's second key is `params`, not `args`.
+Each command's second key is `params`, not `args`. `fail_fast` **defaults to `true`**, so an unset `fail_fast` aborts the remaining commands as soon as one fails — pass `fail_fast: false` whenever the workflow is supposed to record a failure and carry on. The batch command cap is configurable in the Unity MCP Tools window (default 25, hard maximum 100), so a workflow that fans out beyond that must send successive batches.
 
 ### Trigger Build Step
 

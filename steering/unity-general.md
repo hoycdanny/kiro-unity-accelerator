@@ -172,7 +172,10 @@ Attempt a cheap read-only call → Success: MCP connection normal → Failure: D
 
 This is the single canonical copy of the activation procedure. Every other steering file cross-references this section instead of repeating it.
 
-The bridge gates its tool surface into **ten groups**: `core`, `animation`, `asset_gen`, `docs`, `probuilder`, `profiling`, `scripting_ext`, `testing`, `ui`, `vfx`. **Only `core` is enabled by default** — the other nine are opt-in per session. The gate is a per-session tool-*listing* filter, and the server-level default is applied **only on HTTP** transport. A hidden group's tools do not appear in the tool list, so the agent normally never selects them.
+The bridge gates its tool surface into **ten groups**: `core`, `animation`, `asset_gen`, `docs`, `probuilder`, `profiling`, `scripting_ext`, `testing`, `ui`, `vfx`. **Only `core` is enabled by default** — the other nine are opt-in per session.
+
+- **VERIFIED**: the gate is a per-session tool-*listing* filter (FastMCP component visibility keyed on a `group:<name>` tag). A hidden group's tools do not appear in the tool list, so the agent normally never selects them.
+- **VERIFIED**: the server-level default (hiding every non-default group at startup) is applied **only on HTTP** transport; on stdio that step is skipped and the visibility is instead synced from the Unity Editor's own tool toggles.
 
 | Group | Tools this Power uses from it |
 |-------|------------------------------|
@@ -215,18 +218,23 @@ If cloud build or remote device-testing integration is genuinely needed, it woul
 
 ### Handling Principles
 
-Partial failures in batch operations (via `batch_execute`) should not interrupt the entire batch. The system should adopt a "best effort" strategy, ultimately reporting complete success/failure status.
+Batch operations (via `batch_execute`) should normally adopt a "best effort" strategy: a partial failure does not interrupt the rest of the batch, and the run ends with a complete success/failure report.
+
+**This is not the bridge's default, and it has to be requested explicitly.** `batch_execute`'s `fail_fast` parameter **defaults to `true`**, so a bare `batch_execute(commands: [...])` aborts at the first failing command and the remaining commands never run — reporting an aggregate summary for them would be reporting on work that was never attempted. **Pass `fail_fast: false` on every `batch_execute` call that is meant to be best-effort.**
+
+Also bound the batch size: the maximum commands per batch is configurable in the Unity MCP Tools window, with a **default of 25 and a hard maximum of 100**. Split a larger job into successive batches rather than sending one oversized call.
 
 ### Handling Flow
 
 ```
-batch_execute starts → Execute one by one → Record each result → Continue remaining → Aggregate report
+batch_execute(fail_fast: false) starts → Execute one by one → Record each result → Continue remaining → Aggregate report
 ```
 
-1. **Execute one by one**: Execute each operation in batch_execute sequentially
-2. **Record status**: Record success/failure status and details for each operation
-3. **Failure doesn't interrupt**: When a single operation fails, continue processing remaining operations
-4. **Aggregate report**: After all operations complete, produce a structured aggregate report
+1. **Pass `fail_fast: false`**: Without it the batch aborts on the first failure (the default is `true`), and keep each batch within the command cap (default 25, hard max 100)
+2. **Execute one by one**: Execute each operation in batch_execute sequentially
+3. **Record status**: Record success/failure status and details for each operation
+4. **Failure doesn't interrupt**: With `fail_fast: false`, a single failed operation does not stop the remaining operations
+5. **Aggregate report**: After all operations complete, produce a structured aggregate report. Report only on commands that actually ran — if the batch was sent without `fail_fast: false` and aborted early, say so instead of counting the unattempted commands as failures
 
 ### Aggregate Report Format
 

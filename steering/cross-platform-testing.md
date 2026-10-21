@@ -33,7 +33,13 @@ run_tests(mode: "EditMode")
 → { data: { job_id: "...", status: "running", mode: "EditMode", ... } }
 ```
 
-There is no `action: "run"` param and no `testFilter`/`platform` params — the real params are `mode`, `test_names`, `group_names`, `category_names`, `assembly_names`, `include_failed_tests`, `include_details`, `init_timeout`.
+There is no `action: "run"` param and no `testFilter`/`platform` params. The real params are `mode`, `test_names`, `group_names`, `category_names`, `assembly_names`, `include_failed_tests`, `include_details`, `init_timeout` and `clear_stuck`. Three of them are easy to misuse:
+
+- `group_names` takes **regular expressions** matched against the full test name (unlike `test_names`, which needs exact full names including namespace and class)
+- `init_timeout` is in **milliseconds** and defaults to 15000; a PlayMode run starts with a domain reload, so 120000 is the documented recommendation
+- `clear_stuck: true` only clears an orphaned job that is blocking new runs — it starts no tests, and it marks any job in the `running` state as failed without checking whether the run is still alive
+
+Source: [`run_tests` tool reference @ v10.3.0](https://github.com/CoplayDev/unity-mcp/blob/v10.3.0/website/docs/reference/tools/testing/run_tests.md), retrieved 2026-10-21. End-to-end behaviour is **UNVERIFIED** — `run_tests` was not exercised on the verification machine.
 
 ### Poll for Results
 
@@ -55,10 +61,10 @@ The param is `filter_text`, not `filter`.
 batch_execute(commands: [
   { "tool": "run_tests", "params": { "mode": "EditMode", "category_names": ["Networking"] } },
   { "tool": "run_tests", "params": { "mode": "PlayMode", "category_names": ["Gameplay"] } }
-])
+], fail_fast: false)
 ```
 
-Each `run_tests` call still returns its own `job_id` — `batch_execute` here just fires both requests together; you still need to poll each `job_id` separately with `get_test_job`.
+Each `run_tests` call still returns its own `job_id` — `batch_execute` here just fires both requests together; the developer still needs to poll each `job_id` separately with `get_test_job`. `fail_fast: false` is what makes "both requests" true: `fail_fast` defaults to `true`, so without it a rejected first call would stop the second from ever being sent. See `unity-general.md` under "Batch Operation Partial Failure Handling Guide" for the command cap and the rest of the batch semantics.
 
 > **Common patterns**: The most common cross-platform *behavioral* failures (surfaced during PlayMode tests, or discovered manually on-device) are shader incompatibilities on mobile (especially OpenGL ES fallback devices — Unity 6 recommends Vulkan as the primary Android Graphics API, with OpenGL ES retained only as a compatibility fallback for older/unsupported hardware) and memory pressure on devices with 2GB RAM or less. Prioritize testing on low-end target devices first.
 

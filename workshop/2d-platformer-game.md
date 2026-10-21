@@ -343,18 +343,18 @@ MCP for Unity 把工具分成 **10 個群組**，而**預設只有 `core` 是啟
 1. 敵人被踩踏擊敗時，在該位置生成一個簡單的粒子特效（ParticleSystem，白色/黃色粒子向外噴發，持續時間 0.3 秒左右），播完自動銷毀
 2. 玩家撿到 Crystal 時，同樣生成一個小型閃光粒子特效
 
-3. 如果本 Power 有支援 AI 生成音效的工具，幫我生成並匯入：
-   - 跳躍音效（短促的 boing/hop 音效感，長度 0.5 秒內）
-   - 收集音效（清脆的鈴聲/叮咚感，長度 0.5 秒內）
-   - 敵人被擊敗音效（短促的 pop 感，長度 0.5 秒內）
-   如果沒有這類工具，請直接告訴我，並告訴我要去哪裡手動找免費音效資源即可。
+3. 音效檔案我自己準備（不要用 AI 生成音效的工具）。請幫我：
+   - 建立 Assets/Audio/SFX/ 資料夾
+   - 告訴我可以去哪裡下載免費音效（跳躍：短促的 boing/hop，0.5 秒內；收集：清脆的叮咚聲，0.5 秒內；敵人被擊敗：短促的 pop，0.5 秒內）
 
-4. 在 PlayerController.cs 跳躍時、CollectibleItem.cs 被撿取時、Patroller.cs 被擊敗時，播放對應音效
+4. 在 PlayerController.cs 跳躍時、CollectibleItem.cs 被撿取時、Patroller.cs 被擊敗時播放對應音效：請加上 AudioSource 與可在 Inspector 指派的 AudioClip 欄位，並告訴我音效檔放進專案後要怎麼指派
 
-完成後跟我確認粒子特效跟音效有沒有正確套用。
+完成後跟我確認粒子特效跟音效接線有沒有正確套用。
 ```
 
-**預期結果**：擊敗敵人與收集水晶時有粒子特效，跳躍/收集/擊敗有音效。如果環境沒有 AI 生成工具的金鑰，Kiro 會如實告知並給替代方案。
+**預期結果**：擊敗敵人與收集水晶時有粒子特效；三個音效的 AudioSource/AudioClip 欄位都接好，等你把音效檔放進 `Assets/Audio/SFX/` 並在 Inspector 指派後就會發聲。
+
+> **為什麼不請 Kiro 生成音效**：MCP for Unity 有一個 `asset_gen` 工具群組（`generate_audio`、`generate_image`、`generate_model` 等），但它**預設關閉**，而且會呼叫第三方服務、消耗開發者自備的 API 金鑰與點數。本 Power **刻意不把任何工作流、steering 檔或範本路由到 `asset_gen`**（見 `POWER.md` 的「Generative Tools (`asset_gen` group) — awareness only」）。所以這個步驟走手動路線：免費音效可以在 Unity Asset Store 的免費音效包、[freesound.org](https://freesound.org/)（注意各檔案的授權條款）或 [kenney.nl](https://kenney.nl/assets)（CC0）找到。真的想用 AI 生成，請自行啟用該群組並自備金鑰，那是一次明確的、你自己決定的動作，不該由本 Workshop 代替你決定。
 
 > **Unity 6.4 的 2D 畫面進階選項**：6.4 起可以把**自訂 render pass 注入 URP 2D 的 frame loop**，也就是能為 2D 專案加上自訂渲染與後處理（例如全畫面受傷閃紅、過關時的色調變化），不必再繞過 2D Renderer。這屬於超出本 Workshop 範圍的進階題，但如果之後想做畫面特效，這是 6.4 該走的路。另外要注意：URP Compatibility Mode 與 `URP_COMPATIBILITY_MODE` 腳本定義在 6.4 已**完全移除**，自訂 render pass 只剩 Render Graph 一條路。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) 與 [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64)（皆於 2026-10-21 取得）。
 

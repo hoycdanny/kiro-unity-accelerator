@@ -18,7 +18,7 @@ Scan → Detect type → Load Preset → batch_execute apply → Generate change
 1. **Scan folder**: Use `manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "*.fbx")` to scan the specified folder and retrieve matching asset paths (there is no `list` action — `search` with `search_pattern` is the real syntax; run it once per extension since `search_pattern` takes a single glob, not a comma-separated list)
 2. **Detect asset type**: Automatically determine asset type based on file naming conventions (see rules below) and suggest the applicable Asset_Preset
 3. **Load Preset**: Load the corresponding Asset_Preset JSON from `templates/presets/` (custom location takes priority; falls back to built-in template if not found)
-4. **Batch apply**: Use `batch_execute` to batch-apply the parameters defined in the Preset to all selected assets via `manage_asset(action: "modify", path: ..., properties: {...})`
+4. **Batch apply**: Use `batch_execute` to batch-apply the parameters defined in the Preset to all selected assets via `manage_asset(action: "modify", path: ..., properties: {...})`. **Pass `fail_fast: false` explicitly** — it defaults to `true`, which aborts the whole batch at the first bad asset instead of continuing as the failure recovery below requires. Keep each batch within the command cap (configurable in the Unity MCP Tools window, default 25, hard maximum 100) and send successive batches for a larger folder
 5. **Generate summary**: Compare each asset's parameters before and after application (via `manage_asset(action: "get_info")`), producing a structured change summary
 
 ## Naming Convention Rules
@@ -40,7 +40,7 @@ Matching rules:
 
 ## MCP Tool Usage Examples
 
-> **Verified syntax**: The calls below were confirmed against a live unity-mcp connection. `manage_asset` has no `list` or `set_import_settings` action — use `search` (with `search_pattern`, a single glob) to enumerate assets, and `modify` (with a `properties` dict) to change import settings.
+> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** connected to Unity **6000.4.6f1** — **read-only calls only; no mutating action was exercised and nothing in the project was changed.** What that session proved is that `manage_asset` has no `list` and no `set_import_settings` action, and that `manage_asset(action: "search")` with a single-glob `search_pattern` works. The `modify` call below (and its importer property names) is **not** live-verified: it is reconciled against the MCP for Unity v10.3.0 generated tool reference. A validation error from the live call lists the real field names and overrides this file.
 
 The examples below cover the three operations the developer will use most often: scanning, applying settings to a single asset, and applying settings in batch. Real workflows usually chain these together — scan first to confirm the file list, dry-run on one asset, then batch-execute. A brief manual review between scan and batch-execute is recommended, especially the first time a Preset is run against a new folder.
 
@@ -69,10 +69,10 @@ manage_asset(action: "modify", path: "Assets/Characters/hero.fbx", properties: {
 batch_execute(commands: [
   { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/hero.fbx", "properties": { "rigType": "Humanoid" } } },
   { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/npc_guard.fbx", "properties": { "rigType": "Humanoid" } } }
-])
+], fail_fast: false)
 ```
 
-Each command's second key is `params`, not `args` — a mismatch there causes a validation error rather than silently being ignored.
+Each command's second key is `params`, not `args` — a mismatch there causes a validation error rather than silently being ignored. `fail_fast: false` is required for best-effort batching because the parameter **defaults to `true`**; without it the first failing asset aborts every command after it. The command cap is configurable in the Unity MCP Tools window (default 25, hard maximum 100), so split a large folder into successive batches.
 
 ### Get Current Asset Settings (for change summary comparison)
 
@@ -89,7 +89,7 @@ Batch operations fail in predictable ways: a file is locked, an asset path was r
 - Before applying a Preset, record the asset's original parameter state
 - If an MCP tool call returns an error, immediately revert that asset to its original state
 - Record the error reason (asset path, error message)
-- Continue processing remaining assets; do not interrupt the entire batch due to a single failure
+- Continue processing remaining assets; do not interrupt the entire batch due to a single failure — this requires `fail_fast: false` on the `batch_execute` call, since the parameter defaults to `true`
 
 ### Partial Batch Operation Failure
 

@@ -66,21 +66,46 @@ export async function executeMcpCall(
 export const EDITOR_STATE_RESOURCE = 'mcpforunity://editor/state';
 
 /**
+ * JSON-RPC method name used to read an MCP resource.
+ *
+ * It is a *method*, not a tool name: resources are read, tools are called.
+ * It is exported so a consumer's {@link McpExecutor} can branch on it.
+ */
+export const RESOURCE_READ_METHOD = 'resources/read';
+
+/**
+ * Reads an `mcpforunity://` resource through the executor seam.
+ *
+ * The bridge exposes Editor/project state as MCP resources, which need no tool
+ * group — but this module only has one seam to the transport, the
+ * {@link McpExecutor}. So the read is dispatched with `tool` set to the
+ * JSON-RPC method name {@link RESOURCE_READ_METHOD} rather than to a Unity tool
+ * name, exactly as `mcp-health.ts` names that method in its own request body.
+ *
+ * **Executor contract**: an executor that forwards every call straight to
+ * `tools/call` will send `"resources/read"` as a tool name and get an
+ * unknown-tool error. An executor must therefore check for
+ * {@link RESOURCE_READ_METHOD} and route those calls to `resources/read`.
+ */
+export async function readMcpResource(
+  executor: McpExecutor,
+  uri: string,
+): Promise<McpToolResult> {
+  return executor({ tool: RESOURCE_READ_METHOD, params: { uri } });
+}
+
+/**
  * Checks whether Unity Editor is currently compiling by reading the
  * `mcpforunity://editor/state` resource and inspecting its `advice` block.
  *
  * Editor state is exposed as an MCP resource, not as a tool action —
  * `manage_editor` has no read-only action that reports compilation state. The
- * read is dispatched through the executor as the JSON-RPC `resources/read`
- * method (the same method `mcp-health.ts` uses), so the caller's executor is
- * responsible for routing it.
+ * read goes through {@link readMcpResource}, so see that function for the
+ * executor contract.
  */
 export async function isUnityCompiling(executor: McpExecutor): Promise<boolean> {
   try {
-    const result = await executor({
-      tool: 'resources/read',
-      params: { uri: EDITOR_STATE_RESOURCE },
-    });
+    const result = await readMcpResource(executor, EDITOR_STATE_RESOURCE);
     if (!result.success || !result.data) return false;
     const data = result.data as Record<string, unknown>;
     // `advice.ready_for_tools` is the canonical readiness flag; it is false
