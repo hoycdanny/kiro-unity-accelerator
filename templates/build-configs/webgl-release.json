@@ -14,15 +14,28 @@
     "scriptingBackend": "IL2CPP"
   },
   "mcpToolMapping": {
-    "primaryTool": "manage_editor",
+    "primaryTool": "manage_build",
     "action": "build",
     "settingsMap": {
-      "target": "buildTarget",
+      "target": "target",
       "scenes": "scenes",
-      "outputPath": "locationPathName",
-      "options.compression": "options.compressionType"
+      "outputPath": "output_path",
+      "options.development": "development",
+      "options.scriptingBackend": "scripting_backend",
+      "options.compression": "options"
     }
   },
+  "bridgeCall": {
+    "tool": "manage_build",
+    "action": "build",
+    "target": "webgl",
+    "scenes": "[\"Assets/Scenes/MainMenu.unity\", \"Assets/Scenes/GameLevel1.unity\"]",
+    "output_path": "Builds/WebGL/MyGame",
+    "development": false,
+    "scripting_backend": "il2cpp",
+    "options": ["clean_build", "strict_mode", "detailed_report"]
+  },
+  "notes": "Builds go through manage_build; manage_editor has no build action. The `target` field above is Unity's BuildTarget name, while manage_build's `target` param takes the bridge alias (`webgl`) -- see bridgeCall. IL2CPP is the only backend for Web; `scripting_backend` accepts only `mono` or `il2cpp` and there is no `coreclr` value. The `options` array accepts only clean_build, auto_run, deep_profiling, compress_lz4, strict_mode and detailed_report -- `Lz4HC` is NOT in that vocabulary and must be set in Build Settings or a Build Profile. Threading on Unity 6.4: multithreaded RENDERING is still unavailable, but [BurstCompile] jobs do run on background workers for Web builds; non-Burst jobs stay on the main thread. Expect long build times and respect the browser memory ceiling. Source: https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64, retrieved 2026-10-21.",
   "useCloudAssist": false,
   "createdAt": "2025-01-01T00:00:00Z"
 }

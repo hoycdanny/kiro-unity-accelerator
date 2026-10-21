@@ -5,6 +5,13 @@
   "isBuiltIn": true,
   "enabled": true,
   "pattern": "ECS",
+  "unity64Notes": {
+    "corePackages": "On the Unity 6.4 baseline, Entities, Collections, Mathematics and Entities Graphics are Core packages that ship with the Editor. Do NOT call manage_packages(action: \"add_package\") for com.unity.entities, com.unity.collections, com.unity.mathematics or com.unity.entities.graphics on 6.4 -- confirm what is already installed with manage_packages(action: \"list_packages\") instead, which is asynchronous (poll manage_packages(action: \"status\", job_id: ...) with the returned job_id).",
+    "sources": [
+      "https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64"
+    ],
+    "retrieved": "2026-10-21"
+  },
   "rules": [
     {
       "type": "NamingConvention",

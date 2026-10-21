@@ -5,6 +5,14 @@
   "isBuiltIn": true,
   "enabled": true,
   "pattern": "ScriptableObject",
+  "unity64Notes": {
+    "serializeReferenceValidation": "On the Unity 6.4 baseline, Unity warns when a class assigned to a [SerializeReference] field -- or ANY of that class's ancestors -- lacks [Serializable]. Treat a missing [Serializable] anywhere in the base-class chain of a [SerializeReference] target as a violation, not a style nit. This matters most for the DelegateObject pattern below, where an abstract ScriptableObject or plain abstract base defines the pluggable behaviour and concrete subclasses are assigned by reference.",
+    "destroyBehaviour": "Also on 6.4: Object.Destroy now invokes OnDisable on all descendants, matching DestroyImmediate. RuntimeSet implementations that rely on OnDisable to remove an object from the set no longer need manual propagation to children -- manual propagation now double-fires and should be removed.",
+    "sources": [
+      "https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64"
+    ],
+    "retrieved": "2026-10-21"
+  },
   "rules": [
     {
       "type": "NamingConvention",

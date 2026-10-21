@@ -1,5 +1,5 @@
 # Asset Automation Steering
-<!-- File Purpose / 本檔案用途: Unity asset automation steering guide / Unity 資產設定自動化的 steering 指引，涵蓋資產批次設定、類型偵測、匯入參數管理及資產管線最佳實踐。 -->
+<!-- File Purpose / 本檔案用途: Unity asset automation steering guide / Unity 資產設定自動化的 steering 指引，涵蓋資產批次設定、類型偵測、匯入參數管理、資產管線最佳實踐，以及 Unity 6.4 的 PVRTC 移除與自訂匯入器相依性宣告。 -->
 
 > **Context**: This steering file is designed for AI assistants helping developers with Unity asset automation tasks. It uses "the developer" to refer to the human being assisted.
 
@@ -106,6 +106,18 @@ Batch operations fail in predictable ways: a file is locked, an asset path was r
 | Unsupported file type | Skip and inform the developer that the file type is not in the supported list |
 | JSON Preset format error | Fall back to built-in template, inform the developer that the custom template has issues |
 
+## Unity 6.4: Custom Importers Must Declare Their Dependencies
+
+> **Version baseline**: Unity 6.4 (stream `6000.4`, pinned patch `6000.4.12f1`). Anything past 6.4 is forward-looking and unverified — see `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
+
+Unity 6.4 narrows artifact-dependency behaviour: **a dependent asset reimports only when the dependency's *import result* changes**, rather than whenever the dependency is touched. This matters for automation because it changes when a batch of `manage_asset(action: "modify", ...)` calls actually propagates.
+
+- If the project has custom **`ScriptedImporter`** or **`AssetPostprocessor`** code, it may need to declare its inputs explicitly with **`DependsOnSourceAsset`** or **`DependsOnArtifact`**. An importer that reads a sibling file (a shared config, a lookup table, a palette) without declaring it will no longer cause a reimport when that file changes
+- **Symptom**: after a batch apply, some assets keep their old settings until someone reimports them by hand. On 6.4 that usually means a missing dependency declaration in a custom importer, not a failed `manage_asset` call. Check `read_console()` for the absence of reimport activity before re-running the batch
+- The companion analysis guidance is in `asset-dependencies.md`
+
+Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21.
+
 ## Asset Pipeline Best Practices
 
 ### Rig Type Selection
@@ -123,8 +135,10 @@ Batch operations fail in predictable ways: a file is locked, an asset path was r
 |-----------------|-------------------------------|--------|
 | Mobile (iOS/Android) | ASTC | Best balance of quality and file size |
 | Desktop (Windows/Mac) | BC7 | High-quality compression, natively supported by desktop GPUs |
-| WebGL | ETC2 / ASTC | Good browser compatibility |
+| WebGL / Web | ETC2 / ASTC | Good browser compatibility |
 | Universal (platform uncertain) | NormalQuality | Safe default choice |
+
+> **Unity 6.4: PVRTC is gone.** PVRTC was removed in Unity 6.4 and can no longer be targeted on import — **use ASTC (preferred) or ETC on iOS**. Never emit PVRTC in a generated import setting, and treat an existing PVRTC setting as something to migrate when a project moves to 6.4. Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21.
 
 ### Mesh Compression Recommendations
 

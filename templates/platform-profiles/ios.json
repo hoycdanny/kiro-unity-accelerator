@@ -34,7 +34,21 @@
     "graphicsApi": {
       "recommended": "Metal",
       "fallback": "n/a",
-      "notes": "Metal supports compute shaders, so the URP GPU Resident Drawer and Forward+/Deferred+ rendering paths (Unity 6+) are supported on iOS. VisionOS (Apple's spatial computing platform) is a separate profile — GPU Resident Drawer is explicitly unsupported there even though it shares the Metal API."
+      "notes": "Metal supports compute shaders, so the URP GPU Resident Drawer and Forward+/Deferred+ rendering paths are supported on iOS. VisionOS (Apple's spatial computing platform) is a separate profile — GPU Resident Drawer is explicitly unsupported there even though it shares the Metal API."
+    },
+    "textureCompression": {
+      "recommended": "ASTC",
+      "allowed": ["ASTC", "ETC"],
+      "removed": ["PVRTC"],
+      "notes": "Unity 6.4 removed PVRTC -- it can no longer be targeted on import. Use ASTC (preferred) or ETC. Never emit a PVRTC import setting for an iOS target on the Unity 6.4 baseline; treat an existing one as a migration item."
+    },
+    "unity64Notes": {
+      "runtimeLibraryPath": "On Unity 6.4 the Apple runtime libraries ship as a static framework at XcodeFolder/Frameworks/UnityRuntime.framework/UnityRuntime, used for both device and simulator. Any Xcode post-processing script that hard-codes the old Libraries/ path breaks.",
+      "sources": [
+        "https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64",
+        "https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64"
+      ],
+      "retrieved": "2026-10-21"
     }
   }
 }

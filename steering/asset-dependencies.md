@@ -1,6 +1,6 @@
 # Asset Dependencies Steering
 
-<!-- File Purpose / 本檔案用途: Unity asset dependency analysis steering guide / Unity 資產依賴分析的 steering 指引，涵蓋依賴樹建構、孤立資產偵測、AssetBundle 重複檢測及刪除影響分析。 -->
+<!-- File Purpose / 本檔案用途: Unity asset dependency analysis steering guide / Unity 資產依賴分析的 steering 指引，涵蓋 scripting_ext 工具群組啟用、依賴樹建構、孤立資產偵測、AssetBundle 重複檢測、刪除影響分析，以及 Unity 6.4 的 Asset Database 相依性行為變更。 -->
 
 ## Role and Purpose
 
@@ -8,8 +8,11 @@ Asset relationships in Unity can be overlooked during rapid development, but und
 
 ## Workflow
 
-> **Tool correction**: `manage_asset` has **no `get_dependencies` action** (confirmed against a live unity-mcp connection — the valid actions are `import`, `create`, `modify`, `delete`, `duplicate`, `move`, `rename`, `search`, `get_info`, `create_folder`, `get_components`). Dependency queries go through `execute_code`, calling Unity's own `AssetDatabase.GetDependencies` API directly — there is no dedicated MCP tool action for this.
+> **Tool correction**: `manage_asset` has **no `get_dependencies` action** (confirmed against a live unity-mcp connection — the valid actions are `import`, `create`, `modify`, `delete`, `duplicate`, `move`, `rename`, `search`, `get_info`, `create_folder`, `get_components`; `path` is required on every one of them). Dependency queries go through `execute_code`, calling Unity's own `AssetDatabase.GetDependencies` API directly — there is no dedicated MCP tool action for this.
+>
+> **Tool group prerequisite**: that makes this whole domain depend on **`execute_code`, which lives in the `scripting_ext` group and is off by default**. Activate it before step 1 with `manage_tools(action: "activate", group: "scripting_ext")`, and note the MCP client may need a refresh or reconnect before the tool appears. `manage_asset` itself is `core` and needs no activation. Canonical procedure: "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
 
+0. **Activate the `scripting_ext` group**: `manage_tools(action: "activate", group: "scripting_ext")`
 1. **Get dependency info**: Use `execute_code(action: "execute", code: "return string.Join(\"|\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Characters/hero.fbx\", false));")` to get the direct dependency list for a specified asset. Passing `true` as the second argument returns the full transitive closure in one call instead of requiring manual recursion
 2. **Recursive analysis**: Either use the recursive (`true`) form directly, or call with `false` per-asset and walk the graph yourself if you need per-level tree structure rather than a flat closure
 3. **Build dependency tree**: Organize all nodes into a DependencyTree structure, recording each node's dependencies and referencedBy
@@ -45,6 +48,20 @@ execute_code(action: "execute", code: "return string.Join(\"|\", UnityEditor.Ass
 ```
 
 > **Default compiler note**: the `string.Join` + array pattern above works under the default `codedom` compiler (C# 6). If building more complex analysis logic inline, avoid C# 7+ syntax (tuples, pattern matching, `var` with anonymous types in some contexts) unless Roslyn is confirmed available via the `compiler` param.
+
+## Unity 6.4: Asset Database Artifact Dependencies Narrowed
+
+> **Version baseline**: Unity 6.4 (stream `6000.4`, pinned patch `6000.4.12f1`). Anything past 6.4 is forward-looking and unverified — see `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
+
+Unity 6.4 narrows when an artifact dependency triggers a reimport: **a dependent asset now reimports only when the dependency's *import result* changes**, not whenever the dependency itself is touched. That is a performance win, and it changes what a dependency report means.
+
+What it implies for this domain:
+
+- **`AssetDatabase.GetDependencies` still reports the reference graph.** The 6.4 change is about *reimport propagation*, not about which references exist. Do not reinterpret the dependency tree because of it
+- **Custom importers may now under-reimport.** `ScriptedImporter` and `AssetPostprocessor` code that relied on the old, broader behaviour may need to declare its inputs explicitly with **`DependsOnSourceAsset`** or **`DependsOnArtifact`**. When analysing a project that has custom importers, flag any that register a dependency implicitly (for example by reading a sibling file during import without declaring it) — on 6.4 the dependent will not be reimported when that file changes unless the dependency is declared
+- **Symptom to recognise**: "the asset looks stale until I reimport it manually" on a project that recently moved to 6.4 usually means a missing `DependsOnSourceAsset`/`DependsOnArtifact` declaration, not a broken reference. Check the importer before chasing the dependency graph
+
+Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21.
 
 ## Orphan Asset Detection Guide
 

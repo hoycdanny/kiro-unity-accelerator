@@ -1,5 +1,5 @@
 # Build Automation Steering
-<!-- File Purpose / 本檔案用途: Unity build automation steering guide / Unity 建置自動化的 steering 指引，涵蓋建置配置載入、manage_build 觸發本地建置、建置錯誤解析及多平台建置管理。 -->
+<!-- File Purpose / 本檔案用途: Unity build automation steering guide / Unity 建置自動化的 steering 指引，涵蓋建置配置載入、manage_build 觸發本地建置、建置錯誤解析、多平台建置管理，以及 Unity 6.4 的 Build Profiles 與 Apple 執行期程式庫路徑變更。 -->
 
 ## Role and Purpose
 
@@ -24,6 +24,8 @@ Load config → manage_build build → Poll manage_build status / read_console �
 ## MCP Tool Usage Examples
 
 > **Verified syntax**: confirmed against a live unity-mcp connection.
+>
+> **Tool groups**: every tool in the build flow — `manage_build`, `manage_scene`, `manage_asset`, `manage_packages`, `read_console` — is in the default-on `core` group, so the standard build needs no activation step. Two side paths do: reading shader source uses `manage_shader` (`vfx` group) and any `execute_code` recipe uses the `scripting_ext` group. Both are off by default; see "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
 
 ### Trigger Local Build
 
@@ -104,7 +106,7 @@ Pattern: `Shader error in 'Custom/MyShader': undeclared identifier 'unity_Object
 
 Fix suggestions:
 - Check if the Shader syntax is compatible with the target platform's graphics API
-- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate Shaders in the project (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`)
+- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate Shaders in the project (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`). `manage_asset` is in the default-on `core` group; **`manage_shader` is in the `vfx` group, which is off by default** — run `manage_tools(action: "activate", group: "vfx")` before reading shader source. See "Tool Group Activation (`manage_tools`)" in `unity-general.md`
 - Suggest using URP/HDRP-compatible Shaders instead of custom Shaders
 
 #### Missing Asset Errors
@@ -179,16 +181,28 @@ Before triggering a build, perform the following checks:
 | Windows | `windows64` | Confirm .NET Framework version compatibility |
 | Android | `android` | Confirm Android SDK/NDK paths are set, minimum API Level is correct; prefer Vulkan as the primary Graphics API (OpenGL ES as fallback only) |
 | iOS | `ios` | Must build on macOS, confirm Xcode version compatibility, signing settings are correct |
-| WebGL | `webgl` | Longer build times, be aware of memory limits, multithreading not supported; GPU Resident Drawer is unavailable (no compute shader support) |
+| WebGL | `webgl` | Longer build times, be aware of memory limits. **Multithreaded *rendering* is still unavailable**, but on Unity 6.4 `[BurstCompile]` jobs do run on background workers for Web builds — see the Unity 6.4 note below before telling a developer "Web has no threads". GPU Resident Drawer is unavailable (no compute shader support) |
 | macOS | `osx` | |
 | Linux | `linux64` | |
+| iOS | `ios` | On Unity 6.4 the Apple runtime libraries moved to `XcodeFolder/Frameworks/UnityRuntime.framework/UnityRuntime` — see the Unity 6.4 note below |
 
-### Scripting Backend Notes (Unity 6.x)
+### Scripting Backend Notes (Unity 6.4 baseline)
 
+> **Version baseline**: this file targets **Unity 6.4** (stream `6000.4`, pinned patch `6000.4.12f1`). Anything past 6.4 is forward-looking and unverified; the full policy is in `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
+
+- **`manage_build`'s `scripting_backend` parameter accepts only `mono` or `il2cpp`. There is no `coreclr` value.** Whatever the Editor's `ScriptingImplementation` enum happens to contain, the Power cannot select CoreCLR through the bridge — state that plainly rather than hedging about versions
 - **IL2CPP** remains the recommended backend for release builds — best AOT runtime performance, required on iOS/consoles
 - **Mono** remains the recommended backend for fast-iterating development builds where the platform supports it
-- **CoreCLR** appears as a `ScriptingImplementation` option on several Unity 6.x releases (confirmed available as early as 6000.5, not just 6.6+ as changelogs might suggest) but remains experimental. Do not select it for production BuildConfigs — flag any BuildConfig with `scriptingBackend: "CoreCLR"` as experimental and confirm the developer explicitly wants to test it. Verify availability in the connected project via `execute_code` (`System.Enum.GetNames(typeof(UnityEditor.ScriptingImplementation))`) rather than assuming from version number alone
-- If the developer's project has Enter Play Mode Options set to skip domain reload (a default introduced for new projects in a Unity 6.x Update release — verify the actual setting via `UnityEditor.EditorSettings.enterPlayModeOptionsEnabled` rather than assuming from version number), remind them this does not affect standalone builds — it only affects Editor Play Mode behavior
+- A BuildConfig that asks for a CoreCLR backend cannot be executed by `manage_build` at all. Treat it as a configuration error, not an experimental option: tell the developer the bridge will reject it, and that switching the Editor to CoreCLR is a manual Player Settings change outside this Power
+- If the developer's project has Enter Play Mode Options set to skip domain reload (a default introduced for new projects in a 6.x Update release — verify the actual setting via `UnityEditor.EditorSettings.enterPlayModeOptionsEnabled` rather than assuming from a version number), remind them this does not affect standalone builds — it only affects Editor Play Mode behavior
+
+### Unity 6.4 Build Changes
+
+All three items below come from [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) and [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21.
+
+- **Build Profiles hides classic platforms by default.** In new projects the classic platform list is hidden and the Platform Browser is regrouped. If a developer cannot find their target in the Build Profiles window, point them at `Project Settings > Editor > Build Profiles > Hide Classic Platforms` to show it again. `manage_build`'s `profile`/`profiles` params take Build Profile asset paths and are Unity 6+ only
+- **Apple runtime libraries moved.** On 6.4 the Unity runtime ships as a static framework at `XcodeFolder/Frameworks/UnityRuntime.framework/UnityRuntime` for both device and simulator. Any build post-processing script that hard-codes the old `Libraries/` path breaks — check for that before an iOS/tvOS/visionOS build and flag it
+- **Web builds can multithread Burst jobs.** Unity 6.4 enables multithreading for `[BurstCompile]` jobs on Web builds; they run on background workers. Non-Burst jobs still run on the main thread, and multithreaded *rendering* is still unavailable. So "WebGL has no multithreading" is no longer accurate as written — distinguish multithreaded rendering (unavailable) from Burst-compiled jobs (multithreaded on 6.4). 6.4 also adds Microphone API support and PSO tracing/warming for WebGPU on Web
 
 ### Multi-Platform Builds
 

@@ -29,14 +29,15 @@
         "Application.targetFrameRate (use VR SDK refresh rate)",
         "Screen.SetResolution (managed by VR SDK)",
         "Camera.main in Update (cache reference)",
-        "Unity.XR.Oculus.* (OculusXR package deprecated/being removed per Unity's public roadmap — verify current status via manage_packages before assuming; migrate to com.unity.xr.openxr regardless)"
+        "Unity.XR.Oculus.* (OculusXR package deprecated/being removed per Unity's public roadmap — verify current status via manage_packages(action: \"list_packages\") before assuming; migrate to com.unity.xr.openxr regardless)",
+        "HoloLens 2 plug-in APIs (platform support and plug-in deprecated in Unity 6.4 — migrate to the OpenXR plug-in)"
       ],
       "requiredDefines": []
     },
     "graphicsApi": {
       "recommended": "OpenXR",
       "fallback": "n/a",
-      "notes": "Unity's public communications describe the OculusXR package as deprecated and being removed in the Unity 6.5-6.7 timeframe, in favor of the OpenXR Plugin package -- confirm actual package presence/removal via manage_packages(action: 'list') for the specific project rather than assuming from version number alone. The URP GPU Resident Drawer is unsupported on VisionOS regardless of Graphics API; verify compute shader support per headset/runtime before enabling it."
+      "notes": "Two XR deprecations with different confidence levels. (1) DOCUMENTED FOR UNITY 6.4: HoloLens 2 platform support and its plug-in are deprecated; the documented migration path is the OpenXR plug-in (https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64, retrieved 2026-10-21). (2) REPORTED, REMOVAL VERSION UNVERIFIED: Unity's public communications describe the OculusXR package as deprecated and being removed in the Unity 6.5-6.7 timeframe in favour of the OpenXR Plugin package -- that removal version was NOT verified against a project with the package installed. Confirm actual package presence via manage_packages(action: \"list_packages\") for the specific project rather than assuming from a version number; the call is asynchronous, so poll manage_packages(action: \"status\", job_id: ...) with the returned job_id. The URP GPU Resident Drawer is unsupported on VisionOS regardless of Graphics API; verify compute shader support per headset/runtime before enabling it."
     },
     "renderingConstraints": {
       "targetFrameRate": "72-90 fps (platform dependent)",

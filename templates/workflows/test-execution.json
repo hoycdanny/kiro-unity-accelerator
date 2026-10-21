@@ -1,16 +1,27 @@
 {
   "id": "wf-test-execution",
   "name": "Test Execution",
-  "description": "Runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report.",
+  "description": "Activates the `testing` tool group, runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report.",
   "isBuiltIn": true,
+  "requiresToolGroups": ["testing"],
+  "toolGroupNotes": "`run_tests` and `get_test_job` are in the `testing` tool group, which is OFF by default -- only `core` is enabled. The activate-testing step below must run first. The MCP client may need a refresh or reconnect before the newly activated tools appear. `read_console` is `core` and needs no activation.",
   "steps": [
+    {
+      "id": "activate-testing",
+      "name": "Activate the `testing` tool group (run_tests/get_test_job are off by default)",
+      "mcpTool": "manage_tools",
+      "mcpAction": "activate",
+      "mcpArgs": { "action": "activate", "group": "testing" },
+      "dependsOn": [],
+      "onFailure": "abort"
+    },
     {
       "id": "run-editmode",
       "name": "Start EditMode tests (returns job_id; poll separately with get_test_job)",
       "mcpTool": "run_tests",
       "mcpAction": "n/a",
       "mcpArgs": { "mode": "EditMode" },
-      "dependsOn": [],
+      "dependsOn": ["activate-testing"],
       "onFailure": "pause"
     },
     {
@@ -19,7 +30,7 @@
       "mcpTool": "run_tests",
       "mcpAction": "n/a",
       "mcpArgs": { "mode": "PlayMode" },
-      "dependsOn": [],
+      "dependsOn": ["activate-testing"],
       "onFailure": "pause"
     },
     {

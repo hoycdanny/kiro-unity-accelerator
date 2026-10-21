@@ -14,15 +14,28 @@
     "scriptingBackend": "IL2CPP"
   },
   "mcpToolMapping": {
-    "primaryTool": "manage_editor",
+    "primaryTool": "manage_build",
     "action": "build",
     "settingsMap": {
-      "target": "buildTarget",
+      "target": "target",
       "scenes": "scenes",
-      "outputPath": "locationPathName",
-      "options.compression": "options.compressionType"
+      "outputPath": "output_path",
+      "options.development": "development",
+      "options.scriptingBackend": "scripting_backend",
+      "options.compression": "options"
     }
   },
+  "bridgeCall": {
+    "tool": "manage_build",
+    "action": "build",
+    "target": "android",
+    "scenes": "[\"Assets/Scenes/MainMenu.unity\", \"Assets/Scenes/GameLevel1.unity\"]",
+    "output_path": "Builds/Android/MyGame.apk",
+    "development": false,
+    "scripting_backend": "il2cpp",
+    "options": ["clean_build", "strict_mode", "detailed_report"]
+  },
+  "notes": "Builds go through manage_build; manage_editor has no build action. The `target` field above is Unity's BuildTarget name, while manage_build's `target` param takes the bridge alias (`android`) -- see bridgeCall. `scripting_backend` accepts only `mono` or `il2cpp`; there is no `coreclr` value. The `options` array accepts only clean_build, auto_run, deep_profiling, compress_lz4, strict_mode and detailed_report -- `Lz4HC` is NOT in that vocabulary, so high-compression Lz4HC must be set in Build Settings or a Build Profile rather than requested through manage_build. Prefer Vulkan as the primary Graphics API on Android; OpenGL ES is a compatibility fallback only and does not support the GPU Resident Drawer.",
   "useCloudAssist": false,
   "createdAt": "2025-01-01T00:00:00Z"
 }

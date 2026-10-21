@@ -1,10 +1,14 @@
 # Platform Compatibility Check Steering
 
-<!-- File Purpose / 本檔案用途: Unity cross-platform compatibility check steering guide / Unity 跨平台相容性檢查的 steering 指引，涵蓋 Shader 功能支援清單、記憶體預算估算、嚴重等級分類及平台切換問題排查。 -->
+<!-- File Purpose / 本檔案用途: Unity cross-platform compatibility check steering guide / Unity 跨平台相容性檢查的 steering 指引，涵蓋 Shader 功能支援清單、記憶體預算估算、嚴重等級分類、平台切換問題排查，以及 Unity 6.4 的 PVRTC 移除與 Web 多執行緒變更。 -->
 
 ## Role and Purpose
 
 Cross-platform Unity development requires careful attention to platform-specific constraints such as differences in available memory, GPU capabilities, supported graphics APIs, and input methods. This guide helps identify shader incompatibilities, memory budget violations, and API restrictions before deployment by scanning assets against platform profiles.
+
+> **Tool group prerequisite**: `manage_asset` and `manage_graphics` are in the default-on `core` group, so the standard check needs no activation. Two things here do: reading shader source uses **`manage_shader`, in the `vfx` group**, and the reflection recipes use **`execute_code`, in the `scripting_ext` group**. Both are off by default — `manage_tools(action: "activate", group: "vfx")` and `manage_tools(action: "activate", group: "scripting_ext")` respectively, and the MCP client may need a refresh before the tool appears. Canonical procedure: "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
+
+> **Version baseline**: this file targets **Unity 6.4** (stream `6000.4`, pinned patch `6000.4.12f1`). Anything past 6.4 is forward-looking and unverified; the full policy is in `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
 
 ## Compatibility Check Flow
 
@@ -20,6 +24,7 @@ Cross-platform Unity development requires careful attention to platform-specific
 - **Not supported**: Tessellation, Geometry Shader, Compute Shader (some older devices)
 - **Alternatives**: Tessellation → Vertex Displacement, Geometry Shader → Vertex Shader + GPU Instancing
 - **Recommendation**: Use URP/Mobile Shaders, avoid full Standard Shader
+- **Texture compression (Unity 6.4)**: **PVRTC was removed in 6.4** and can no longer be targeted on import. Use **ASTC** (preferred) or ETC. Never suggest PVRTC for an iOS target on the 6.4 baseline, and flag it as an Error-level finding if an existing import setting or automation script still names it. Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21
 
 ### Android
 - **Not supported**: Tessellation, Geometry Shader, high-precision float (some Mali GPUs)
@@ -32,10 +37,12 @@ Cross-platform Unity development requires careful attention to platform-specific
 - **Alternatives**: Per platform SDK documentation
 - **Recommendation**: Follow each platform's TRC/TCR (Technical Requirements Checklist / Technical Certification Requirements — the mandatory technical standards that console manufacturers require applications to meet before approval for release on their platforms) guidelines
 
-### WebGL
-- **Not supported**: Compute Shader, Tessellation, Geometry Shader, multi-threaded rendering, GPU Resident Drawer (requires compute shader support WebGL lacks)
-- **Alternatives**: Compute Shader → CPU computation or Pixel Shader, Tessellation → pre-baked Mesh
-- **Recommendation**: Limit texture size (max 2048), use DXT/ETC2 compression, reduce Draw Calls, prefer WebGPU backend (Unity 6+, still maturing) over WebGL 2.0 for projects that need compute-shader-class features and can tolerate a smaller initial browser support matrix
+### WebGL / Web
+- **Not supported**: Compute Shader, Tessellation, Geometry Shader, **multithreaded *rendering***, GPU Resident Drawer (requires compute shader support WebGL lacks)
+- **Threading, stated precisely (Unity 6.4)**: do **not** tell a developer "Web has no multithreading". Multithreaded *rendering* is still unavailable and general-purpose `System.Threading.Thread` is still off the table, but **Unity 6.4 enables multithreading for `[BurstCompile]` jobs on Web builds** — those jobs run on background workers. Non-Burst jobs still run on the main thread. So the correct advice for CPU-bound Web work on 6.4 is: move it into a Burst-compiled job. Source: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64), retrieved 2026-10-21
+- **Also new on 6.4 for Web**: Microphone API support, and PSO tracing/warming for WebGPU
+- **Alternatives**: Compute Shader → CPU computation, a Burst-compiled job, or a Pixel Shader; Tessellation → pre-baked Mesh
+- **Recommendation**: Limit texture size (max 2048), use DXT/ETC2 compression, reduce Draw Calls, prefer the WebGPU backend over WebGL 2.0 for projects that need compute-shader-class features and can tolerate a smaller browser support matrix
 
 ## Memory Budget Estimation Guide
 
@@ -123,9 +130,11 @@ The exact fields returned for size/import metadata depend on the asset type — 
 - Use Shader stripping to reduce unnecessary Shader variants
 - Regularly update Platform Profiles to reflect new device capabilities
 
-## Unity 6.x Platform Notes (verify against the connected project, don't assume from version number)
+## Unity 6.4 Platform Notes (verify against the connected project, don't assume from a version number)
 
-- **GPU Resident Drawer compatibility gate**: Before recommending the GPU Resident Drawer (see `performance-analysis.md`) for any platform, verify the target Graphics API supports compute shaders and excludes OpenGL ES and VisionOS, and confirm the project isn't on the 2D Renderer (which cannot use it at all). Use `manage_graphics(action: "pipeline_get_info")`/`pipeline_get_settings` or direct reflection (`execute_code`) to confirm the active Graphics API and rendering path (Forward+/Deferred+ required)
-- **XR/OculusXR status**: Unity's public communications describe the OculusXR package as deprecated since 6.5 and removed around 6.7 in favor of the OpenXR Plugin package — this has not been independently verified against a live XR project as of this writing. If `manage_packages(action: "list_packages")` (asynchronous — poll `action: "status"` with the returned `job_id`) shows `com.unity.xr.oculus`, flag it for migration to the OpenXR Plugin package regardless of the exact Unity version, since OculusXR is deprecated either way
-- **Built-in Render Pipeline**: URP is the default and Unity-recommended pipeline for all new projects; Built-in remains usable for existing/legacy projects. Treat Built-in-only shaders in a new/greenfield project as a Suggestion-level flag to consider URP instead — verify via `GraphicsSettings.currentRenderPipeline == null` (Built-in) vs. a `UniversalRenderPipelineAsset` type
-- **Render Graph Compatibility Mode**: If a URP project has "Compatibility Mode (Render Graph Disabled)" enabled, flag it as a Warning — it disables the default render-graph memory optimizations and is a legacy path for old-style `ScriptableRenderPass` scripts. This setting lives in Editor-only global settings that may not be reachable via simple reflection; if `execute_code` reflection can't confirm it, ask the developer to check Project Settings → Graphics → URP Global Settings directly
+- **GPU Resident Drawer compatibility gate (available on the 6.4 baseline)**: Before recommending the GPU Resident Drawer (see `performance-analysis.md`) for any platform, verify the target Graphics API supports compute shaders and excludes OpenGL ES and VisionOS, and confirm the project isn't on the 2D Renderer (which cannot use it at all). Forward+ or Deferred+ is required, and Realtime GI (Enlighten) must be off. Use `manage_graphics(action: "pipeline_get_info")`/`pipeline_get_settings` — both `core`, no activation needed — or direct reflection via `execute_code` (`scripting_ext`) to confirm the active Graphics API and rendering path. On 6.4 the redesigned Rendering Statistics window itemises which batching path absorbed each draw call, so verify the benefit from that breakdown rather than from a single draw-call number
+- **Render Graph is the only path (Compatibility Mode removed in 6.4)**: **Unity 6.4 removes URP Compatibility Mode for custom render passes entirely, along with the `URP_COMPATIBILITY_MODE` scripting define.** There is no toggle left to flag as a Warning. What to check instead on a project upgrading into 6.4: any custom `ScriptableRenderPass` still using the legacy `Execute`/`Configure` pattern, or any `#if URP_COMPATIBILITY_MODE` block, is an **Error**-level finding — it must be ported to `RecordRenderGraph` before the project will render. The verified URP pairing on the 6.4 baseline is URP 17.4. Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21
+- **XR: HoloLens 2 deprecated (documented for 6.4)**: Unity 6.4 deprecates HoloLens 2 platform support and its plug-in; the documented migration is the OpenXR plug-in. Flag any project that still depends on it. Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21
+- **XR: OculusXR status (reported, removal release unverified)**: Unity's public communications describe the OculusXR package as deprecated and slated for removal in a later 6.x Update release, in favour of the OpenXR Plugin package. The deprecation is reported; **the removal release is unverified** and was not checked against a live XR project. If `manage_packages(action: "list_packages")` (asynchronous — poll `action: "status"` with the returned `job_id`) shows `com.unity.xr.oculus`, flag it for migration to OpenXR regardless of the exact Unity version, since it is deprecated either way
+- **iOS texture compression**: PVRTC is gone on 6.4 — ASTC or ETC only. See the iOS section above
+- **Built-in Render Pipeline**: URP is the default and Unity-recommended pipeline for all new projects; Built-in remains usable for existing/legacy projects. Treat Built-in-only shaders in a new/greenfield project as a Suggestion-level flag to consider URP instead — verify via `manage_graphics(action: "pipeline_get_info")`, or `GraphicsSettings.currentRenderPipeline == null` (Built-in) vs. a `UniversalRenderPipelineAsset` type

@@ -20,7 +20,7 @@
   ],
   "mcpToolMapping": {
     "primaryTool": "manage_asset",
-    "action": "set_import_settings",
+    "action": "modify",
     "settingsMap": {
       "maxSize": "maxSize",
       "compression": "compression",
@@ -29,6 +29,7 @@
       "generateMipMaps": "generateMipMaps"
     }
   },
+  "notes": "manage_asset has NO set_import_settings action (earlier revisions of this file encoded one). The valid actions are import, create, modify, delete, duplicate, move, rename, search, get_info, create_folder and get_components, and `path` is required on every one of them. Apply this preset as manage_asset(action: \"modify\", path: \"<asset path>\", properties: { ...settingsMap values... }) -- the settingsMap keys above go inside `properties`. manage_asset is in the default-on `core` tool group, so no manage_tools activation step is needed.",
   "createdAt": "2026-03-01T00:00:00Z",
   "updatedAt": "2026-03-01T00:00:00Z"
 }

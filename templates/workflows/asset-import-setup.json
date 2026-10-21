@@ -3,6 +3,8 @@
   "name": "Asset Import & Setup",
   "description": "Scans a folder for assets, detects types, applies matching presets, and generates a change summary.",
   "isBuiltIn": true,
+  "requiresToolGroups": [],
+  "toolGroupNotes": "Every tool in this workflow (manage_asset, batch_execute, read_console) is in the bridge's default-on `core` group, so no manage_tools activation step is needed. On Unity 6.4, note that a dependent asset reimports only when its dependency's import result changes -- a project with custom ScriptedImporter/AssetPostprocessor code may need explicit DependsOnSourceAsset/DependsOnArtifact declarations for a batch apply to propagate. See steering/asset-automation.md.",
   "steps": [
     {
       "id": "scan-folder",
@@ -24,10 +26,10 @@
     },
     {
       "id": "apply-presets",
-      "name": "Apply matching presets via batch execute",
+      "name": "Apply matching presets via batch execute (fail_fast must be false so one bad asset does not abandon the rest)",
       "mcpTool": "batch_execute",
-      "mcpAction": "run",
-      "mcpArgs": { "commands": [] },
+      "mcpAction": "n/a",
+      "mcpArgs": { "commands": [], "fail_fast": false },
       "dependsOn": ["detect-types"],
       "onFailure": "pause"
     },

@@ -66,7 +66,7 @@ Describe batch rules → Parse rules → Filter objects → Show preview → Con
 | Query class info | `manage_script(action: "read", name: ..., path: ...)` | Retrieve target class fields and types (both `name` and `path` required — `path` is the containing folder) |
 | Write script | `create_script(path, contents)` | Write generated C# scripts to the project |
 | Trigger compilation | `refresh_unity` | Trigger Unity recompilation after writing scripts — this is its own tool, not a `manage_editor` action |
-| Filter scene objects | `find_gameobjects(search_term, search_method)` | Search objects by name, Tag, Layer, or component (both params required) |
+| Filter scene objects | `find_gameobjects(search_term, search_method)` | Search objects by name, Tag, Layer, component, path or id. Only `search_term` is required; `search_method` is optional and its values are always prefixed — `by_name`, `by_tag`, `by_layer`, `by_component`, `by_path`, `by_id`. Returns instance IDs only — treat each id as an opaque token (Unity 6.4 deprecates `InstanceID` in favour of `EntityId`) |
 | Set Layer/Tag | `manage_gameobject(action: "modify", target, layer/tag)` | Modify an object's Layer or Tag |
 | Modify component properties | `manage_components(action: "set_property", target, component_type, property, value)` | Modify property values on an object's components |
 | Batch execute | `batch_execute(commands)` | Package multiple MCP calls into a single batch operation — each command's second key is `params`, not `args` |

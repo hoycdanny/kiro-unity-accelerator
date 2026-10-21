@@ -12,10 +12,10 @@
         "MultiThreadedRendering"
       ],
       "alternatives": {
-        "ComputeShader": "CPU calculation or Pixel Shader",
+        "ComputeShader": "CPU calculation, a [BurstCompile] job (multithreaded on Web from Unity 6.4), or a Pixel Shader",
         "Tessellation": "Pre-baked high-poly Mesh",
         "GeometryShader": "Vertex Shader billboarding",
-        "MultiThreadedRendering": "Single-threaded rendering"
+        "MultiThreadedRendering": "Single-threaded rendering -- this entry covers RENDERING only. Unity 6.4 does run [BurstCompile] jobs on background workers for Web builds, so CPU work can be multithreaded by moving it into a Burst job; non-Burst jobs stay on the main thread."
       }
     },
     "memoryBudget": {
@@ -26,7 +26,7 @@
     },
     "scriptingConstraints": {
       "disallowedAPIs": [
-        "System.Threading.Thread",
+        "System.Threading.Thread (general-purpose OS threads are unavailable; use a [BurstCompile] job instead -- Unity 6.4 runs Burst jobs on background workers for Web)",
         "System.Net.Sockets",
         "System.Reflection.Emit",
         "System.IO.FileStream"
@@ -38,7 +38,17 @@
     "graphicsApi": {
       "recommended": "WebGL2",
       "fallback": "WebGL1",
-      "notes": "WebGL does not support compute shaders, so the URP GPU Resident Drawer and other compute-shader-based render features (Unity 6+) are unavailable regardless of rendering path. Unity's WebGPU backend is an emerging option for compute-class features but has a smaller browser support matrix than WebGL 2.0; verify current maturity against the target Unity version rather than assuming a specific release's status."
+      "notes": "WebGL does not support compute shaders, so the URP GPU Resident Drawer and other compute-shader-based render features are unavailable regardless of rendering path. Unity's WebGPU backend is an option for compute-class features but has a smaller browser support matrix than WebGL 2.0; Unity 6.4 adds PSO tracing and warming for WebGPU. Verify current maturity against the target Unity version rather than assuming a specific release's status."
+    },
+    "unity64Notes": {
+      "threading": "Multithreaded RENDERING is still unavailable on Web, and general-purpose threads are still unsupported -- but Unity 6.4 enables multithreading for [BurstCompile] jobs on Web builds, which run on background workers. Non-Burst jobs stay on the main thread. Do not state that Web has no multithreading at all; state which kind.",
+      "microphone": "Unity 6.4 adds Microphone API support on Web.",
+      "webgpu": "Unity 6.4 adds PSO (pipeline state object) tracing and warming for the WebGPU backend.",
+      "sources": [
+        "https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64",
+        "https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64"
+      ],
+      "retrieved": "2026-10-21"
     }
   }
 }

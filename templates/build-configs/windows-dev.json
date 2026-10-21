@@ -14,16 +14,28 @@
     "scriptingBackend": "Mono"
   },
   "mcpToolMapping": {
-    "primaryTool": "manage_editor",
+    "primaryTool": "manage_build",
     "action": "build",
     "settingsMap": {
-      "target": "buildTarget",
+      "target": "target",
       "scenes": "scenes",
-      "outputPath": "locationPathName",
-      "options.development": "options.development",
-      "options.allowDebugging": "options.allowDebugging"
+      "outputPath": "output_path",
+      "options.development": "development",
+      "options.scriptingBackend": "scripting_backend",
+      "options.compression": "options"
     }
   },
+  "bridgeCall": {
+    "tool": "manage_build",
+    "action": "build",
+    "target": "windows64",
+    "scenes": "[\"Assets/Scenes/MainMenu.unity\", \"Assets/Scenes/GameLevel1.unity\"]",
+    "output_path": "Builds/Windows/MyGame.exe",
+    "development": true,
+    "scripting_backend": "mono",
+    "options": ["compress_lz4", "detailed_report"]
+  },
+  "notes": "Builds go through manage_build; manage_editor has no build action. The `target` field above is Unity's BuildTarget name, while manage_build's `target` param takes the bridge alias (`windows64`) -- see bridgeCall. `scripting_backend` accepts only `mono` or `il2cpp`; there is no `coreclr` value, so a CoreCLR backend cannot be selected through the bridge. The `options` array accepts only clean_build, auto_run, deep_profiling, compress_lz4, strict_mode and detailed_report. `allowDebugging` has no bridge option of its own -- it follows from `development: true`. `scenes` is passed as a JSON array string, not a native array.",
   "useCloudAssist": false,
   "createdAt": "2025-01-01T00:00:00Z"
 }

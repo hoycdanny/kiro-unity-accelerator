@@ -14,7 +14,7 @@ This document provides Unity UI architecture analysis expertise. When the develo
 Scan scripts → Trace UI references → Analyze event call chains → Calculate coupling → Generate refactoring suggestions → Integrate report
 ```
 
-1. **Scan scripts**: Use `find_gameobjects(search_method: "by_component")` or `manage_asset(action: "search")` to get all C# scripts in the project
+1. **Scan scripts**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to get all C# scripts in the project, or `find_gameobjects(search_term: "<component type>", search_method: "by_component")` to locate scene objects carrying a given component (`search_term` is required; `search_method` is optional)
 2. **Trace UI references**: Parse UI component references in each script (SerializeField, GetComponent, GameObject.Find patterns)
 3. **Analyze event call chains**: Trace complete call chains from UI event entry points, detect event subscription patterns and state changes
 4. **Calculate coupling**: Compute coupling scores based on direct reference count, call chain depth, shared state changes, and bidirectional dependencies

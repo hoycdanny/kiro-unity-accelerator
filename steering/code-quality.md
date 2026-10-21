@@ -1,6 +1,6 @@
 # Code Quality & Architecture Check Steering
 
-<!-- File Purpose / 本檔案用途: Unity C# code quality and architecture check steering guide / Unity C# 程式碼品質與架構檢查的 steering 指引，涵蓋架構模式（MVC/ECS/ScriptableObject）、循環依賴偵測、SOLID 原則檢查及常見程式碼異味。 -->
+<!-- File Purpose / 本檔案用途: Unity C# code quality and architecture check steering guide / Unity C# 程式碼品質與架構檢查的 steering 指引，涵蓋架構模式（MVC/ECS/ScriptableObject）、循環依賴偵測、SOLID 原則檢查、常見程式碼異味，以及 Unity 6.4 的 Project Auditor 與序列化驗證變更。 -->
 
 ## Role and Purpose
 
@@ -8,7 +8,9 @@ Maintaining clean architecture in Unity projects benefits from consistent patter
 
 ## Code Check Flow
 
-1. **Get project info**: Use `execute_code` (e.g. `return UnityEngine.Application.unityVersion;`) or `manage_packages(action: "list_packages")` to understand the project/environment — there is no standalone `project_info` tool call
+> **Tool group prerequisite**: the script and asset tools used below (`manage_asset`, `manage_script`, `find_in_file`, `validate_script`, `apply_text_edits`) are all in the default-on `core` group. **`execute_code` is not** — it lives in the `scripting_ext` group, which is off by default. Activate it with `manage_tools(action: "activate", group: "scripting_ext")` before any recipe that needs it, and note the MCP client may need a refresh before the tool appears. Canonical procedure: "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
+
+1. **Get project info**: Read the `mcpforunity://project/info` resource for the project root, Unity version and platform — resources read, tools mutate, and a resource read needs no tool group. There is no standalone `project_info` **tool call**, but the **resource** does exist; use `manage_packages(action: "list_packages")` (asynchronous — poll `action: "status", job_id: ...`) for the installed-package picture
 2. **List scripts**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to get all C# script paths (`manage_script` has no `list` action — it's a legacy router supporting only `create`/`read`/`delete`)
 3. **Read script content**: Use `manage_script(action: "read", name: scriptName, path: folderPath)` to read scripts that need checking — both `name` (filename without `.cs`) and `path` (containing folder) are required; there is no single-string full-path param
 4. **Load architecture rules**: Load enabled ArchitectureRule definitions from `templates/architecture-rules/` or custom locations
@@ -54,9 +56,14 @@ Maintaining clean architecture in Unity projects benefits from consistent patter
 
 ### Get Project Structure
 
+Read the resource — no tool group, no code execution:
+
 ```
-execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")
+resources/read  mcpforunity://project/info
+→ { projectRoot: "...", unityVersion: "6000.4.x", platform: "WindowsEditor", ... }
 ```
+
+If the `scripting_ext` group is already active and a claim needs live reflection instead, `execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")` returns the same version string.
 
 ### List All Scripts
 
@@ -174,9 +181,19 @@ Examples:
 | Reflection-based access modifier bypass | Code uses `System.Reflection` (`GetField`/`GetMethod` with `BindingFlags.NonPublic`) to read or invoke `private`/`internal` members of another class | Refactor to expose an intentional public API (property, method, or `[InternalsVisibleTo]`) instead of reaching into internals. See CoreCLR note below — this pattern is expected to become stricter, not more lenient |
 | Cached reflection objects held long-term | `Type.GetType()`, `GetMethod()`, etc. results stored in static fields or long-lived collections without pooling | Per Unity's official reflection-overhead guidance, cache reflection lookups but be aware the GC continuously scans cached reflection objects for the object's lifetime — prefer compiled delegates (`Expression.Compile`) or source generators for hot paths |
 
-## Unity 6.x CoreCLR Impact on Code Quality Checks
+## Unity 6.4 Code Quality Changes
 
-> **Status note**: CoreCLR is an **experimental** scripting backend option. Its exact version availability should not be assumed from memory — it has been confirmed present as a `ScriptingImplementation` enum value as early as Unity 6000.5 via live reflection against a connected project, earlier than some public changelogs might suggest. The separate, more clearly version-gated feature is the **CoreCLR Editor** (running the Editor itself on CoreCLR), which Unity discussion threads place around Unity 6.6+ with a stated target of full support by Unity 6.8. Treat the items below as forward-looking guidance to flag during code review, not as build-breaking errors — most current projects still run on Mono/IL2CPP. When in doubt, verify directly against the connected project via `execute_code` rather than citing a specific version number.
+> **Version baseline**: this file targets **Unity 6.4** (stream `6000.4`, pinned patch `6000.4.12f1`), the pairing this Power was verified on. Anything past 6.4 is forward-looking and unverified; the full policy is in `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
+
+Both items below come from [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) and [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21.
+
+- **Project Auditor ships in the Editor on 6.4.** It is no longer a separate package to install, so do not tell a developer to add one — point them at the built-in tooling. Several of its analyzer APIs were made `internal` in the same move, so code that drove Project Auditor programmatically through those APIs will not compile against 6.4 and must be reworked or dropped. Flag any such usage during an architecture check
+- **`[SerializeReference]` now warns when the assigned class, or any of its ancestors, lacks `[Serializable]`.** Treat a missing `[Serializable]` on a `[SerializeReference]` target or any of its base classes as a violation during code checks, not just a style issue — Unity will surface it as a warning. Check the whole ancestor chain, not only the concrete type
+- **`Object.Destroy` now invokes `OnDisable` on all descendants**, matching `DestroyImmediate`'s long-standing behaviour. Any teardown code that manually propagated disable callbacks to children now double-fires them. When reviewing or generating teardown code, flag manual propagation as redundant on 6.4 and remove it rather than guarding it
+
+## CoreCLR Impact on Code Quality Checks
+
+> **Status note**: CoreCLR is an **experimental** scripting backend option in the Editor, and it is **not reachable through this Power** — `manage_build`'s `scripting_backend` parameter accepts only `mono` or `il2cpp`, with no `coreclr` value, so the bridge cannot produce a CoreCLR build. Whatever the Editor's `ScriptingImplementation` enum happens to contain does not change that. The separate **CoreCLR Editor** effort (running the Editor itself on CoreCLR) is forward-looking and unverified here; do not attach it to a specific release. Treat the items below as forward-looking guidance to flag during code review, not as build-breaking errors — every build this Power can produce runs on Mono or IL2CPP.
 
 - **Stricter access modifier enforcement**: CoreCLR enforces `public`/`internal`/`private` more strictly than the Mono runtime historically has. Code that relies on reflection (`BindingFlags.NonPublic | BindingFlags.Instance`) to read or invoke another class's private members — a pattern sometimes used to work around missing public APIs — is a maintainability risk regardless of backend, and is more likely to break when a project eventually migrates to CoreCLR. Flag this pattern as a violation during architecture checks and suggest an explicit public/internal API instead
 - **Serialization changes**: Unity's serialization system is being updated alongside the CoreCLR migration (a new, faster binary serializer is replacing some legacy paths). Custom `ISerializationCallbackReceiver` implementations and heavy reliance on non-standard serialization tricks (e.g., serializing through reflection-based custom formatters) are worth flagging as "verify after CoreCLR migration" items, since exact byte-level serialization behavior may change

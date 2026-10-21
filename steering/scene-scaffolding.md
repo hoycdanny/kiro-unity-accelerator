@@ -1,6 +1,6 @@
 # Scene Scaffolding Acceleration Steering
 
-<!-- File Purpose / 本檔案用途: Unity scene scaffolding steering guide / Unity 場景架構快速搭建的 steering 指引，涵蓋場景模板載入、GameObject 階層生成、衝突處理及生成摘要。 -->
+<!-- File Purpose / 本檔案用途: Unity scene scaffolding steering guide / Unity 場景架構快速搭建的 steering 指引，涵蓋 ui 工具群組啟用、場景模板載入、GameObject 階層生成、衝突處理及生成摘要。 -->
 
 > **Product context**: This steering file provides Unity scene structure generation guidance. Configuration paths starting with `Assets/UnityAccelerator/` refer to the project-level extension folder inside your Unity project, where developers store custom presets, scaffolds, and templates that override the built-in ones. If you are adapting this guide for an unrelated Unity project, replace `UnityAccelerator` with your own project namespace (for example, `Assets/<YourProject>/Config/Scaffolds/`).
 
@@ -16,8 +16,10 @@ This document provides Unity scene architecture expertise. When the developer re
 Confirm type → Load Scaffold → Create scene → Build hierarchy → Check conflicts → Generate summary
 ```
 
+> **Tool group prerequisite**: `manage_scene`, `manage_gameobject`, `manage_components`, `manage_camera`, `find_gameobjects` and `batch_execute` are all in the default-on `core` group. **`manage_ui` is not** — it lives in the `ui` group, which is off by default. Activate it with `manage_tools(action: "activate", group: "ui")` **only when the scaffold actually asks for UI Toolkit elements** (every scaffold in `templates/scaffolds/` declares this via its `requiresToolGroups` field). The MCP client may need a refresh or reconnect before the tool appears. Canonical procedure: "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
+
 1. **Confirm Scene Type**: Confirm the required scene type with the developer (2D platformer, 3D first-person, UI menu, open world, multiplayer lobby, architectural visualization, training simulation, data visualization, educational tool)
-2. **Load Scaffold**: Load the corresponding Scene_Scaffold JSON from `templates/scaffolds/` (custom location takes priority; falls back to built-in templates)
+2. **Load Scaffold**: Load the corresponding Scene_Scaffold JSON from `templates/scaffolds/` (custom location takes priority; falls back to built-in templates). Read its `requiresToolGroups` array and activate each named group before building the hierarchy
 3. **Create Scene**: Use `manage_scene(action: "create")` to create a new scene or open the target scene
 4. **Build Hierarchy**: Following the Scaffold hierarchy definition, recursively create objects and components using `manage_gameobject`, `manage_components`, `manage_camera`, `manage_ui`
 5. **Check Conflicts**: Use `find_gameobjects` to check if objects with the same name already exist in the target scene
@@ -108,7 +110,9 @@ Before creating objects, use `find_gameobjects` to check if objects with the sam
 find_gameobjects(search_term: "FPSController", search_method: "by_name")
 ```
 
-Both `search_term` and `search_method` are required — there is no generic `name:` or `filter:` shorthand.
+Only `search_term` is required; `search_method` is optional, and its values are always prefixed — `by_name`, `by_tag`, `by_layer`, `by_component`, `by_path`, `by_id`. There is no generic `name:` or `filter:` shorthand.
+
+> **Instance IDs are opaque (Unity 6.4 `EntityId`)**: `find_gameobjects` returns instance IDs only. Unity 6.4 deprecates `InstanceID` in favour of a new `EntityId` type, so **treat the returned id as an opaque token — pass it straight back to the bridge; never do arithmetic on it, sort by it, or parse it.** For scaffolding specifically: when reparenting or configuring newly created objects, carry the id through verbatim to `manage_gameobject`/`manage_components`; do not cast it to `int`, do not use its sign to decide whether it refers to an asset, do not round-trip it through `ToString` + `int.Parse`, and do not sort a batch's returned ids to recover the order the objects were created in — track creation order from your own command list instead. Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21.
 
 ### Conflict Handling Options
 
@@ -171,9 +175,12 @@ Status: Complete
 | UI Menu | Canvas + GraphicRaycaster + EventSystem | Required components for UI interaction |
 | Open World | Terrain + WindZone + ReflectionProbe | Large scene environment foundation |
 
-### Unity 6 Rendering & Lighting Notes for New Scenes
+### Unity 6.4 Rendering & Lighting Notes for New Scenes
 
-- New scenes created in a URP project default to **Render Graph** (URP 17+) rather than the legacy Compatibility Mode — no scaffold action is needed, this is a project-level Graphics setting, not a per-scene one
+> **Version baseline**: Unity 6.4 (stream `6000.4`, pinned patch `6000.4.12f1`) with URP 17.4, the pairing this Power was verified on. Anything past 6.4 is forward-looking and unverified — see `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
+
+- Scenes in a URP project render through **Render Graph**. On Unity 6.4 that is the *only* path: **URP Compatibility Mode was removed in 6.4**, along with the `URP_COMPATIBILITY_MODE` scripting define, so there is no legacy mode for a scaffold to avoid or a developer to toggle. If a project being scaffolded still carries custom `ScriptableRenderPass` code using the legacy `Execute`/`Configure` pattern, that code must be ported to `RecordRenderGraph` before anything will render — surface it before scaffolding rather than after. Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21
+- For 2D scaffolds, Unity 6.4 adds the ability to inject a custom render pass into the URP 2D frame loop, so custom rendering and post-processing for 2D can live inside URP. Mention it as a follow-up option rather than scaffolding it. Source: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64), retrieved 2026-10-21
 - When scaffolding scenes with many repeated static meshes (e.g., `open-world-base`), mention to the developer that enabling the **GPU Resident Drawer** (Forward+ rendering path required) can reduce draw calls significantly — this is a Project Settings change, not something `manage_gameobject` configures per-object, so surface it as a follow-up suggestion rather than doing it automatically
 - For baked lighting, **Adaptive Probe Volumes (APV)** are URP's modern replacement/complement to manually placed Light Probe Groups — Unity places probes automatically based on scene geometry density. When a scaffold calls for baked GI (e.g., architectural walkthroughs, static environments), suggest APV via Lighting window → Light Probe Lighting → Adaptive Probe Volumes instead of manually authored Light Probe Groups
 - `ReflectionProbe` with `"mode": "Baked"` (as used in `open-world-base.json`) remains valid in Unity 6 — Forward+ and Deferred+ both support reflection probes with indirect draws
