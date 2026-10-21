@@ -10,8 +10,9 @@
 
 請確認以下條件都已滿足：
 
-1. **Unity Editor 已開啟**，且已開啟一個 2D 專案（建議 Unity 6.x，URP 2D Renderer）
-2. **MCP Server 已啟動**：Unity Editor → Window → MCP for Unity → Start Server
+1. **Unity Editor 已開啟**，且已開啟一個 2D 專案，使用 URP 2D Renderer。
+   版本政策：本 Power 以 **Unity 6.4**（發布串流 `6000.4`，最新修補版 `6000.4.12f1`）為基準，支援的最低 Editor 版本是 **Unity 6.0（`6000.0`）**。本 Workshop 實機查核過的組合是 **Unity `6000.4.6f1` + URP 17.4.0**。Unity 6.5 / 6.6 及之後的 6.x 預期可用但未在此驗證；要鎖定版本進入正式生產，請改用 **Unity 6.3 LTS**（支援至 2027 年 12 月）。**Unity 6.0 LTS 已於 2026-10-16 結束支援，請勿使用。**
+2. **MCP for Unity 橋接已就緒**：Unity Editor → `Window → MCP for Unity`，確認狀態面板顯示 **Connected**。若不是，用同一個視窗裡的重新啟動（Restart）動作把橋接伺服器重開。套件版本請用 **v10.3.0 或更新版本（最低 v10.0.0）**。
 3. **本 Power 已安裝**並在 Kiro 中啟用（Powers 面板 → 確認 kiro-unity-accelerator 已啟用）
 4. 在 Kiro 對話框貼上第一句健康檢查 Prompt，確認連線正常：
 
@@ -20,6 +21,38 @@
 ```
 
 **預期結果**：Kiro 會回報 Unity 版本、Render Pipeline、目前場景名稱、以及 Input 系統設定，並在後續所有腳本中套用正確的輸入 API。
+
+> **Unity 6.4 的 Input 補充**：6.4 的 Input System 套件新增了 `OnMouse*` 事件支援，作為從舊 Input Manager 遷移的過渡路徑 —— 如果專案還留著依賴 `OnMouseDown` 這類訊息的舊腳本，切到 New Input System 之後它們仍可運作。本 Workshop 的腳本仍以上面查到的 Active Input Handling 設定為準。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64)（2026-10-21 取得）。
+
+---
+
+## 步驟 0：先啟用這個 Workshop 需要的工具群組
+
+**目標**：讓 Kiro 看得到後面會用到的 MCP 工具。
+
+MCP for Unity 把工具分成 **10 個群組**，而**預設只有 `core` 是啟用的**，其餘 9 個都要手動開啟。場景、GameObject、元件、腳本、建置這些本 Workshop 的主力工具都在 `core`，但有幾個步驟會用到 `core` 以外的群組。
+
+**複製貼上這段 Prompt：**
+
+```
+請先呼叫 manage_tools(action: "list_groups") 列出目前的工具群組狀態，然後執行：
+- manage_tools(action: "sync")                                 # 先採用 Unity Tools 視窗裡的開關狀態
+- manage_tools(action: "activate", group: "scripting_ext")      # 需要 execute_code 做專案查詢時
+- manage_tools(action: "activate", group: "testing")            # 步驟 12 要跑 run_tests 時
+
+如果我後面要求用 UI Toolkit（而不是本 Workshop 預設的 legacy uGUI）做 HUD，再額外執行：
+- manage_tools(action: "activate", group: "ui")                 # manage_ui 在這個群組
+
+做完請再跑一次 manage_tools(action: "list_groups") 回報結果。
+```
+
+**預期結果**：Kiro 回報群組清單與啟用結果。
+
+> **兩個必須知道的細節**：
+> 1. `list_groups` 回傳的 `enabled` 欄位，只有在這個 session 已經下過 `activate`／`deactivate` 時才反映 session 的規則，否則它回報的是該群組的**預設值** —— 所以它不是「目前實際可呼叫什麼」的可靠讀數。
+> 2. 部分 MCP client 會**快取工具清單**，`activate` 之後新工具可能要等 client 重新整理或重新連線才會出現。如果 Kiro 說找不到某個工具，先重新整理 MCP 伺服器再重試，不要急著換做法。
+>
+> 全部做完後想回到乾淨狀態，可以用 `manage_tools(action: "reset")` 回到只剩 `core`。
 
 ---
 
@@ -322,6 +355,8 @@
 ```
 
 **預期結果**：擊敗敵人與收集水晶時有粒子特效，跳躍/收集/擊敗有音效。如果環境沒有 AI 生成工具的金鑰，Kiro 會如實告知並給替代方案。
+
+> **Unity 6.4 的 2D 畫面進階選項**：6.4 起可以把**自訂 render pass 注入 URP 2D 的 frame loop**，也就是能為 2D 專案加上自訂渲染與後處理（例如全畫面受傷閃紅、過關時的色調變化），不必再繞過 2D Renderer。這屬於超出本 Workshop 範圍的進階題，但如果之後想做畫面特效，這是 6.4 該走的路。另外要注意：URP Compatibility Mode 與 `URP_COMPATIBILITY_MODE` 腳本定義在 6.4 已**完全移除**，自訂 render pass 只剩 Render Graph 一條路。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) 與 [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64)（皆於 2026-10-21 取得）。
 
 ---
 

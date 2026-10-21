@@ -4,9 +4,13 @@
 
 > **언어 안내**: 이 README는 한국어 버전입니다. 위 링크에서 다른 언어 버전을 선택할 수 있습니다. Steering 파일(도메인 지식)은 중국어 번체로 작성되어 있으며 영어 요약이 각 파일 상단에 포함되어 있습니다. Steering 파일을 직접 읽을 필요 없이, 원하는 언어(한국어, 영어, 일본어, 중국어)로 도구와 상호작용하면 자동으로 해당 언어로 응답합니다. 언어 관련 문제가 있으면 이슈를 열어주세요.
 
-Kiro를 Unity 개발 AI 어시스턴트로 전환하세요. MCP(Model Context Protocol — AI 어시스턴트가 개발 도구와 상호작용하기 위한 표준화된 프로토콜로, 메뉴를 직접 탐색하거나 반복적인 기본 코드(boilerplate)를 작성하는 대신 자연어로 원하는 작업을 설명할 수 있게 해줍니다)를 통해 자연어로 Unity Editor를 제어하며, 에셋 관리, 씬 구축, 빌드 자동화, 성능 분석, 코드 품질 검사 등을 지원합니다 — 40개 이상의 TypeScript 도구 모듈과 14개의 도메인 지식 파일을 내장하고 있습니다.
+Kiro를 Unity 개발 AI 어시스턴트로 전환하세요. MCP(Model Context Protocol — AI 어시스턴트가 개발 도구와 상호작용하기 위한 표준화된 프로토콜로, 메뉴를 직접 탐색하거나 반복적인 기본 코드(boilerplate)를 작성하는 대신 자연어로 원하는 작업을 설명할 수 있게 해줍니다)를 통해 자연어로 Unity Editor를 제어하며, 에셋 관리, 씬 구축, 빌드 자동화, 성능 분석, 코드 품질 검사 등을 지원합니다 — 40개 이상의 TypeScript 도구 모듈과 15개의 도메인 지식 파일을 내장하고 있습니다.
 
-> **Unity 6.x 최신 반영, 실제 프로젝트 검증 우선**: Steering 가이드는 Unity 6의 각 업데이트 릴리스에서 변경된 동작을 다룹니다. URP의 기본 렌더링 경로가 된 Render Graph, GPU Resident Drawer(Forward+/Deferred+ 전용 GPU 인스턴싱 기반 드로우 콜 절감), 일부 버전의 신규 프로젝트에 기본 적용되는 "씬만 다시 로드(도메인 리로드 없음)" Play Mode 동작, 실험적 단계인 CoreCLR 스크립팅 백엔드, 그리고 Unity가 공식적으로 밝힌 OculusXR 패키지에서 OpenXR로의 전환 방향 등이 포함됩니다. 이 Power는 기억된 버전 번호만으로 동작을 단정하지 않고, MCP를 통해 연결된 프로젝트의 실제 Unity 버전, 현재 활성화된 렌더 파이프라인, 렌더링 경로, 스크립팅 백엔드, 설치된 패키지를 확인한 뒤에 버전별 권장 사항을 적용합니다.
+> **Unity 6.4 기준 버전**: 이 Power는 **Unity 6.4**(릴리스 스트림 `6000.4`, 최신 패치 `6000.4.12f1`, 2026-06-17 릴리스)와 **MCP for Unity v10.3.0 이상(최소 v10.0.0)** 의 도구 집합을 대상으로 합니다. 이 Power가 지원하는 최소 Editor 버전은 **Unity 6.0(`6000.0`)** 이며, 브리지 자체의 하한선은 더 낮습니다(Unity 2021.3 LTS). 모든 가이드는 **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21** 조합에서 실제로 확인했습니다 — Unity 6.5, 6.6 및 이후 6.x에서도 동작할 것으로 예상되지만 여기서 검증하지는 **않았습니다**. Unity 6.4는 Update 릴리스이며 패치 스트림이 2026-06-17에 종료되었으므로, 버전을 고정해 프로덕션에 들어가는 프로젝트는 **Unity 6.3 LTS**(2027년 12월까지 지원) 또는 현재의 Update 릴리스로 이동해야 합니다. **Unity 6.0 LTS는 2026-10-16에 지원이 종료되었습니다 — "안전한 구버전"으로도 권장하지 않습니다.** 출처: [unity.com/releases](https://unity.com/releases/), [endoflife.date/unity](https://endoflife.date/unity) (모두 2026-10-21 조회).
+>
+> **6.4 전용 가이드가 다루는 내용**: URP는 **Render Graph 단일 경로**가 되었습니다 — URP Compatibility Mode와 `URP_COMPATIBILITY_MODE` 스크립팅 정의는 6.4에서 완전히 제거되어, 더 이상 레거시 커스텀 render pass의 우회로가 아닙니다. GPU Resident Drawer(Forward+/Deferred+ GPU 인스턴싱, 2D Renderer에서는 사용 불가)와 개편된 Rendering Statistics 창 — 이 창은 드로우 콜을 하나의 숫자로 보고하는 대신 어떤 배칭 경로가 흡수했는지 항목별로 나눠 보여줍니다. `InstanceID`는 `EntityId`로 대체되었으므로 브리지가 반환한 instance id는 불투명한 토큰으로 취급하세요 — 그대로 브리지에 되돌려 주기만 하고, 산술 연산·정렬·파싱은 하지 마세요. iOS에서 PVRTC가 제거되었습니다(ASTC 또는 ETC만 사용). Web 빌드는 `[BurstCompile]` 잡을 백그라운드 워커에서 실행하지만 멀티스레드 *렌더링*은 여전히 지원되지 않습니다. 6.4부터 URP 2D 프레임 루프에 커스텀 render pass를 주입할 수 있습니다. OculusXR 패키지는 권장되지 않으며 OpenXR 플러그인으로 이전해야 하고, HoloLens 2 지원과 해당 플러그인은 6.4에서 deprecated 되었습니다(OculusXR이 실제로 제거되는 버전은 미검증). 스크립팅 백엔드: `manage_build`는 **`mono` 또는 `il2cpp`만** 허용하므로 이 Power로는 CoreCLR을 선택할 수 없습니다. 출처: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64), [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64) (모두 2026-10-21 조회).
+>
+> 이 Power는 기억된 버전 번호만으로 동작을 단정하지 않고, MCP를 통해 연결된 프로젝트를 확인합니다 — 활성 렌더 파이프라인은 `manage_graphics(action: "pipeline_get_info")`, Unity 버전과 플랫폼은 `mcpforunity://project/info` 리소스, 설치된 패키지는 `manage_packages(action: "list_packages")` 로 조회한 뒤 버전별 권장 사항을 적용합니다.
 
 > **용어 안내**: 이 문서에서 사용되는 주요 기술 용어입니다.
 > - **MCP** (Model Context Protocol, 모델 컨텍스트 프로토콜): AI 어시스턴트가 개발 도구와 통신하기 위한 표준 프로토콜입니다. AI가 Unity Editor와 같은 외부 도구에 명령을 보내고 결과를 받을 수 있게 해주는 통신 규격으로, 개발자가 메뉴를 직접 탐색하는 대신 자연어로 작업을 지시할 수 있게 합니다.
@@ -22,8 +26,8 @@ Kiro를 Unity 개발 AI 어시스턴트로 전환하세요. MCP(Model Context Pr
 
 - **에셋 자동화** — 에셋 프리셋 일괄 적용, 에셋 타입 자동 감지, 변경 요약 생성
 - **씬 스캐폴딩** — 원커맨드 씬 구조 생성, 충돌 감지 내장
-- **빌드 자동화** — 로컬 빌드, 빌드 로그 파싱, 선택적 클라우드 가속
-- **크로스 플랫폼 테스트** — 로컬 시뮬레이션 테스트, 결과 포맷팅, 테스트 스위트 변환
+- **빌드 자동화** — `manage_build`를 통한 로컬 빌드, 빌드 로그 파싱, 재사용 가능한 빌드 설정 템플릿
+- **크로스 플랫폼 테스트** — `run_tests` / `get_test_job`을 통한 테스트 실행, 결과 포맷팅, 테스트 스위트 변환
 - **워크플로우 자동화** — DAG 의존성 검증 및 토폴로지 실행을 통한 멀티스텝 워크플로우
 - **성능 분석** — Profiler 스크린샷 분석, 코드 안티패턴 스캔, 최적화 권장사항
 - **코드 품질** — MVC/ECS/ScriptableObject 아키텍처 검사, 순환 의존성 감지
@@ -43,16 +47,30 @@ Developer (Natural Language)
 
 Kiro Unity Accelerator (Intelligence Layer)
 ├── POWER.md        → Main doc defining tools & workflows
-├── steering/       → 14 domain knowledge files
+├── steering/       → 15 domain knowledge files
 ├── templates/      → Built-in templates (Presets, Scaffolds, Build Configs, etc.)
 └── src/            → 40+ TypeScript tool modules
 ```
 
+## 어느 "Unity MCP"인가 — 서로 다른 세 프로젝트
+
+"Unity MCP"라는 이름의 변형을 쓰는, 서로 무관한 세 프로젝트가 있습니다. 이 Power는 **첫 번째만** 대상으로 합니다. 섞어 쓰면 이 문서의 어디에도 맞지 않는 도구 이름과 포트가 나옵니다. 아래 세 행은 모두 **2026-10-21** 조회 기준입니다.
+
+| 프로젝트 | 정체 | 연결 방식 | 상태 |
+|---|---|---|---|
+| **(a) CoplayDev MCP for Unity** — *이 Power가 사용하는 것* | UPM `com.coplaydev.unity-mcp`, 저장소 [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp), Python 서버는 PyPI의 `mcpforunityserver`, MIT 라이선스 | 기본은 streamable HTTP, 엔드포인트 `http://127.0.0.1:8080/mcp`. 또는 `uvx`를 통한 stdio. Unity 측 브리지는 TCP `6400`도 수신 | 활성. 확인된 최신 릴리스는 **v10.3.0**(2026-10-04). 이 Power가 문서화하는 범위는 **v10.3.0 이상, 최소 v10.0.0**. 10개 그룹에 걸쳐 49개 도구 엔트리포인트 |
+| **(b) IvanMurzak/Unity-MCP** — *다른 프로젝트, 여기서는 사용하지 않음* | UPM `com.ivanmurzak.unity.mcp`, 저장소 [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | 별도 서버 바이너리를 `Library/mcp-server/`에 자동 다운로드. 포트는 프로젝트 경로의 해시에서 유도(20000–29999 범위)되므로 설정할 포트가 없음 | 활성, 최신 1.3.0(2026-10-20경). 도구 이름과 포트 방식이 이 Power와 **일치하지 않음** |
+| **(c) Unity 자체 Editor 내장 MCP 서버** | `com.unity.ai.assistant`에 포함. UI는 `Edit > Project Settings > AI > Unity MCP` | MCP 클라이언트가 Editor 내장 서버에 직접 연결 | **더 이상 권장되지 않음(deprecated)** — 아래 참조 |
+
+**(c)의 deprecated 상태, 그리고 그것이 이 Power에 영향을 주지 않는 이유.** Unity 문서는 Editor 내장 AI assistant 패키지 안의 MCP 서버가 deprecated 되었으며 Unity CLI(`unity mcp`)가 그 자리를 대신하고, CLI가 동일한 프로토콜을 사용하는 자체 MCP 서버를 함께 제공한다고 명시합니다([Unity CLI as the replacement for the in-Editor MCP server](https://docs.unity.com/en-us/unity-cli/replace-mcp-server-unity-cli), 2026-10-21 조회. 같은 공지가 패키지 문서 [com.unity.ai.assistant — Get started with MCP server](https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.18/manual/integration/unity-mcp-get-started.html), 2026-10-21 조회에도 있습니다). **같은 Unity 페이지는 에이전트에게 Unity 접근 권한을 주기 위해 GitHub에서 설치하는 서드파티 MCP 패키지는 이 deprecation의 영향을 받지 않는다고 명시합니다.** 따라서 (a) — 이 Power가 사용하는 브리지 — 는 deprecation 범위 밖이며, 그 때문에 이 Power가 구식이 된 것은 아닙니다.
+
 ## 사전 요구사항
 
-- [Unity Editor](https://unity.com/) 설치 및 프로젝트 열기 (개인 및 소규모 팀을 위한 무료 Personal 라이선스 제공)
+- [Unity Editor](https://unity.com/) 설치 및 프로젝트 열기 (개인 및 소규모 팀을 위한 무료 Personal 라이선스 제공) — 대상은 Unity 6.4이며 이 Power의 최소 지원은 Unity 6.0입니다
 - [Kiro IDE](https://kiro.dev/docs/getting-started/installation) 설치
-- Node.js 18+ (개발/테스트 전용 — 기본 사용에는 필요하지 않음. 설치가 필요한 경우 [Node.js 공식 사이트](https://nodejs.org/) 참조)
+- **MCP for Unity v10.3.0 이상(최소 v10.0.0)** — 프로젝트에 설치된 `com.coplaydev.unity-mcp`가 9.6.8 이하라면 업그레이드하세요. 9.6.8 → 10.3.0 변경은 도구 추가뿐이므로 마이그레이션 비용이 없습니다
+- **Python 3.10 이상과 [`uv`](https://docs.astral.sh/uv/)** — 브리지의 서버는 `uv`/`uvx`로 실행되는 Python 패키지(PyPI의 `mcpforunityserver`)입니다. MCP for Unity 설치 마법사가 `uv`를 설치해 줄 수 있습니다. Windows에서 PATH에 여러 `uv.exe`가 있으면 "Choose UV Install Location"을 WinGet 심(`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`)으로 지정하세요
+- Node.js 18+ (개발/타입 검사 전용 — 기본 사용에는 필요하지 않음. 설치가 필요한 경우 [Node.js 공식 사이트](https://nodejs.org/) 참조)
 
 ## 설치
 
@@ -76,33 +94,54 @@ Kiro → 왼쪽 패널에서 Powers 아이콘 클릭 → 「+」 버튼 클릭 �
 
    ![단계 2: git URL에서 패키지 추가](image/Enable-Unity-MCP-Server-2.png)
 
-3. 설치 완료 후, Window → Toggle MCP Window로 이동
+   `main`을 계속 따라가고 싶지 않다면 git URL 대신 다음 방법도 있습니다:
+
+   - **릴리스 고정**: `#main`을 태그로 교체 (예: `#v10.3.0`)
+   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp`
+   - **Asset Store**: "MCP for Unity" 등록 항목 → Package Manager → My Assets
+
+3. 처음 임포트하면 패키지가 **설치 마법사(setup wizard)** 를 엽니다. 이후 상시 UI는 **Window → MCP for Unity** 이며, 여기서 서버 시작/중지, transport 전환, 클라이언트 재설정을 할 수 있습니다.
 
    ![단계 3: MCP 창 열기](image/Enable-Unity-MCP-Server-3.png)
 
-4. MCP Server 상태가 녹색(실행 중)인지 확인하고, 서버가 MCP 엔드포인트(Unity MCP 창에 표시됨)에서 수신 대기 중인지 확인
+   > 위 스크린샷은 메뉴 항목이 "Toggle MCP Window"였던 구버전에서 캡처한 것입니다. 현재 빌드의 경로는 `Window → MCP for Unity` 입니다.
+
+4. 상태 패널이 **Connected**로 표시되는지 확인하고, 표시된 서버 엔드포인트/포트를 기록하세요(아래에서 사용합니다). 복구 동작은 `Restart Server` 입니다.
 
    ![단계 4: Server 실행 중 확인](image/Enable-Unity-MCP-Server-4.png)
+
+### 등록 경로는 반드시 하나만 선택
+
+Unity MCP 서버를 Kiro에 등록하는 메커니즘은 두 가지이며, 둘 다 **같은** 설정 파일에 서로 다른 이름으로 기록합니다. 둘을 모두 실행하면 동일한 Unity Editor를 가리키는 서버가 두 개 생겨 도구 목록이 중복되고 리소스 읽기 시 서버 이름이 모호해집니다.
+
+- **경로 A — 이 Power가 서버를 등록하게 한다.** Power를 설치하고 그 `mcp.json`은 건드리지 마세요. Legacy(`POWER.md`) 형식 power의 MCP 서버는 `~/.kiro/settings/mcp.json`의 Powers 섹션에 Kiro가 네임스페이스를 붙인 이름으로 등록됩니다.
+- **경로 B — Unity가 Kiro를 설정하게 한다.** Unity에서 `Window → MCP for Unity → Configure All Detected Clients`(또는 Kiro를 선택하고 `Configure Selected`). 패키지가 같은 파일에 `unityMCP`라는 이름의 서버 항목을 기록합니다.
+
+> **Kiro의 MCP 패널에 Unity MCP 서버가 두 개 보이면 하나를 비활성화하고 Kiro를 재시작하세요.** 관련 설정 파일 위치 세 곳: 이 Power 자체의 `mcp.json`, 사용자 수준 `~/.kiro/settings/mcp.json`, 워크스페이스 수준 `.kiro/settings/mcp.json`.
 
 ### MCP 연결 설정
 
 #### 자동 설정 (권장)
 
-MCP for Unity 창에서 「Kiro」를 선택하고 「Configuration」을 클릭하여 연결을 자동 설정합니다.
+Unity에서 `Window → MCP for Unity`를 열고 → transport가 HTTP인지 확인한 뒤 → **Configure All Detected Clients**(또는 Kiro를 선택하고 **Configure Selected**)를 클릭합니다. Kiro는 정식 지원 클라이언트이므로 이 작업이 포트까지 정확한 항목을 `~/.kiro/settings/mcp.json`의 서버 키 `unityMCP`로 기록합니다.
 
-#### 수동 설정
+#### 실제 포트 읽기
 
-자동 설정을 사용할 수 없는 경우 `mcp.json`을 편집하세요.
+**8080을 상수로 여기지 마세요.** 이 포트는 사용자가 변경할 수 있고 8080은 다른 서비스와 충돌합니다(업스트림은 Tailscale을 예로 들며 8090으로 옮기라고 제안합니다). MCP for Unity 창이 현재 엔드포인트를 보여줍니다 — 8080이 아니라면 URL은 `http://127.0.0.1:<해당 포트>/mcp` 입니다.
 
-HTTP 모드 (기본 — 로컬 전용, Unity Editor와 통신):
+#### 수동 설정 (최후의 수단)
 
-> **보안 참고**: 여기서는 의도적으로 HTTP를 사용합니다. 이 엔드포인트는 `localhost`(루프백 인터페이스)에서 실행되는 Unity Editor와만 통신합니다. 트래픽이 머신 외부로 나가지 않으므로 HTTPS가 필요하지 않습니다.
+위 두 단계로 동작하는 항목이 만들어지지 않은 경우에만 `mcp.json`을 편집하세요.
+
+HTTP 모드 (기본 transport — 로컬 전용, Unity Editor와 통신):
+
+> **보안 참고**: 여기서는 의도적으로 HTTP를 사용합니다. 서버는 루프백(`127.0.0.1` / `::1`)에만 바인딩합니다. LAN 주소 바인딩에는 `Advanced Settings → Allow LAN Bind (HTTP Local)`이 필요하며, 원격 엔드포인트는 `https://`여야 합니다. 기본 구성에서는 트래픽이 머신 외부로 나가지 않으므로 HTTPS가 필요하지 않습니다.
 
 ```json
 {
   "mcpServers": {
     "unity-mcp": {
-      "url": "<your-mcp-server-url>",
+      "url": "http://127.0.0.1:8080/mcp",
       "type": "http",
       "env": {},
       "disabled": false
@@ -111,9 +150,27 @@ HTTP 모드 (기본 — 로컬 전용, Unity Editor와 통신):
 }
 ```
 
-> 모드 키 이름은 `transport`가 아니라 `type`입니다.
+> `8080`은 Unity 창에 표시된 포트로 바꾸세요. 모드 키 이름은 `transport`가 아니라 `type`입니다. `127.0.0.1`은 의도적입니다: 업스트림 문서는 `localhost`로 표기하지만 Unity 측의 기본값은 리터럴 `127.0.0.1`이며, Windows에서는 `localhost`가 `::1`로 먼저 해석될 수 있습니다.
 
-Stdio 모드 (대체). PyPI 배포명은 `mcpforunityserver`, 엔트리포인트는 `mcp-for-unity`입니다. Windows에서는 `uvx.exe`를 절대 경로로 지정하세요:
+Stdio 모드 (대체 — MCP 서버를 Kiro가 관리하는 자식 프로세스로 실행). PyPI 배포명은 **`mcpforunityserver`**, 콘솔 엔트리포인트는 **`mcp-for-unity`** 이며 `--transport stdio`가 필수입니다. PyPI에는 `unity-mcp`라는 패키지가 **없습니다** — 이전 버전 README가 적어 둔 `uvx unity-mcp`가 한 번도 실행되지 않았던 이유가 이것입니다.
+
+Windows (`uvx.exe`를 절대 경로로. WinGet 심이 권장됨):
+
+```json
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "command": "C:/Users/<you>/AppData/Local/Microsoft/WinGet/Links/uvx.exe",
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
+    }
+  }
+}
+```
+
+macOS/Linux (PATH의 `uvx`로 보통 충분합니다):
 
 ```json
 {
@@ -135,7 +192,7 @@ Stdio 모드 (대체). PyPI 배포명은 `mcpforunityserver`, 엔트리포인트
 
 ```bash
 mkdir -p .kiro/hooks
-cp hooks/unity-power-auto-activate.json .kiro/hooks/
+cp hooks/unity-power-auto-activate.json .kiro/hooks/unity-power-auto-activate.json
 ```
 
 ### 연결 확인
@@ -226,14 +283,18 @@ Android release 설정으로 프로젝트 빌드, 빌드 로그의 오류 파싱
 
 ## 개발
 
-```bash
-npm install
+`src/`의 TypeScript 모듈은 각각 독립적입니다 — 번들러도, 빌드 단계도 없습니다. 테스트 스위트와 TypeScript 컴파일러 설정 파일은 개발자 로컬 파일(git 무시 대상)이므로, 새로 클론한 상태에는 구성된 테스트 러너가 없습니다. 타입 검사는 컴파일러 플래그를 명시해 실행하세요:
 
-npm test                 # 모든 테스트 실행
-npm run test:unit        # 유닛 테스트만
-npm run test:property    # 속성 테스트 (fast-check)
-npm run test:integration # 통합 테스트만
-npx tsc --noEmit         # TypeScript 타입 검사
+```bash
+npm install   # devDependencies만 — 이 Power 자체에는 런타임 의존성이 없습니다
+
+# 타입 검사 (bash)
+npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck src/*.ts
+```
+
+```powershell
+# 타입 검사 (PowerShell)
+npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck (Get-ChildItem src -Filter *.ts | ForEach-Object FullName)
 ```
 
 ## 프로젝트 구조
@@ -242,7 +303,7 @@ npx tsc --noEmit         # TypeScript 타입 검사
 kiro-unity-accelerator/
 ├── POWER.md                    # Kiro 메인 문서
 ├── mcp.json                    # MCP Server 연결 설정
-├── steering/                   # 도메인 지식 Steering Files (14개)
+├── steering/                   # 도메인 지식 Steering Files (15개)
 ├── templates/                  # 내장 템플릿
 │   ├── presets/                # 에셋 프리셋 (5개)
 │   ├── scaffolds/              # 씬 스캐폴드 (5개)
@@ -251,27 +312,23 @@ kiro-unity-accelerator/
 │   ├── architecture-rules/     # 아키텍처 규칙 (3개)
 │   └── workflows/              # 워크플로우 템플릿 (3개)
 ├── src/                        # TypeScript 도구 모듈 (40+)
-├── tests/                      # 테스트 스위트
-│   ├── unit/                   # 유닛 테스트
-│   ├── property/               # 속성 테스트 (fast-check)
-│   └── integration/            # 통합 테스트
-├── hooks/                      # Kiro hooks
+├── hooks/                      # Hook 템플릿 (.kiro/hooks/ 로 복사)
+├── workshop/                   # 단계별 프롬프트 튜토리얼
 ├── image/                      # 문서 이미지
-├── package.json
-├── tsconfig.json
-└── jest.config.ts
+└── package.json
 ```
 
 ## 문제 해결
 
 | 문제 | 해결 방법 |
 |------|-----------|
-| Kiro가 Unity에 연결할 수 없음 | Unity Editor가 열려 있는지 확인 → Window → MCP for Unity → Start Server |
-| 포트 8080이 사용 중 | 충돌하는 프로세스를 종료하거나, `mcp.json`에서 stdio 모드로 전환 |
-| 에셋 작업 무응답 | Unity가 컴파일 중일 수 있음, 컴파일 완료 대기 |
-| 클라우드 어시스트 실패 | 자동으로 로컬 모드로 폴백, 핵심 기능에 영향 없음 |
-| 테스트 실패 | `npm test`를 실행하여 상세 오류 메시지 확인 |
-| TypeScript 타입 오류 | `npx tsc --noEmit` 실행, `npm install`이 완료되었는지 확인 |
+| Kiro가 Unity에 연결할 수 없음 | Unity Editor가 프로젝트를 열어 둔 상태인지 확인 → `Window → MCP for Unity` → 상태 패널이 **Connected**인지 확인(아니면 `Restart Server`) |
+| 포트 8080이 사용 중 | MCP for Unity 설정에서 포트를 변경(업스트림은 8090 제안)하고 **Configure All Detected Clients**를 다시 실행, Kiro 재시작, `mcp.json`의 `url`을 Unity 창에 표시된 포트와 일치시키기 |
+| 문서에 있는 도구가 도구 목록에 없음 | 해당 도구의 그룹이 활성화되지 않았을 가능성이 큽니다 — 기본 활성 그룹은 `core` 하나뿐입니다. `manage_tools(action: "list_groups")` → `manage_tools(action: "sync")` → `manage_tools(action: "activate", group: "<이름>")` 순서로 실행하세요. Kiro가 도구 목록을 캐시할 수 있으므로 이후 MCP 서버를 새로고침하거나 재연결하세요 |
+| Unity MCP 서버가 두 개 등록됨 | `~/.kiro/settings/mcp.json`과 Kiro의 MCP 패널을 확인하세요. 이 Power의 항목과 `unityMCP`가 모두 있으면 하나를 비활성화하고 Kiro를 재시작하세요("등록 경로는 반드시 하나만 선택" 참조) |
+| Unity 6.3+ 에서 Unity AI Assistant 패키지를 설치한 경우 | AI Assistant가 포함한 `System.Collections.Immutable`이 `validate_script` / `execute_code`가 쓰는 Roslyn 의존성이 요구하는 버전보다 최신입니다. 업스트림의 해결책은 `System.Collections.Immutable` v9.0.0을 `Assets/Plugins/`에 두는 것입니다 |
+| 에셋 작업 무응답 | Unity가 컴파일 중일 수 있음. 컴파일 완료를 기다리거나 `mcpforunity://editor/state` 리소스로 상태를 확인하세요 |
+| TypeScript 타입 오류 | 위 "개발" 섹션의 플래그 기반 타입 검사를 실행하고 `npm install`이 완료되었는지 확인 |
 
 ## 보안
 

@@ -4,9 +4,13 @@
 
 > **Note on language availability**: README files are available in 5 languages to support our global community. Examples and demo steps are intentionally parallel across all language versions for consistency — each version is human-reviewed for natural phrasing in that language. Steering files (domain knowledge) are in Traditional Chinese with English summary sections at the top of each file. The Power responds in the developer's preferred language, even though steering files are in Traditional Chinese with English summaries. If you encounter any language barriers, please open an issue for community support.
 
-Transform your IDE into a Unity development AI assistant. Use natural language to command Unity Editor via MCP (Model Context Protocol — a standardized way for AI assistants to interact with development tools, allowing developers to describe what they want in plain language instead of manually navigating menus or writing boilerplate scripts). This Power covers asset management, scene building, build automation, performance analysis, code quality checks, and more — with 40+ TypeScript tool modules and 14 domain knowledge files.
+Transform your IDE into a Unity development AI assistant. Use natural language to command Unity Editor via MCP (Model Context Protocol — a standardized way for AI assistants to interact with development tools, allowing developers to describe what they want in plain language instead of manually navigating menus or writing boilerplate scripts). This Power covers asset management, scene building, build automation, performance analysis, code quality checks, and more — with 40+ TypeScript tool modules and 15 domain knowledge files.
 
-> **Unity 6.x aware, verified live**: Steering guidance covers current Unity 6 Update-release behavior — URP Render Graph as the default rendering path, the GPU Resident Drawer (Forward+/Deferred+ GPU instancing), the newer "scene reload only" Enter Play Mode default, the experimental CoreCLR scripting backend, and Unity's reported move away from the OculusXR package toward OpenXR. Rather than trusting a remembered version number, the Power checks the actual connected project via MCP — reading the real Unity version, active render pipeline, rendering path, scripting backend, and installed packages — before applying any version-specific advice.
+> **Unity 6.4 baseline**: This Power targets **Unity 6.4** (release stream `6000.4`, newest patch `6000.4.12f1`, released 17 Jun 2026) and the tool surface of **MCP for Unity v10.3.0 or newer (minimum v10.0.0)**. The minimum Editor for this Power is **Unity 6.0 (`6000.0`)**; the bridge's own floor is lower (Unity 2021.3 LTS). The guidance was live-checked against **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21** — Unity 6.5, 6.6 and later 6.x are expected to work but were **not** verified here. Unity 6.4 is an Update release and its patch stream ended 17 Jun 2026, so a project locking down for production should move to **Unity 6.3 LTS** (supported through Dec 2027) or forward onto the current Update release. **Unity 6.0 LTS support ended 16 Oct 2026 — it is never recommended, not even as a "safe older version".** Sources: [unity.com/releases](https://unity.com/releases/) and [endoflife.date/unity](https://endoflife.date/unity), both retrieved 2026-10-21.
+>
+> **What the 6.4-specific guidance covers**: URP **Render Graph is the only path** — URP Compatibility Mode and the `URP_COMPATIBILITY_MODE` scripting define were removed in 6.4, so it is no longer an escape hatch for legacy custom render passes; the GPU Resident Drawer (Forward+/Deferred+ GPU instancing, unavailable on the 2D Renderer) together with the redesigned Rendering Statistics window, which itemises which batching path absorbed each draw call instead of reporting one number; `InstanceID` deprecated in favour of `EntityId`, so an instance id returned by the bridge is an opaque token — pass it straight back, never do arithmetic on it, sort by it, or parse it; PVRTC removed on iOS (ASTC or ETC only); Web builds running `[BurstCompile]` jobs on background workers even though multithreaded *rendering* is still unavailable; a custom render pass can now be injected into the URP 2D frame loop; and the OculusXR package is deprecated in favour of the OpenXR plug-in, with HoloLens 2 support and its plug-in deprecated in 6.4 (the OculusXR removal release is unverified). Scripting backend: `manage_build` accepts **`mono` or `il2cpp` only** — CoreCLR cannot be selected through this Power. Sources: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) and [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), both retrieved 2026-10-21.
+>
+> Rather than trusting a remembered version number, the Power checks the connected project through MCP — `manage_graphics(action: "pipeline_get_info")` for the active render pipeline, the `mcpforunity://project/info` resource for the Unity version and platform, and `manage_packages(action: "list_packages")` for installed packages — before applying any version-specific advice.
 
 > **Key Concepts**: Technical terms used throughout this document (if you are new to Unity development, these concepts will become clearer as you work through the examples — you do not need to understand them all upfront):
 > - **MCP** (Model Context Protocol): A standardized protocol for AI assistants to communicate with development tools, enabling developers to use natural language to operate Unity Editor
@@ -22,8 +26,8 @@ Transform your IDE into a Unity development AI assistant. Use natural language t
 
 - **Asset Automation** — Batch apply asset presets, auto-detect asset types, generate change summaries
 - **Scene Scaffolding** — One-command scene structure generation with conflict detection
-- **Build Automation** — Local builds, build log parsing, optional cloud-assisted acceleration
-- **Cross-Platform Testing** — Local simulation testing, result formatting, test suite conversion
+- **Build Automation** — Local builds through `manage_build`, build log parsing, reusable build configuration templates
+- **Cross-Platform Testing** — Test execution through `run_tests` / `get_test_job`, result formatting, test suite conversion
 - **Workflow Automation** — Multi-step workflows with DAG dependency validation and topological execution
 - **Performance Analysis** — Profiler screenshot analysis, code anti-pattern scanning, optimization recommendations
 - **Code Quality** — MVC/ECS/ScriptableObject architecture checks, circular dependency detection
@@ -43,16 +47,30 @@ Developer (Natural Language)
 
 Unity Accelerator (Intelligence Layer)
 ├── POWER.md        → Main document defining tools & workflows
-├── steering/       → 14 domain knowledge files
+├── steering/       → 15 domain knowledge files
 ├── templates/      → Built-in templates (Presets, Scaffolds, Build Configs, etc.)
 └── src/            → 40+ TypeScript tool modules
 ```
 
+## Which "Unity MCP"? — three different projects
+
+Three unrelated projects are called some variant of "Unity MCP". This Power targets **only the first one**. Mixing them produces tool names and ports that match nothing in this documentation. All three rows retrieved **2026-10-21**.
+
+| Project | Identity | How it connects | Status |
+|---|---|---|---|
+| **(a) CoplayDev MCP for Unity** — *what this Power uses* | UPM `com.coplaydev.unity-mcp`, repo [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp), Python server published on PyPI as `mcpforunityserver`, MIT-licensed | streamable HTTP (default) at `http://127.0.0.1:8080/mcp`, or stdio through `uvx`; the Unity-side bridge also listens on TCP `6400` | Active. Verified-current release **v10.3.0** (2026-10-04); this Power documents **v10.3.0 or newer, minimum v10.0.0**. 49 tool entrypoints across 10 groups |
+| **(b) IvanMurzak/Unity-MCP** — *a different project, not used here* | UPM `com.ivanmurzak.unity.mcp`, repo [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | a separate server binary downloaded into `Library/mcp-server/`; its port is derived from a hash of the project path (range 20000–29999), so there is no port to configure | Active, latest 1.3.0 (~2026-10-20). Its tool names and port scheme do **not** match this Power |
+| **(c) Unity's own in-Editor MCP server** | shipped inside `com.unity.ai.assistant`; UI at `Edit > Project Settings > AI > Unity MCP` | the MCP client connects straight to the in-Editor server | **Deprecated** — see below |
+
+**On the deprecation of (c), and why it does not affect this Power.** Unity's documentation states that the MCP server inside the in-Editor AI assistant package is deprecated and that the Unity CLI (`unity mcp`) takes its place, shipping its own MCP server that speaks the same protocol ([Unity CLI as the replacement for the in-Editor MCP server](https://docs.unity.com/en-us/unity-cli/replace-mcp-server-unity-cli), retrieved 2026-10-21; the same notice appears in the package docs, [com.unity.ai.assistant — Get started with MCP server](https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.18/manual/integration/unity-mcp-get-started.html), retrieved 2026-10-21). **The same Unity page states that third-party MCP packages installed from GitHub to give agents access to Unity are unaffected by that deprecation.** Project (a) — the bridge this Power uses — is therefore explicitly outside the scope of the deprecation, and this Power is not obsolete because of it.
+
 ## Prerequisites
 
-- [Unity Editor](https://unity.com/) installed with a project open (see Setup alternatives below if you have restricted installation access)
+- [Unity Editor](https://unity.com/) installed with a project open (see Setup alternatives below if you have restricted installation access) — Unity 6.4 is the target, Unity 6.0 the minimum for this Power
 - [Kiro IDE](https://kiro.dev/docs/getting-started/installation) installed
-- Node.js 18+ (for development/testing only — not required for basic usage with the Power)
+- **MCP for Unity v10.3.0 or newer (minimum v10.0.0)** — if the project has `com.coplaydev.unity-mcp` 9.6.8 or older installed, upgrade it; the 9.6.8 → 10.3.0 change is purely additive, so there is no migration cost
+- **Python 3.10 or newer plus [`uv`](https://docs.astral.sh/uv/)** — the bridge's server is a Python package (`mcpforunityserver` on PyPI) launched through `uv`/`uvx`. The MCP for Unity setup wizard can install `uv` for you; on Windows, point "Choose UV Install Location" at the WinGet shim (`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`) if several `uv.exe` copies are on PATH
+- Node.js 18+ (for development/typechecking only — not required for basic usage with the Power)
 
 > **Setup alternatives**: Choose the installation method that works for your environment:
 > - **Standard setup**: Follow the steps below (requires unrestricted software installation access)
@@ -85,33 +103,54 @@ Open Kiro → Left panel click Powers icon → Click "+" button → Select "Add 
 
    ![Step 2: Add package from git URL](image/Enable-Unity-MCP-Server-2.png)
 
-3. After installation, go to Window → Toggle MCP Window
+   Alternatives to the git URL, if you prefer not to track `main`:
+
+   - **Pin a release**: replace `#main` with a tag, e.g. `#v10.3.0`
+   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp`
+   - **Asset Store**: the "MCP for Unity" listing, then Package Manager → My Assets
+
+3. On first import the package opens a **setup wizard**. The persistent UI afterwards is **Window → MCP for Unity**, which starts/stops the server, switches transport, and reconfigures clients.
 
    ![Step 3: Open MCP Window](image/Enable-Unity-MCP-Server-3.png)
 
-4. Confirm MCP Server status shows green (running) and verify the server is listening on the MCP endpoint shown in the Unity MCP window
+   > The screenshot above was taken on an older build whose menu item read "Toggle MCP Window". Current builds use `Window → MCP for Unity`.
+
+4. Confirm the status panel reads **Connected**, and read the server endpoint/port it displays — you will need that port below. `Restart Server` is the recovery action.
 
    ![Step 4: Confirm Server is running](image/Enable-Unity-MCP-Server-4.png)
+
+### Pick exactly one MCP registration path
+
+Two different mechanisms can register the Unity MCP server with Kiro, and they write to the **same** config file under different names. Running both leaves two servers pointing at the same Unity Editor, which produces duplicate tool surfaces and ambiguous resource reads.
+
+- **Path A — let this Power register the server.** Install the Power and leave its `mcp.json` alone. A Legacy (`POWER.md`) power's MCP servers are registered into `~/.kiro/settings/mcp.json` under the Powers section, with the server name namespaced by Kiro.
+- **Path B — let Unity configure Kiro.** In Unity, `Window → MCP for Unity → Configure All Detected Clients` (or select Kiro and `Configure Selected`). The package writes a server entry named `unityMCP` into the same file.
+
+> **If Kiro's MCP panel shows two Unity MCP servers, disable one and restart Kiro.** The three config locations that matter: this Power's own `mcp.json`, user-level `~/.kiro/settings/mcp.json`, and workspace-level `.kiro/settings/mcp.json`.
 
 ### MCP Connection Configuration
 
 #### Automatic Configuration (Recommended)
 
-In the MCP for Unity window, select the target IDE and click "Configuration" to auto-configure the connection.
+In Unity, `Window → MCP for Unity` → confirm the transport is HTTP → **Configure All Detected Clients** (or select Kiro and **Configure Selected**). Kiro is a first-class supported client, so this writes a port-accurate entry into `~/.kiro/settings/mcp.json` under the server key `unityMCP`.
 
-#### Manual Configuration
+#### Read the real port
 
-Edit `mcp.json` if automatic configuration is unavailable.
+**Do not treat 8080 as a constant.** The port is user-editable and 8080 collides with other services (upstream names Tailscale as an example and suggests moving to 8090). The MCP for Unity window shows the live endpoint — if it is not 8080, the URL is `http://127.0.0.1:<that port>/mcp`.
 
-HTTP mode (default — local-only, communicates with Unity Editor on your machine):
+#### Manual Configuration (last resort)
 
-> **Security Note**: HTTP is used intentionally here. This endpoint only communicates with the Unity Editor running on `localhost` (loopback interface). Traffic never leaves your machine, so HTTPS is not required.
+Edit `mcp.json` only if the two steps above did not produce a working entry.
+
+HTTP mode (default transport — local-only, communicates with the Unity Editor on your machine):
+
+> **Security Note**: HTTP is used intentionally here. The server binds loopback only (`127.0.0.1` / `::1`); binding a LAN address requires `Advanced Settings → Allow LAN Bind (HTTP Local)`, and a remote endpoint must be `https://`. Traffic on the default setup never leaves your machine, so HTTPS is not required.
 
 ```json
 {
   "mcpServers": {
     "unity-mcp": {
-      "url": "<your-mcp-server-url>",
+      "url": "http://127.0.0.1:8080/mcp",
       "type": "http",
       "env": {},
       "disabled": false
@@ -120,9 +159,29 @@ HTTP mode (default — local-only, communicates with Unity Editor on your machin
 }
 ```
 
-> **Connection methods**: The system supports two connection methods: HTTP (simpler, recommended) and stdio (backup option). Choose HTTP unless you encounter specific issues. The mode key is `type`, not `transport`.
+> Replace `8080` with the port shown in the Unity window. The mode key is `type`, not `transport`. `127.0.0.1` is deliberate: upstream docs print `localhost`, but the Unity side's own default is the literal `127.0.0.1`, and on Windows `localhost` can resolve to `::1` first.
 
-Stdio mode (fallback — runs the MCP server as a subprocess (a separate process managed by the main application), useful when the HTTP port is unavailable). The PyPI distribution is `mcpforunityserver` and the entrypoint is `mcp-for-unity`; on Windows give `uvx.exe` an absolute path:
+> **Connection methods**: HTTP (simpler, recommended) and stdio (backup option). Choose HTTP unless you hit a port conflict or a firewall.
+
+Stdio mode (fallback — runs the MCP server as a subprocess, a separate process managed by Kiro). The PyPI distribution is **`mcpforunityserver`** and the console entrypoint is **`mcp-for-unity`**; `--transport stdio` is required. There is **no `unity-mcp` package on PyPI** — earlier versions of this README documented `uvx unity-mcp`, which is why that fallback never launched.
+
+Windows (use an absolute `uvx.exe` path — the WinGet shim is the recommended one):
+
+```json
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "command": "C:/Users/<you>/AppData/Local/Microsoft/WinGet/Links/uvx.exe",
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
+    }
+  }
+}
+```
+
+macOS/Linux (`uvx` on PATH is usually fine):
 
 ```json
 {
@@ -144,7 +203,7 @@ This Power ships a `UserPromptSubmit` hook (Kiro 1.0 `v1` schema) that reminds t
 
 ```bash
 mkdir -p .kiro/hooks
-cp hooks/unity-power-auto-activate.json .kiro/hooks/
+cp hooks/unity-power-auto-activate.json .kiro/hooks/unity-power-auto-activate.json
 ```
 
 ### Verify Connection
@@ -241,14 +300,18 @@ list each error's type, file location, and fix suggestions
 
 ## Development
 
-```bash
-npm install
+The TypeScript modules in `src/` are standalone — there is no bundler and no build step. The test suite and the TypeScript compiler config are developer-local (git-ignored), so a fresh clone has no test runner configured; typecheck with explicit compiler flags instead:
 
-npm test                 # Run all tests
-npm run test:unit        # Unit tests only
-npm run test:property    # Property tests (fast-check)
-npm run test:integration # Integration tests only
-npx tsc --noEmit         # TypeScript type checking
+```bash
+npm install   # devDependencies only — the Power itself has no runtime dependencies
+
+# typecheck (bash)
+npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck src/*.ts
+```
+
+```powershell
+# typecheck (PowerShell)
+npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck (Get-ChildItem src -Filter *.ts | ForEach-Object FullName)
 ```
 
 ## Project Structure
@@ -257,7 +320,7 @@ npx tsc --noEmit         # TypeScript type checking
 kiro-unity-accelerator/
 ├── POWER.md                    # Main document for the AI assistant
 ├── mcp.json                    # MCP Server connection config
-├── steering/                   # Domain knowledge Steering Files (14)
+├── steering/                   # Domain knowledge Steering Files (15)
 ├── templates/                  # Built-in templates
 │   ├── presets/                # Asset Presets (5)
 │   ├── scaffolds/              # Scene Scaffolds (5)
@@ -266,27 +329,23 @@ kiro-unity-accelerator/
 │   ├── architecture-rules/     # Architecture Rules (3)
 │   └── workflows/              # Workflow Templates (3)
 ├── src/                        # TypeScript tool modules (40+)
-├── tests/                      # Test suites
-│   ├── unit/                   # Unit tests
-│   ├── property/               # Property tests (fast-check)
-│   └── integration/            # Integration tests
-├── hooks/                      # IDE hooks
+├── hooks/                      # Hook template (copy into .kiro/hooks/)
+├── workshop/                   # Step-by-step prompt tutorials
 ├── image/                      # Documentation images
-├── package.json
-├── tsconfig.json
-└── jest.config.ts
+└── package.json
 ```
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| IDE cannot connect to Unity | Ensure Unity Editor is open → Window → MCP for Unity → Start Server |
-| Port 8080 is occupied | Close the conflicting process, or switch to stdio mode in `mcp.json` |
-| Asset operations unresponsive | Unity may be compiling; wait for compilation to complete |
-| Cloud Assist failure | Automatically falls back to local mode; core features unaffected |
-| Tests failing | Run `npm test` for detailed error messages |
-| TypeScript type errors | Run `npx tsc --noEmit`; ensure `npm install` has been run |
+| Kiro cannot connect to Unity | Ensure Unity Editor is open with a project loaded → `Window → MCP for Unity` → confirm the status panel reads **Connected** (use `Restart Server` if not) |
+| Port 8080 is occupied | Change the port in MCP for Unity settings (upstream suggests 8090), re-run **Configure All Detected Clients**, restart Kiro, and make the `url` in `mcp.json` match the port shown in the Unity window |
+| A documented tool is missing from the tool list | Its group is probably not active — only `core` is enabled by default. Run `manage_tools(action: "list_groups")`, then `manage_tools(action: "sync")`, then `manage_tools(action: "activate", group: "<name>")`. Kiro may cache the tool list, so refresh or reconnect the MCP server afterwards |
+| Two Unity MCP servers registered | Open `~/.kiro/settings/mcp.json` and Kiro's MCP panel; if both the Power's entry and `unityMCP` are present, disable one and restart Kiro (see "Pick exactly one MCP registration path") |
+| Unity 6.3+ with the Unity AI Assistant package installed | The AI Assistant bundles a newer `System.Collections.Immutable` than the Roslyn dependency used by `validate_script` / `execute_code` expects. Upstream's fix is to place `System.Collections.Immutable` v9.0.0 into `Assets/Plugins/` |
+| Asset operations unresponsive | Unity may be compiling; wait for compilation to complete, or read the `mcpforunity://editor/state` resource |
+| TypeScript type errors | Run the flag-based typecheck in the Development section above; ensure `npm install` has been run |
 
 ## Security
 
