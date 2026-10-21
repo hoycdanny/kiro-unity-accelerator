@@ -1,6 +1,6 @@
 {
   "name": "kiro-unity-power",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kiro Power package for Unity game development — asset automation, scene scaffolding, build automation, performance analysis, and more.",
   "private": true,
   "scripts": {

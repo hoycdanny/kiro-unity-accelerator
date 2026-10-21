@@ -105,21 +105,27 @@ HTTP モード（デフォルト、ローカル専用 — Unity Editor との通
   "mcpServers": {
     "unity-mcp": {
       "url": "<your-mcp-server-url>",
-      "transport": "http"
+      "type": "http",
+      "env": {},
+      "disabled": false
     }
   }
 }
 ```
 
-Stdio モード（フォールバック）：
+> モードのキー名は `transport` ではなく `type` です。
+
+Stdio モード（フォールバック）。PyPI の配布名は `mcpforunityserver`、エントリポイントは `mcp-for-unity` です。Windows では `uvx.exe` を絶対パスで指定してください：
 
 ```json
 {
   "mcpServers": {
     "unity-mcp": {
       "command": "uvx",
-      "args": ["unity-mcp"],
-      "transport": "stdio"
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
     }
   }
 }
@@ -127,11 +133,11 @@ Stdio モード（フォールバック）：
 
 ### 自動ガイダンス Hook のインストール（推奨）
 
-この Power は `promptSubmit` hook を提供し、各リクエスト処理前に AI に Power の有効化と適切な Steering File の読み込みを自動的にリマインドします。
+この Power は `UserPromptSubmit` hook（Kiro 1.0 `v1` スキーマ）を提供し、各リクエスト処理前に AI に Power の有効化と適切な Steering File の読み込みを自動的にリマインドします。
 
 ```bash
 mkdir -p .kiro/hooks
-cp hooks/pre-unity-tool.kiro.hook .kiro/hooks/
+cp hooks/unity-power-auto-activate.json .kiro/hooks/
 ```
 
 ### 接続の確認

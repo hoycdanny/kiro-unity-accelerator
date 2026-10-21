@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "unity-power-auto-activate",
+      "trigger": "UserPromptSubmit",
+      "enabled": true,
+      "action": {
+        "type": "agent",
+        "prompt": "You MUST call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") NOW, every single time, no exceptions. Then call kiroPowers(action=\"readSteering\", powerName=\"kiro-unity-accelerator\", steeringFile=\"<relevant>.md\") to load the steering file matching the user's task. Do NOT skip this step even if you think you already did it.\n\nSteering file selection (15 files in steering/):\n- Scene/GameObject → scene-scaffolding.md\n- Asset import/config → asset-automation.md\n- Build/deploy → build-automation.md\n- Performance/FPS → performance-analysis.md\n- Code quality → code-quality.md\n- Platform targeting → platform-compatibility.md\n- Asset dependencies → asset-dependencies.md\n- Testing → cross-platform-testing.md\n- Multi-step workflow → workflow-automation.md\n- Knowledge/docs → knowledge-management.md\n- Level design → level-design-tooling.md\n- UI analysis → ui-dependency-analysis.md\n- Project structure → project-organization.md\n- General Unity → unity-general.md\n- Loaded when responding in Traditional Chinese → language-zh-tw.md"
+      }
+    }
+  ]
+}

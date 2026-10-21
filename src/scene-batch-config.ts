@@ -150,50 +150,50 @@ export function matchGameObjects(filters: FilterCondition[]): McpToolCall {
     // Default: search all by name wildcard
     return {
       tool: 'find_gameobjects',
-      args: { search_term: '*', search_method: 'by_name', include_inactive: false },
+      params: { search_term: '*', search_method: 'by_name', include_inactive: false },
     };
   }
 
   // Use the first filter as the primary search criterion
   const primary = filters[0];
-  const args: Record<string, unknown> = {
+  const params: Record<string, unknown> = {
     include_inactive: false,
   };
 
   switch (primary.type) {
     case 'name':
-      args['search_method'] = 'by_name';
-      args['search_term'] = primary.value;
+      params['search_method'] = 'by_name';
+      params['search_term'] = primary.value;
       break;
     case 'tag':
-      args['search_method'] = 'by_tag';
-      args['search_term'] = primary.value;
+      params['search_method'] = 'by_tag';
+      params['search_term'] = primary.value;
       break;
     case 'layer':
-      args['search_method'] = 'by_layer';
-      args['search_term'] = primary.value;
+      params['search_method'] = 'by_layer';
+      params['search_term'] = primary.value;
       break;
     case 'component':
-      args['search_method'] = 'by_component';
-      args['search_term'] = primary.value;
+      params['search_method'] = 'by_component';
+      params['search_term'] = primary.value;
       break;
     case 'parentPath':
-      args['search_method'] = 'by_path';
-      args['search_term'] = primary.value;
+      params['search_method'] = 'by_path';
+      params['search_term'] = primary.value;
       break;
   }
 
   // Attach remaining filters as additional_filters metadata so the caller
   // can perform client-side intersection if needed.
   if (filters.length > 1) {
-    args['additional_filters'] = filters.slice(1).map((f) => ({
+    params['additional_filters'] = filters.slice(1).map((f) => ({
       type: f.type,
       value: f.value,
       useWildcard: f.useWildcard,
     }));
   }
 
-  return { tool: 'find_gameobjects', args };
+  return { tool: 'find_gameobjects', params };
 }
 
 /**
@@ -266,7 +266,7 @@ export function translateToMcpCalls(
         case 'setLayer':
           calls.push({
             tool: 'manage_gameobject',
-            args: {
+            params: {
               action: 'modify',
               target: obj.path,
               search_method: 'by_path',
@@ -278,7 +278,7 @@ export function translateToMcpCalls(
         case 'setTag':
           calls.push({
             tool: 'manage_gameobject',
-            args: {
+            params: {
               action: 'modify',
               target: obj.path,
               search_method: 'by_path',
@@ -290,7 +290,7 @@ export function translateToMcpCalls(
         case 'setComponentProperty':
           calls.push({
             tool: 'manage_components',
-            args: {
+            params: {
               action: 'set_property',
               target: obj.path,
               search_method: 'by_path',
@@ -376,7 +376,7 @@ export async function validateLayersAndTags(
       const result = await executeMcpCall(
         {
           tool: 'find_gameobjects',
-          args: { search_term: layer, search_method: 'by_layer', include_inactive: true },
+          params: { search_term: layer, search_method: 'by_layer', include_inactive: true },
         },
         executor,
       );
@@ -394,7 +394,7 @@ export async function validateLayersAndTags(
       const result = await executeMcpCall(
         {
           tool: 'find_gameobjects',
-          args: { search_term: tag, search_method: 'by_tag', include_inactive: true },
+          params: { search_term: tag, search_method: 'by_tag', include_inactive: true },
         },
         executor,
       );

@@ -1,4 +1,52 @@
+---
+name: "kiro-unity-accelerator"
+displayName: "Unity Accelerator"
+description: "Drive the Unity Editor from natural language via the MCP for Unity bridge — assets, scenes, builds, tests, profiling, code quality."
+keywords: ["unity", "unity3d", "unity editor", "urp", "gameobject", "prefab", "scene", "shader", "il2cpp", "build", "mcp for unity", "unity-mcp", "game development"]
+author: "kiro-unity-accelerator contributors"
+---
+
 # Unity Accelerator Power
+
+## Onboarding
+
+### 1. Pick exactly one MCP registration path
+
+Two different mechanisms can register the Unity MCP server with the IDE, and they write to the **same** config file (`~/.kiro/settings/mcp.json`) under different names. Running both leaves two servers pointing at the same Unity Editor, which produces duplicate tool surfaces and ambiguous resource reads.
+
+- **Path A — let this Power register the server.** Install the Power and leave its `mcp.json` alone. A Legacy (`POWER.md`) power's MCP servers are registered into `~/.kiro/settings/mcp.json` under the Powers section, with the server name namespaced by the IDE.
+- **Path B — let Unity configure the IDE.** In Unity, `Window → MCP for Unity → Configure All Detected Clients` (or select the IDE and `Configure Selected`). The MCP for Unity package writes a server entry named `unityMCP` into the same file.
+
+> **If the MCP panel shows two Unity MCP servers, disable one and restart the IDE.** Config file locations: user-level `~/.kiro/settings/mcp.json`, workspace-level `.kiro/settings/mcp.json`, and this Power's own `mcp.json`.
+>
+> Tool names are written here without a prefix (`manage_scene`, `manage_asset`, …). The MCP client may display them grouped under a server prefix — read the actual names in the IDE's MCP panel if a call is rejected as unknown.
+
+### 2. Install the auto-guidance hook
+
+This Power ships a hook template at `hooks/unity-power-auto-activate.json`. A Power cannot install a hook by itself — copy the file into the workspace at `.kiro/hooks/unity-power-auto-activate.json`:
+
+```json
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "unity-power-auto-activate",
+      "trigger": "UserPromptSubmit",
+      "enabled": true,
+      "action": {
+        "type": "agent",
+        "prompt": "You MUST call kiroPowers(action=\"activate\", powerName=\"kiro-unity-accelerator\") NOW, every single time, no exceptions. Then call kiroPowers(action=\"readSteering\", powerName=\"kiro-unity-accelerator\", steeringFile=\"<relevant>.md\") to load the steering file matching the user's task. Do NOT skip this step even if you think you already did it.\n\nSteering file selection (15 files in steering/):\n- Scene/GameObject → scene-scaffolding.md\n- Asset import/config → asset-automation.md\n- Build/deploy → build-automation.md\n- Performance/FPS → performance-analysis.md\n- Code quality → code-quality.md\n- Platform targeting → platform-compatibility.md\n- Asset dependencies → asset-dependencies.md\n- Testing → cross-platform-testing.md\n- Multi-step workflow → workflow-automation.md\n- Knowledge/docs → knowledge-management.md\n- Level design → level-design-tooling.md\n- UI analysis → ui-dependency-analysis.md\n- Project structure → project-organization.md\n- General Unity → unity-general.md\n- Loaded when responding in Traditional Chinese → language-zh-tw.md"
+      }
+    }
+  ]
+}
+```
+
+Set `"enabled": false` to switch it off without deleting the file.
+
+### 3. Verify the connection
+
+Run one cheap read-only call — `manage_scene(action: "get_active")`. If it returns a scene, the bridge is working. If not, see [Connection Health Check](#connection-health-check).
 
 ## Overview
 
@@ -72,19 +120,24 @@ Two things are still worth a runtime check rather than an assumption, because th
 
 1. [Unity Editor](https://unity.com/download) installed and a project open (see [Unity Hub documentation](https://docs.unity3d.com/hub/manual/index.html) for getting started)
 2. The IDE installed
+3. **Python 3.10 or newer plus [`uv`](https://docs.astral.sh/uv/)** — the MCP for Unity server is a Python package (`mcpforunityserver` on PyPI) that the bridge launches through `uv`/`uvx`. The MCP for Unity setup wizard can install `uv` for you; on Windows, point "Choose UV Install Location" at the WinGet shim (`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`) if several `uv.exe` copies are on PATH
 
 ### Installation Steps
 
-1. **Install the MCP bridge UPM package in Unity**:
-   - Open Unity Editor → Window → Package Manager
-   - Add package from git URL: `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main`
+1. **Install the MCP bridge UPM package in Unity** — any one of:
+   - **Git URL (default)**: Unity Editor → Window → Package Manager → Add package from git URL: `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main`
+   - **Pin a release** instead of tracking `main` by replacing `#main` with a tag, e.g. `#v10.3.0`
+   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp`
+   - **Asset Store**: the "MCP for Unity" listing, then Package Manager → My Assets
 
 2. **Install this Power in the IDE**:
    - Open the IDE → Powers panel → Install this Power
 
-3. **Start MCP Server in Unity**:
-   - Unity Editor → Window → MCP for Unity → Start Server
-   - The server listens on a local MCP endpoint (shown in the Unity MCP window; local-only loopback — communication that stays on the local computer and is not accessible from the network — see Security Note below)
+3. **Finish the MCP for Unity setup in Unity**:
+   - On first import the package opens a **setup wizard**; the persistent UI afterwards is `Window → MCP for Unity`, which starts/stops the server, switches transport, and reconfigures clients
+   - Confirm the status panel reads **Connected**. `Restart Server` is the recovery action
+   - The server listens on a local MCP endpoint whose port the window displays (local-only loopback — communication that stays on the local computer and is not accessible from the network — see Security Note below)
+   - Then pick **exactly one** registration path as described in [Onboarding](#1-pick-exactly-one-mcp-registration-path)
 
 ### Language Setting / 語言設定
 
@@ -107,55 +160,99 @@ This Power automatically adapts to the language the developer uses — write in 
 
 ### MCP Connection
 
-**Primary — HTTP (recommended)**:
-The default connection uses HTTP transport at the configured MCP server URL (local-only, not exposed to external networks). This is configured in `mcp.json` and requires no additional setup beyond starting the MCP server in Unity.
+**Primary — HTTP (default transport)**:
+MCP for Unity's default transport is streamable HTTP, and the default local endpoint is `http://127.0.0.1:8080/mcp` — that value is the Unity-side default (`HttpEndpointUtility.DefaultLocalBaseUrl`) and the Python server default, so it is what this Power's `mcp.json` ships with.
 
-> **Security Note**: HTTP is used intentionally. This endpoint communicates exclusively with the Unity Editor on `localhost` (loopback interface — network traffic that stays on the local machine). Traffic never leaves the local machine, so HTTPS is not required.
+**The port is user-editable and 8080 collides with other services** (upstream names Tailscale as an example and suggests moving to 8090). Do the steps in this order:
+
+1. **Let Unity write the config.** `Window → MCP for Unity` → confirm the transport is HTTP → **Configure All Detected Clients** (or select the IDE and **Configure Selected**). The IDE is a first-class supported client, so this writes a port-accurate entry for you.
+2. **Read the real port.** The MCP for Unity window shows the server endpoint. If it is not 8080, the URL is `http://127.0.0.1:<that port>/mcp`.
+3. **Hand-edit `mcp.json` last**, and only if steps 1–2 did not produce a working entry:
+
+   ```json
+   {
+     "mcpServers": {
+       "unity-mcp": {
+         "url": "http://127.0.0.1:8080/mcp",
+         "type": "http",
+         "env": {},
+         "disabled": false
+       }
+     }
+   }
+   ```
+
+   Replace `8080` with the port shown in the Unity window. The mode key is **`type`**, not `transport`.
+4. **On a port conflict**: change the port in MCP for Unity settings, re-run Configure, then restart the IDE.
+
+> **`127.0.0.1` vs `localhost`**: upstream docs print `localhost`, but the Unity side's own default is the literal `127.0.0.1`. The server binds both loopback families, and on Windows `localhost` can resolve to `::1` first — so `127.0.0.1` is the safer literal and the one this Power uses.
+
+> **Security Note**: plain HTTP is used intentionally. The server binds loopback only (`127.0.0.1` / `::1`); binding a LAN address requires `Advanced Settings → Allow LAN Bind (HTTP Local)`, and a remote endpoint must be `https://` unless `Allow Insecure Remote HTTP` is explicitly enabled. Traffic on the default setup never leaves the local machine, so HTTPS is not required.
 
 **Backup — stdio (standard input/output — communication via text streams) via uvx**:
-If the HTTP connection is unavailable (e.g., port conflict, firewall issues), the stdio transport mode can be used as a fallback. This uses `uvx` (a Python package runner) to launch the MCP bridge as a subprocess (a child process managed by the IDE):
+If HTTP is unavailable (port conflict, firewall), stdio launches the MCP bridge as a subprocess (a child process managed by the IDE) through `uvx`, a Python package runner. The PyPI distribution is **`mcpforunityserver`** and the console entrypoint is **`mcp-for-unity`**; `--transport stdio` is required.
 
-- Command: `uvx`
-- Args: `["unity-mcp"]`
-- Transport: `stdio`
+Windows (use an absolute `uvx.exe` path — the WinGet shim is the recommended one):
 
-> **Note**: If these technical concepts are unfamiliar, the HTTP mode (recommended above) works automatically without requiring understanding of these details. The stdio mode is only needed as a fallback.
-
-To switch to stdio mode, update `mcp.json`:
 ```json
 {
   "mcpServers": {
     "unity-mcp": {
-      "command": "uvx",
-      "args": ["unity-mcp"],
-      "transport": "stdio"
+      "command": "C:/Users/<you>/AppData/Local/Microsoft/WinGet/Links/uvx.exe",
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
     }
   }
 }
 ```
 
+macOS/Linux (`uvx` on PATH is usually fine):
+
+```json
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "command": "uvx",
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
+    }
+  }
+}
+```
+
+> **Note**: the HTTP mode above works without understanding any of this. stdio is only a fallback. Unity's own configurator writes a version-pinned `--from mcpforunityserver==<package version>`; the unpinned form above tracks the newest server.
+
+> **stdio-only behaviour**: `set_active_instance` accepts a bare port number only in stdio mode. Over HTTP the `instance` argument must be `Name@hash` (or an unambiguous hash prefix).
+
 ### Connection Health Check
 
 Before executing any MCP operation, perform a lightweight health check:
-1. Attempt a cheap read-only call, e.g. `manage_scene(action: "get_active")` or `execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")`
+1. Attempt one cheap read-only call: `manage_scene(action: "get_active")`. Use this call and no other — it is in the `core` tool group, which is the only group enabled by default
 2. If successful → MCP connection is healthy
 3. If failed → prompt the developer to:
-   - Confirm Unity Editor is open
-   - Confirm MCP Server is started (Window → MCP for Unity → Start Server)
-   - Confirm localhost:8080 is not occupied by another process
+   - Confirm Unity Editor is open with a project loaded
+   - Open `Window → MCP for Unity` and confirm the status panel reads **Connected**; use `Restart Server` if it does not
+   - Read the server port shown in that window and confirm the URL in `mcp.json` (or the IDE's MCP panel) matches it — do not assume 8080
+   - Confirm only one Unity MCP server is registered (see [Onboarding](#1-pick-exactly-one-mcp-registration-path))
 
-### Pre-Tool Hook（自動品質檢查）
+### Auto-Activation Hook（自動品質檢查）
 
-本 Power 包含一個 `preToolUse` hook 檔案，位於 `hooks/pre-unity-tool.json`。
+本 Power 附帶一個 hook 範本，位於套件內的 `hooks/unity-power-auto-activate.json`，採用 Kiro 1.0 的 `v1` hook schema。
 
-**功能**：在 AI 呼叫任何 unity-mcp 相關工具之前，自動提醒 AI 必須先：
+**觸發時機**：`UserPromptSubmit` — 每個使用者回合開始時觸發一次，必定早於任何工具呼叫。`action.type` 為 `agent`，也就是把一段提示注入對話中。
+
+**功能**：提醒 AI 在動手之前必須先：
 1. 啟動（activate）本 Power 以載入完整文件
-2. 讀取對應的 steering file 以獲取該任務的最佳實踐指引
+2. 讀取對應的 steering file（`steering/` 下共 15 個檔案）以獲取該任務的最佳實踐指引
 3. 依照 Power 文件中定義的 workflow 執行操作
 
-**涵蓋的工具**：所有 unity-mcp 工具，包括 `manage_scene`、`manage_gameobject`、`manage_components`、`manage_camera`、`manage_asset`、`manage_build`、`manage_editor`、`manage_material`、`manage_animation`、`manage_physics`、`manage_prefabs`、`manage_packages`、`manage_shader`、`manage_texture`、`manage_ui`、`manage_vfx`、`manage_probuilder`、`manage_profiler`、`manage_graphics`、`manage_scriptable_object`、`find_gameobjects`、`read_console`、`run_tests`、`get_test_job`、`batch_execute`、`execute_code`、`create_script`、`delete_script`、`validate_script`、`apply_text_edits`、`script_apply_edits`、`refresh_unity`、`unity_docs`、`unity_reflect` 等。建置請使用 `manage_build`（不是 `manage_editor`）。
+**安裝方式**：Power 無法自行安裝 hook。請把 `hooks/unity-power-auto-activate.json` 複製到工作區的 `.kiro/hooks/unity-power-auto-activate.json`（完整 JSON 內容見本文件開頭的 [Onboarding](#2-install-the-auto-guidance-hook) 一節）。如需停用，把 `enabled` 改為 `false` 即可，不必刪除檔案。
 
-**使用方式**：安裝本 Power 後，此 hook 會自動生效。開發者無需手動設定。如需停用，可刪除或重新命名 `hooks/pre-unity-tool.json` 檔案。
+> **為什麼不用 `PreToolUse`**：`PreToolUse` hook 是 fail-closed — 逾時、錯誤或無法執行都會「拒絕」該次工具呼叫，等於擋掉所有 Unity 工具呼叫，正是本 Power 要避免的故障。`UserPromptSubmit` 每回合只跑一次，既達到提醒目的，也不會在 25 筆的 `batch_execute` 工作流上重複啟動 agent loop。
 
 
 ## Available MCP Tools

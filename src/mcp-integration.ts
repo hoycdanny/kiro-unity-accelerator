@@ -62,20 +62,29 @@ export async function executeMcpCall(
 // Compilation wait logic (Requirement 5.6)
 // ----------------------------------------------------------------
 
+/** MCP resource URI carrying the Editor readiness snapshot. */
+export const EDITOR_STATE_RESOURCE = 'mcpforunity://editor/state';
+
 /**
- * Checks whether Unity Editor is currently compiling by calling
- * `manage_editor(action: "telemetry_status")` and inspecting the response.
+ * Checks whether Unity Editor is currently compiling by reading the
+ * `mcpforunity://editor/state` resource and inspecting its `advice` block.
+ *
+ * Editor state is exposed as an MCP resource, not as a tool action —
+ * `manage_editor` has no read-only action that reports compilation state. The
+ * read is dispatched through the executor as the JSON-RPC `resources/read`
+ * method (the same method `mcp-health.ts` uses), so the caller's executor is
+ * responsible for routing it.
  */
 export async function isUnityCompiling(executor: McpExecutor): Promise<boolean> {
   try {
     const result = await executor({
-      tool: 'manage_editor',
-      args: { action: 'telemetry_status' },
+      tool: 'resources/read',
+      params: { uri: EDITOR_STATE_RESOURCE },
     });
     if (!result.success || !result.data) return false;
     const data = result.data as Record<string, unknown>;
-    // The telemetry_status response includes editor state info;
-    // check for compilation indicators.
+    // `advice.ready_for_tools` is the canonical readiness flag; it is false
+    // while the Editor is compiling or otherwise busy.
     const advice = data['advice'] as Record<string, unknown> | undefined;
     if (advice && advice['ready_for_tools'] === false) return true;
     const isCompiling = data['isCompiling'] ?? data['is_compiling'];
@@ -109,22 +118,22 @@ export async function waitForCompilation(
 
 /**
  * Triggers Unity Editor refresh/recompilation.
+ *
+ * Only `refresh_unity` is called — the Editor is never put into Play Mode,
+ * which would violate the Power's "no permanent changes while in Play Mode"
+ * safety rule.
+ *
  * Requirement 5.3
  */
 export async function refreshUnityEditor(
   executor: McpExecutor,
 ): Promise<McpToolResult> {
   return executeMcpCall(
-    { tool: 'manage_editor', args: { action: 'play' } },
+    {
+      tool: 'refresh_unity',
+      params: { scope: 'all', compile: 'request', wait_for_ready: true },
+    },
     executor,
-  ).then(() =>
-    executeMcpCall(
-      {
-        tool: 'refresh_unity',
-        args: { scope: 'all', compile: 'request', wait_for_ready: true },
-      },
-      executor,
-    ),
   );
 }
 

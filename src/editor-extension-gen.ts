@@ -228,7 +228,7 @@ export async function queryClassInfo(
   const result = await executeMcpCall(
     {
       tool: 'manage_script',
-      args: { action: 'read', name: className, path: 'Assets/Scripts' },
+      params: { action: 'read', name: className, path: 'Assets/Scripts' },
     },
     executor,
   );
@@ -263,7 +263,7 @@ export async function createScriptViaMcp(
   return executeMcpCall(
     {
       tool: 'create_script',
-      args: {
+      params: {
         path: scriptResult.filePath,
         contents: scriptResult.content,
       },

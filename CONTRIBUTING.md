@@ -32,7 +32,13 @@ Before sending us a pull request, please ensure that:
 
 This project is a Unity development accelerator built with TypeScript. When contributing, please keep in mind:
 
-- **TypeScript modules** (`src/`): Follow the existing patterns — each module exports typed functions with JSDoc comments. Run `npx tsc --noEmit` before submitting.
+- **TypeScript modules** (`src/`): Follow the existing patterns — each module exports typed functions with JSDoc comments. Typecheck before submitting.
+- **`tsconfig.json` and `tests/` are gitignored / developer-local** — they are intentionally not part of the repository, so a fresh clone has no TypeScript config and no runnable Jest suite. Do not add either; typecheck with explicit compiler flags instead:
+
+  ```powershell
+  npm install
+  npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck (Get-ChildItem src -Filter *.ts | ForEach-Object FullName)
+  ```
 - **Steering files** (`steering/`): These are domain knowledge documents. Use "the developer" (not "you") when referring to the human being assisted. Include both English and Chinese descriptions in file purpose comments.
 - **Templates** (`templates/`): JSON configuration files. Validate JSON syntax and ensure new templates follow the existing schema patterns.
 - **MCP tool integration**: If adding new tool workflows, document them in both `POWER.md` and the relevant steering file.

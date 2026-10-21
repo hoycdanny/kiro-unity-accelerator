@@ -101,21 +101,27 @@ HTTP 模式（預設，僅限本機 — 與 Unity Editor 通訊）：
   "mcpServers": {
     "unity-mcp": {
       "url": "<your-mcp-server-url>",
-      "transport": "http"
+      "type": "http",
+      "env": {},
+      "disabled": false
     }
   }
 }
 ```
 
-Stdio 模式（備用）：
+> 模式欄位的鍵名是 `type`，不是 `transport`。
+
+Stdio 模式（備用）。PyPI 套件名稱是 `mcpforunityserver`，執行檔入口是 `mcp-for-unity`；Windows 請給 `uvx.exe` 絕對路徑：
 
 ```json
 {
   "mcpServers": {
     "unity-mcp": {
       "command": "uvx",
-      "args": ["unity-mcp"],
-      "transport": "stdio"
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
     }
   }
 }
@@ -123,11 +129,11 @@ Stdio 模式（備用）：
 
 ### 安裝自動導引 Hook（建議）
 
-此 Power 提供 `promptSubmit` hook，會在每次請求前自動提醒 AI 啟動 Power 並載入對應的 Steering File。
+此 Power 提供 `UserPromptSubmit` hook（Kiro 1.0 `v1` schema），會在每次請求前自動提醒 AI 啟動 Power 並載入對應的 Steering File。
 
 ```bash
 mkdir -p .kiro/hooks
-cp hooks/pre-unity-tool.kiro.hook .kiro/hooks/
+cp hooks/unity-power-auto-activate.json .kiro/hooks/
 ```
 
 ### 驗證連線

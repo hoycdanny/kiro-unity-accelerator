@@ -1,8 +1,9 @@
 /**
  * MCP connection health-check module.
  *
- * Attempts to read the `project_info` resource from the unity-mcp server
- * and returns a structured health status with actionable error messages.
+ * Attempts to read the `mcpforunity://project/info` resource from the
+ * unity-mcp server and returns a structured health status with actionable
+ * error messages.
  *
  * This module provides MCP connection health checks for Unity Editor
  * integration via the unity-mcp package (https://github.com/CoplayDev/unity-mcp).
@@ -56,7 +57,7 @@ export function classifyError(error: unknown): DiagnosticHint {
     return {
       errorType: 'Connection Refused',
       suggestion:
-        'Open Window > MCP for Unity > Start Server in Unity Editor to confirm the MCP Server is running.',
+        'Open Window > MCP for Unity in Unity Editor and confirm the status panel reads Connected. If it does not, use Restart Server to recover.',
     };
   }
 
@@ -72,7 +73,7 @@ export function classifyError(error: unknown): DiagnosticHint {
     return {
       errorType: 'Host Unreachable',
       suggestion:
-        'Verify that localhost:8080 is not occupied by another process and that network configuration is correct.',
+        'Verify that the configured port (default 8080, shown in the Window > MCP for Unity panel) is not occupied by another process and that the URL host matches the one the panel reports.',
     };
   }
 
@@ -87,7 +88,7 @@ export function classifyError(error: unknown): DiagnosticHint {
   return {
     errorType: 'Unknown Error',
     suggestion:
-      'Ensure Unity Editor is open with a project loaded and MCP Server is running (Window > MCP for Unity > Start Server).',
+      'Ensure Unity Editor is open with a project loaded and that Window > MCP for Unity reports Connected (use Restart Server if it does not).',
   };
 }
 
@@ -97,7 +98,7 @@ export function classifyError(error: unknown): DiagnosticHint {
 
 /**
  * Check the health of the MCP server at the given URL by attempting
- * to read the `project_info` resource.
+ * to read the `mcpforunity://project/info` resource.
  *
  * The `fetchFn` parameter allows callers to inject their own HTTP
  * implementation (or a test stub). It defaults to the global `fetch`.
@@ -121,7 +122,7 @@ export async function checkMcpHealth(
         jsonrpc: '2.0',
         id: 1,
         method: 'resources/read',
-        params: { uri: 'unity://project_info' },
+        params: { uri: 'mcpforunity://project/info' },
       }),
     });
 

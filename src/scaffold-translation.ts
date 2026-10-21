@@ -21,7 +21,7 @@ export function translateScaffoldToMcpCalls(scaffold: SceneScaffold): McpToolCal
 function collectCalls(node: SceneNode, calls: McpToolCall[]): void {
   calls.push({
     tool: node.mcpTool,
-    args: { ...node.mcpArgs },
+    params: { ...node.mcpArgs },
   });
 
   for (const child of node.children) {

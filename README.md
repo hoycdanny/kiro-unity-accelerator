@@ -112,23 +112,27 @@ HTTP mode (default — local-only, communicates with Unity Editor on your machin
   "mcpServers": {
     "unity-mcp": {
       "url": "<your-mcp-server-url>",
-      "transport": "http"
+      "type": "http",
+      "env": {},
+      "disabled": false
     }
   }
 }
 ```
 
-> **Connection methods**: The system supports two connection methods: HTTP (simpler, recommended) and stdio (backup option). Choose HTTP unless you encounter specific issues.
+> **Connection methods**: The system supports two connection methods: HTTP (simpler, recommended) and stdio (backup option). Choose HTTP unless you encounter specific issues. The mode key is `type`, not `transport`.
 
-Stdio mode (fallback — runs the MCP server as a subprocess (a separate process managed by the main application), useful when the HTTP port is unavailable):
+Stdio mode (fallback — runs the MCP server as a subprocess (a separate process managed by the main application), useful when the HTTP port is unavailable). The PyPI distribution is `mcpforunityserver` and the entrypoint is `mcp-for-unity`; on Windows give `uvx.exe` an absolute path:
 
 ```json
 {
   "mcpServers": {
     "unity-mcp": {
       "command": "uvx",
-      "args": ["unity-mcp"],
-      "transport": "stdio"
+      "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+      "type": "stdio",
+      "env": {},
+      "disabled": false
     }
   }
 }
@@ -136,11 +140,11 @@ Stdio mode (fallback — runs the MCP server as a subprocess (a separate process
 
 ### Install Auto-Guidance Hook (Recommended)
 
-This Power provides a `promptSubmit` hook that automatically reminds the AI to activate the Power and load the appropriate Steering File before processing each request.
+This Power ships a `UserPromptSubmit` hook (Kiro 1.0 `v1` schema) that reminds the AI to activate the Power and load the appropriate Steering File before processing each request.
 
 ```bash
 mkdir -p .kiro/hooks
-cp hooks/pre-unity-tool.kiro.hook .kiro/hooks/
+cp hooks/unity-power-auto-activate.json .kiro/hooks/
 ```
 
 ### Verify Connection

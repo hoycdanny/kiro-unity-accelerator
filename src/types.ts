@@ -378,7 +378,11 @@ export interface DependencyTree {
 
 export interface McpToolCall {
   tool: string;
-  args: Record<string, unknown>;
+  /**
+   * Call parameters. Named `params` to match the documented `batch_execute`
+   * wire format, where each command is `{ tool, params }` — never `args`.
+   */
+  params: Record<string, unknown>;
 }
 
 export interface BatchExecutePayload {

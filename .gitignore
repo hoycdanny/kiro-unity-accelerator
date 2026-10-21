@@ -22,3 +22,6 @@ tests/
 
 # TypeScript config
 tsconfig.json
+
+# Agent task artefacts
+.agents/
