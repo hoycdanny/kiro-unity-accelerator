@@ -125,7 +125,15 @@ Kiro → 左側面板點擊 Powers 圖示 → 點擊「+」按鈕 → 選擇「A
 
 #### 讀出真正的連接埠
 
-**不要把 8080 當成固定值。** 這個連接埠可由使用者修改，而 8080 常與其他服務衝突（上游以 Tailscale 為例，並建議改用 8090）。MCP for Unity 視窗會顯示目前的端點 — 如果不是 8080，網址就是 `http://127.0.0.1:<該連接埠>/mcp`。
+**不要把 8080 當成固定值。** 連接埠就是伺服器啟動時 `--http-url` 帶的那個值，可由使用者修改，而 8080 常與其他服務衝突（上游以 Tailscale 為例，並建議改用 8090）。MCP for Unity 視窗會顯示目前的端點 — 如果不是 8080，網址就是 `http://127.0.0.1:<該連接埠>/mcp`。
+
+也可以直接從磁碟上讀出連接埠：執行中的伺服器會在 Unity 專案底下寫一個以連接埠命名的 pidfile。
+
+```
+<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid
+```
+
+看到 `mcp_http_8080.pid` 就表示伺服器正在服務 `http://127.0.0.1:8080`。本 Power 實機驗證的那台機器上就是這個情況 — 伺服器自己的命令列是 `mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile ...mcp_http_8080.pid`。
 
 #### 手動設定（最後手段）
 
@@ -322,7 +330,9 @@ kiro-unity-accelerator/
 |------|----------|
 | Kiro 無法連線到 Unity | 確認 Unity Editor 已開啟並載入專案 → `Window → MCP for Unity` → 確認狀態面板顯示 **Connected**（若否，按 `Restart Server`） |
 | Port 8080 被佔用 | 在 MCP for Unity 設定中改掉連接埠（上游建議 8090），重新執行 **Configure All Detected Clients**，重啟 Kiro，並把 `mcp.json` 的 `url` 改成 Unity 視窗顯示的連接埠 |
-| 文件寫的某個工具在工具清單裡找不到 | 很可能是該工具的群組沒有啟用 — 預設只有 `core` 是開啟的。依序執行 `manage_tools(action: "list_groups")`、`manage_tools(action: "sync")`、`manage_tools(action: "activate", group: "<名稱>")`。Kiro 可能會快取工具清單，之後請重新整理或重新連線 MCP 伺服器 |
+| 文件寫的某個工具被回報為不存在 | 有可能是該工具的群組沒有啟用 — bridge 宣告的預設值只有 `core`，但在實機驗證的那台機器上，所有工具不做任何啟用就能呼叫。依序執行 `manage_tools(action: "list_groups")`、`manage_tools(action: "sync")`、`manage_tools(action: "activate", group: "<名稱>")`，之後請重新整理或重新連線 MCP 伺服器（Kiro 可能會快取工具清單）。注意 `list_groups` 可能對能正常運作的群組回報 `enabled: false`，所以要以重試是否成功來判斷，不要只看那個欄位 |
+| `Tool call denied by user's permissions` | 是 Kiro 的權限規則在 Unity 看到這次呼叫之前就擋下來了，不是 bridge 的問題。Kiro 會把本 Power 的伺服器命名為 `power-kiro-unity-accelerator-unity-mcp`；請檢查 `~/.kiro/settings/permissions.yaml`（以及工作區層級的同名檔案）裡有沒有 `capability: mcp` 且 `effect: deny`、match 到 `power-<powerName>-<serverName>/<tool>` 的規則，若希望開放該工具就放寬規則。本 Power 驗證的那台機器上，就是這種規則擋掉了 `manage_build`，讓整個建置流程無法執行 |
+| 在 `batch_execute` 裡出現 `Unknown action` | `batch_execute` 會直接把指令送到 Unity，繞過 bridge 的 Python 伺服器層，所以伺服器層的 action 即使可用，在批次裡也會失敗。請把那一筆改成**直接呼叫**再試一次，然後才判斷該 action 是否存在 |
 | 註冊了兩個 Unity MCP 伺服器 | 打開 `~/.kiro/settings/mcp.json` 與 Kiro 的 MCP 面板；如果本 Power 的項目和 `unityMCP` 同時存在，請停用其中一個並重啟 Kiro（見「註冊路徑只能選一條」） |
 | Unity 6.3+ 且安裝了 Unity AI Assistant 套件 | AI Assistant 內附的 `System.Collections.Immutable` 版本比 `validate_script` / `execute_code` 使用的 Roslyn 依賴所需的更新。上游的解法是把 `System.Collections.Immutable` v9.0.0 放進 `Assets/Plugins/` |
 | 資產操作無回應 | Unity 可能正在編譯，等待編譯完成，或讀取 `mcpforunity://editor/state` 資源確認狀態 |

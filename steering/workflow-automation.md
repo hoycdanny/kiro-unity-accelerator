@@ -48,6 +48,8 @@ batch_execute(commands: [
 
 Each command's second key is `params`, not `args`. `fail_fast` **defaults to `true`**, so an unset `fail_fast` aborts the remaining commands as soon as one fails — pass `fail_fast: false` whenever the workflow is supposed to record a failure and carry on. The batch command cap is configurable in the Unity MCP Tools window (default 25, hard maximum 100), so a workflow that fans out beyond that must send successive batches.
 
+**A workflow step must not batch a server-layer action.** `batch_execute` forwards commands straight to Unity's C# handler and bypasses action handlers implemented in the Python server layer, so such an action fails inside a batch with a misleading `Unknown action` error — verified with `manage_editor`'s `telemetry_status` / `telemetry_ping`, which both succeed as direct calls. If a batched step reports an unknown action, re-run that one step as a direct call before recording it as unsupported. Full detail in `unity-general.md` under "`batch_execute` is not equivalent to direct calls".
+
 ### Trigger Build Step
 
 ```

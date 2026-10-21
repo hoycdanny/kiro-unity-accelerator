@@ -1,27 +1,30 @@
 {
   "id": "wf-test-execution",
   "name": "Test Execution",
-  "description": "Activates the `testing` tool group, runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report.",
+  "description": "Runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report. Tool-group activation is NOT part of the flow -- it is a conditional recovery step, kept in `conditionalRecoverySteps` below.",
   "isBuiltIn": true,
-  "requiresToolGroups": ["testing"],
-  "toolGroupNotes": "`run_tests` and `get_test_job` are in the `testing` tool group, which is OFF by default -- only `core` is enabled. The activate-testing step below must run first. The MCP client may need a refresh or reconnect before the newly activated tools appear. `read_console` is `core` and needs no activation.",
-  "steps": [
+  "requiresToolGroups": [],
+  "optionalToolGroups": ["testing"],
+  "toolGroupNotes": "`run_tests` and `get_test_job` are declared in the `testing` tool group, which the bridge reports as OFF by default -- but on the live-verified install (2026-10-21, bridge 9.6.8 over HTTP with --project-scoped-tools) every non-core tool was callable with no manage_tools call at all, and `list_groups` reported `enabled: false` for groups whose tools worked. So do NOT open this workflow with an activation step: call `run_tests` and only run the activation in `conditionalRecoverySteps` if the tool is reported as not existing. If instead the call is refused with `Tool call denied by user's permissions`, that is an IDE-side `capability: mcp` deny rule in ~/.kiro/settings/permissions.yaml and no activation will help. `read_console` is `core`.",
+  "conditionalRecoverySteps": [
     {
       "id": "activate-testing",
-      "name": "Activate the `testing` tool group (run_tests/get_test_job are off by default)",
+      "name": "CONDITIONAL -- run only if run_tests/get_test_job is reported as not existing: activate the `testing` tool group, then re-try. The MCP client may need a refresh or reconnect before a newly activated tool appears.",
       "mcpTool": "manage_tools",
       "mcpAction": "activate",
       "mcpArgs": { "action": "activate", "group": "testing" },
       "dependsOn": [],
-      "onFailure": "abort"
-    },
+      "onFailure": "skip"
+    }
+  ],
+  "steps": [
     {
       "id": "run-editmode",
       "name": "Start EditMode tests (returns job_id; poll separately with get_test_job)",
       "mcpTool": "run_tests",
       "mcpAction": "n/a",
       "mcpArgs": { "mode": "EditMode" },
-      "dependsOn": ["activate-testing"],
+      "dependsOn": [],
       "onFailure": "pause"
     },
     {
@@ -30,7 +33,7 @@
       "mcpTool": "run_tests",
       "mcpAction": "n/a",
       "mcpArgs": { "mode": "PlayMode" },
-      "dependsOn": ["activate-testing"],
+      "dependsOn": [],
       "onFailure": "pause"
     },
     {

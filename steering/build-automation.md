@@ -25,7 +25,9 @@ Load config → manage_build build → Poll manage_build status / read_console �
 
 > **Verified syntax**: confirmed against a live unity-mcp connection.
 >
-> **Tool groups**: every tool in the build flow — `manage_build`, `manage_scene`, `manage_asset`, `manage_packages`, `read_console` — is in the default-on `core` group, so the standard build needs no activation step. Two side paths do: reading shader source uses `manage_shader` (`vfx` group) and any `execute_code` recipe uses the `scripting_ext` group. Both are off by default; see "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
+> **Tool groups**: every tool in the build flow — `manage_build`, `manage_scene`, `manage_asset`, `manage_packages`, `read_console` — is in the default-on `core` group, so the standard build needs no activation step. `manage_shader` (`vfx`) and `execute_code` (`scripting_ext`) are declared in groups reported off by default, but were callable without activation on the live-verified install; activate only if one is reported as not existing. See "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
+>
+> **`manage_build` can be blocked by the IDE, not by Unity.** On the verification machine a direct `manage_build(action: "settings")` call was refused with `Tool call denied by user's permissions. Rule: deny mcp matching "power-kiro-unity-accelerator-unity-mcp/manage_build"`, sourced from `~/.kiro/settings/permissions.yaml` — a user-level `capability: mcp` / `effect: deny` rule that made this entire domain unrunnable there. If a build call returns a permission denial, say so plainly, point the developer at that file, and stop; it is not a Unity, bridge or tool-group fault, and retrying will not change it. See "Tool Call Denied by the IDE's Permissions" in `unity-general.md`.
 
 ### Trigger Local Build
 
@@ -65,7 +67,7 @@ manage_build(action: "settings", property: "scripting_backend")           // rea
 manage_build(action: "settings", property: "scripting_backend", value: "il2cpp")  // write
 ```
 
-Confirmed properties: `product_name`, `company_name`, `version`, `bundle_id`, `scripting_backend`, `defines`, `architecture`.
+Documented properties: `product_name`, `company_name`, `version`, `bundle_id`, `scripting_backend`, `defines`, `architecture`. Always pass one of them. Whether a bare `manage_build(action: "settings")` is *rejected* for a missing `property` is **UNVERIFIED**: that error was only ever seen through `batch_execute`, which is not equivalent to a direct call, and `manage_build` could not be retested directly on the verification machine because of the IDE permission denial noted above. Pass `property` because it is the documented shape — not because the requirement has been proven.
 
 ### Get Project Scene List (Build Settings)
 
@@ -106,7 +108,7 @@ Pattern: `Shader error in 'Custom/MyShader': undeclared identifier 'unity_Object
 
 Fix suggestions:
 - Check if the Shader syntax is compatible with the target platform's graphics API
-- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate Shaders in the project (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`). `manage_asset` is in the default-on `core` group; **`manage_shader` is in the `vfx` group, which is off by default** — run `manage_tools(action: "activate", group: "vfx")` before reading shader source. See "Tool Group Activation (`manage_tools`)" in `unity-general.md`
+- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate Shaders in the project (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`). `manage_asset` is in the default-on `core` group; `manage_shader` is declared in the `vfx` group, reported off by default but callable without activation on the live-verified install — run `manage_tools(action: "activate", group: "vfx")` only if `manage_shader` is reported as not existing. See "Tool Group Activation (`manage_tools`)" in `unity-general.md`
 - Suggest using URP/HDRP-compatible Shaders instead of custom Shaders
 
 #### Missing Asset Errors

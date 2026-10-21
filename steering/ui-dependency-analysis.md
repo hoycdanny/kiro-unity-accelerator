@@ -120,7 +120,7 @@ batch_execute(commands: [
 ])
 ```
 
-Each command's second key is `params`, not `args`.
+Each command's second key is `params`, not `args`. Reads like these are Unity-side work and batch fine; note that `batch_execute` bypasses the Python server layer, so an `Unknown action` error from inside a batch has to be retested as a direct call before it is believed (see `unity-general.md`).
 
 ### Build Dependency Graph
 

@@ -121,7 +121,7 @@ This is the version policy every other steering file in this Power defers to. Cr
 
 Unity 6 ships frequent Update releases that change editor defaults without a major version bump, and public changelogs and discussion threads are not always precise about which point release introduced a given default. **Do not cite a minor version number from memory as fact, and do not attach behaviour to a release past the 6.4 baseline above as though it were verified.** Use the connected project as ground truth instead: read `mcpforunity://project/info` for the Unity version (no tool group needed), and use `execute_code` for live Editor/Player state (see the "Verify via" column). The rows below are written against the **Unity 6.4** baseline; where a row describes something Unity has only announced, it is labelled as reported-but-unverified.
 
-> **Tool group prerequisite for the "Verify via" column**: `execute_code` lives in the `scripting_ext` tool group, which is **off by default**. Activate it with `manage_tools(action: "activate", group: "scripting_ext")` before using any of these recipes — see [the `manage_tools` recovery sequence](#tool-group-activation-manage_tools) below.
+> **Tool group note for the "Verify via" column**: `execute_code` is declared in the `scripting_ext` tool group, which the bridge reports as off by default — but on the live-verified install it was callable with no activation. Just run the recipe; only if `execute_code` is reported as not existing do you run `manage_tools(action: "activate", group: "scripting_ext")` — see [Tool Group Activation](#tool-group-activation-manage_tools) below.
 
 | Change | Detail | Action | Verify via (`execute_code`) |
 |--------|--------|--------|------------------------------|
@@ -147,7 +147,7 @@ Before executing any MCP operation, perform a lightweight health check:
 Attempt a cheap read-only call → Success: MCP connection normal → Failure: Diagnose and prompt
 ```
 
-1. **Probe**: `manage_scene(action: "get_active")` — and only that. It is read-only, it is in the default-on `core` tool group, and it needs no arguments. Do **not** probe with `execute_code`: that tool lives in the `scripting_ext` group, which is off by default, so a failed probe would report a tool-group problem as a connection problem
+1. **Probe**: `manage_scene(action: "get_active")` — and only that. It is read-only, it is in the default-on `core` tool group, and it needs no arguments. Do **not** probe with `execute_code`: it is declared in the `scripting_ext` group, so a failed probe could not distinguish a connection problem from a tool-visibility one
 2. **Success**: Confirm MCP connection is normal, proceed with subsequent operations
 3. **Failure**: Provide specific prompts based on error type
 
@@ -157,8 +157,10 @@ Attempt a cheap read-only call → Success: MCP connection normal → Failure: D
 |------------|---------------|----------------|
 | Connection Refused | MCP Server not started | Open Window > MCP for Unity in the Unity Editor and confirm the status panel reads `Connected`; use Restart Server to recover |
 | Connection Timeout | Unity Editor is busy (compiling/building) | Unity Editor may be performing a time-consuming operation, please wait and retry |
-| Host Unreachable | Wrong host/port in the MCP client config | The port is user-editable, not a constant. Read the server endpoint shown in the Window > MCP for Unity panel (default 8080) and make the client's URL match |
-| Tool not found / unknown tool | The tool's group is not active for this session | Only the `core` group is on by default. Run the `manage_tools` recovery sequence below, then refresh or reconnect the MCP client |
+| Host Unreachable | Wrong host/port in the MCP client config | The port is whatever the server was launched with (`--http-url`), not a constant. Read the endpoint shown in the Window > MCP for Unity panel (default 8080), or list `<UnityProject>\Library\MCPForUnity\RunState\` — the running server's pidfile is named `mcp_http_<port>.pid`, so `mcp_http_8080.pid` means port 8080. Make the client's URL match |
+| Tool reported as not existing | Possibly the tool's group is not active for this session — but on the verified install every non-core tool was callable with no activation, so check the message first | Run the `manage_tools` recovery sequence below (`list_groups` → `sync` → `activate`), then refresh or reconnect the MCP client. Do not present the group as the confirmed cause until activation actually fixes it |
+| Tool call denied by permissions | An IDE-side `capability: mcp` / `effect: deny` rule, not a bridge fault | The message names the rule and the file (`~/.kiro/settings/permissions.yaml`). Report the matched rule to the developer and stop — see "Tool Call Denied by the IDE's Permissions" below |
+| `Unknown action` from inside a `batch_execute` | `batch_execute` bypasses the Python server layer, so server-layer actions fail there with a misleading message | Retest the action as a **direct** call before believing it does not exist — see "Batch Operation Partial Failure Handling Guide" below |
 | Invalid Response Format | MCP Server version incompatible | Update the unity-mcp UPM package to the latest version |
 | Unity Editor Not Open | Editor not launched | Open Unity Editor and load a project first |
 
@@ -172,10 +174,15 @@ Attempt a cheap read-only call → Success: MCP connection normal → Failure: D
 
 This is the single canonical copy of the activation procedure. Every other steering file cross-references this section instead of repeating it.
 
-The bridge gates its tool surface into **ten groups**: `core`, `animation`, `asset_gen`, `docs`, `probuilder`, `profiling`, `scripting_ext`, `testing`, `ui`, `vfx`. **Only `core` is enabled by default** — the other nine are opt-in per session.
+**This is conditional troubleshooting, not a preamble.** Do not run an activation step "just in case" at the start of a workflow. Call the tool you need; only if it comes back as *not existing* do you work through the sequence below.
 
+The bridge gates its tool surface into **ten groups**: `core`, `animation`, `asset_gen`, `docs`, `probuilder`, `profiling`, `scripting_ext`, `testing`, `ui`, `vfx`. The bridge's declared default is `core` only — the other nine are opt-in in the source.
+
+- **VERIFIED (2026-10-21, live install)**: the declared default was **not** what the session actually exposed. All 43 tools were callable from the first call, before any `manage_tools` invocation, and still callable right after `manage_tools(action: "reset")`. The server was launched with `--project-scoped-tools`, which may explain it. **So "the group is off" is a hypothesis to test, never the explanation for a failure you have not diagnosed.**
+- **VERIFIED (2026-10-21)**: `deactivate` *is* enforced. After `manage_tools(action: "deactivate", group: "profiling")`, `manage_profiler` was rejected with `Tool 'manage_profiler' does not exist on server 'power-kiro-unity-accelerator-unity-mcp'`. Do not deactivate groups casually mid-workflow.
 - **VERIFIED**: the gate is a per-session tool-*listing* filter (FastMCP component visibility keyed on a `group:<name>` tag). A hidden group's tools do not appear in the tool list, so the agent normally never selects them.
 - **VERIFIED**: the server-level default (hiding every non-default group at startup) is applied **only on HTTP** transport; on stdio that step is skipped and the visibility is instead synced from the Unity Editor's own tool toggles.
+- A tool can also be refused for a reason that has nothing to do with groups: the IDE's own permission rules. See "Tool Call Denied by the IDE's Permissions" below.
 
 | Group | Tools this Power uses from it |
 |-------|------------------------------|
@@ -190,23 +197,30 @@ The bridge gates its tool surface into **ten groups**: `core`, `animation`, `ass
 | `probuilder` | `manage_probuilder` (requires `com.unity.probuilder`) |
 | `asset_gen` | none — **no workflow, steering file or template in this Power routes to `asset_gen`** |
 
-### Recovery sequence
+### Recovery sequence — run only after a tool is reported as not existing
 
 ```
 manage_tools(action: "list_groups")                      // see the catalog
 manage_tools(action: "sync")                             // adopt the Unity Tools-window toggles
-manage_tools(action: "activate", group: "scripting_ext") // enable what this workflow needs
+manage_tools(action: "activate", group: "scripting_ext") // enable the group owning the missing tool
 manage_tools(action: "reset")                            // back to core-only when finished
 ```
 
 Run it in that order: `list_groups` → `sync` → `activate` → `reset`.
 
-Two behaviours to state accurately when explaining this to a developer:
+Behaviours to state accurately when explaining this to a developer:
 
-- `list_groups`'s `enabled` field **reports the default** unless this session has already activated or deactivated that group. It is therefore not a reliable readout of what is actually visible after Unity's own Tools-window toggles have synced. This is the most confusing part of the mechanism — say it explicitly rather than reading `enabled: false` as proof a tool is unavailable.
+- `list_groups`'s `enabled` / `default_enabled` fields are **misleading**. On the verified install they read `false` for all eight non-core groups both before and after `reset`, while every one of those tools answered normally. Never read `enabled: false` as proof a tool is unavailable, and never read it as the cause of a failure.
 - The MCP client may need a refresh or reconnect before a newly activated tool appears, because some clients cache the tool list until the server restarts.
+- Activation is harmless but it is not free advice: telling a developer to activate a group when the real problem is a permission rule or a stopped server sends them down the wrong path.
 
-**UNVERIFIED**: whether invoking a tool whose group is currently hidden refuses the call or still executes. This was not observed. Do not claim that a hidden group blocks the call.
+## Tool Call Denied by the IDE's Permissions
+
+A tool call can be refused by the IDE **before it reaches Unity**. This is a separate failure mode from a missing tool group, and it was **VERIFIED on 2026-10-21**.
+
+- The IDE exposes a Power's MCP server as **`power-<powerName>-<serverName>`** — for this Power, `power-kiro-unity-accelerator-unity-mcp`. That is the string permission rules match against, and the name that appears in client-side tool errors.
+- A direct `manage_build(action: "settings")` call returned `Tool call denied by user's permissions. Rule: deny mcp matching "power-kiro-unity-accelerator-unity-mcp/manage_build" Source: ~/.kiro/settings/permissions.yaml` — a `capability: mcp` / `effect: deny` rule in the user's own file. The whole build workflow was unrunnable on that machine for a reason unrelated to Unity or the bridge.
+- **What to do**: recognise the message as an IDE-side denial, tell the developer which rule matched and where the file is (`~/.kiro/settings/permissions.yaml`, plus the workspace-level file), and stop. Do not retry, do not edit the developer's permission file, and do not look for another route to the same operation.
 
 ## Local-Only Execution Model
 
@@ -223,6 +237,18 @@ Batch operations (via `batch_execute`) should normally adopt a "best effort" str
 **This is not the bridge's default, and it has to be requested explicitly.** `batch_execute`'s `fail_fast` parameter **defaults to `true`**, so a bare `batch_execute(commands: [...])` aborts at the first failing command and the remaining commands never run — reporting an aggregate summary for them would be reporting on work that was never attempted. **Pass `fail_fast: false` on every `batch_execute` call that is meant to be best-effort.**
 
 Also bound the batch size: the maximum commands per batch is configurable in the Unity MCP Tools window, with a **default of 25 and a hard maximum of 100**. Split a larger job into successive batches rather than sending one oversized call.
+
+### `batch_execute` is not equivalent to direct calls (server-layer actions)
+
+**VERIFIED 2026-10-21.** `batch_execute` forwards each command straight to Unity's C# handler and **bypasses the action handlers implemented in the Python server layer**. `manage_editor(action: "telemetry_status")` and `manage_editor(action: "telemetry_ping")` both succeed as direct calls (`{"success": true, "telemetry_enabled": true}` / `{"success": true, "message": "telemetry ping queued"}`) and both fail inside a batch with `Unknown action: '...'`, where the error lists only the 12 Unity-side `manage_editor` actions.
+
+Consequences, and they are binding:
+
+- **Never wrap a server-layer action in `batch_execute`.** Call it directly. The two `manage_editor` telemetry actions are the confirmed example.
+- **An `Unknown action` error raised inside a batch is not evidence the action does not exist.** Retest it as a direct call before telling a developer an action is unsupported, and before "fixing" any documentation on the strength of it.
+- The usual rule that a live error outranks the docs applies to **direct calls only**.
+- Only these two actions are confirmed to live in the server layer. There is no published catalog of them, so do not guess which others might — diagnose by retesting directly.
+- Everything this Power actually batches (GameObject/component/asset mutation) is Unity-side work and is unaffected.
 
 ### Handling Flow
 
@@ -272,7 +298,8 @@ Some operations require atomicity guarantees (all succeed or all rollback):
 
 ### Tool Call Best Practices
 
-- Prefer `batch_execute` to combine multiple independent operations, reducing MCP round trips — remember each command's second key is `params`, not `args`
+- Prefer `batch_execute` to combine multiple independent operations, reducing MCP round trips — remember each command's second key is `params`, not `args`, and that server-layer actions must be called directly instead (see "`batch_execute` is not equivalent to direct calls" above)
+- `manage_editor(action: "telemetry_status")` and `manage_editor(action: "telemetry_ping")` are real read-only actions, verified by direct call. They report only whether telemetry is enabled / that a ping was queued — nothing about Editor state or compilation, so use `mcpforunity://editor/state` for readiness — and they only work as **direct** calls
 - Before modification operations, use the corresponding `search`/`get_info` action to confirm the target exists (not `list` — most tools have no `list` action; see the tool reference in `POWER.md`)
 - All paths use Unity's forward slash format (`Assets/Scripts/Player.cs`), not backslashes
 - After operations complete, use `read_console()` to confirm no error messages on the Unity Editor side
@@ -315,7 +342,7 @@ Source: [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual
 
 ### Live Verification Recipes (`execute_code`, `compiler: "codedom"`)
 
-> **Tool group prerequisite**: `execute_code` is in the `scripting_ext` group, which is **off by default**. Run `manage_tools(action: "activate", group: "scripting_ext")` first — see [Tool Group Activation](#tool-group-activation-manage_tools). Where a resource can answer the question instead (Unity version, platform, editor readiness, selection, tags, layers, rendering stats, cameras, volumes), prefer the resource: it needs no activation.
+> **Tool group note**: `execute_code` is declared in the `scripting_ext` group, reported off by default but callable without activation on the live-verified install. Run the snippet; only if `execute_code` is reported as not existing do you run `manage_tools(action: "activate", group: "scripting_ext")` — see [Tool Group Activation](#tool-group-activation-manage_tools). Where a resource can answer the question instead (Unity version, platform, editor readiness, selection, tags, layers, rendering stats, cameras, volumes), prefer the resource anyway: it is cheaper and it cannot be gated.
 
 When a claim needs runtime confirmation rather than a remembered version number, these `execute_code` snippets (C# 6-compatible, so they work with the default `codedom` compiler without requiring Roslyn/NuGet setup) are known to work for checking the state described in this file's version-change table:
 

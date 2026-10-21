@@ -136,7 +136,15 @@ In Unity, `Window → MCP for Unity` → confirm the transport is HTTP → **Con
 
 #### Read the real port
 
-**Do not treat 8080 as a constant.** The port is user-editable and 8080 collides with other services (upstream names Tailscale as an example and suggests moving to 8090). The MCP for Unity window shows the live endpoint — if it is not 8080, the URL is `http://127.0.0.1:<that port>/mcp`.
+**Do not treat 8080 as a constant.** The port is whatever the server was launched with (`--http-url`), it is user-editable, and 8080 collides with other services (upstream names Tailscale as an example and suggests moving to 8090). The MCP for Unity window shows the live endpoint — if it is not 8080, the URL is `http://127.0.0.1:<that port>/mcp`.
+
+You can also read the port straight off disk: the running server writes a pidfile named after its port under the Unity project.
+
+```
+<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid
+```
+
+So `mcp_http_8080.pid` means the server is serving `http://127.0.0.1:8080`. On the install this Power was verified against, that is exactly what was there — the server's own command line was `mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile ...mcp_http_8080.pid`.
 
 #### Manual Configuration (last resort)
 
@@ -341,7 +349,9 @@ kiro-unity-accelerator/
 |---------|----------|
 | Kiro cannot connect to Unity | Ensure Unity Editor is open with a project loaded → `Window → MCP for Unity` → confirm the status panel reads **Connected** (use `Restart Server` if not) |
 | Port 8080 is occupied | Change the port in MCP for Unity settings (upstream suggests 8090), re-run **Configure All Detected Clients**, restart Kiro, and make the `url` in `mcp.json` match the port shown in the Unity window |
-| A documented tool is missing from the tool list | Its group is probably not active — only `core` is enabled by default. Run `manage_tools(action: "list_groups")`, then `manage_tools(action: "sync")`, then `manage_tools(action: "activate", group: "<name>")`. Kiro may cache the tool list, so refresh or reconnect the MCP server afterwards |
+| A documented tool is reported as not existing | Possibly its tool group is inactive — the bridge's declared default is `core` only, though on the verified install every tool was callable with no activation. Run `manage_tools(action: "list_groups")`, then `manage_tools(action: "sync")`, then `manage_tools(action: "activate", group: "<name>")`, and refresh or reconnect the MCP server afterwards (Kiro may cache the tool list). `list_groups` can report `enabled: false` for a group whose tools work, so judge by whether the retry succeeds |
+| `Tool call denied by user's permissions` | A Kiro permission rule blocked the call before Unity saw it — not a bridge fault. Kiro exposes this Power's server as `power-kiro-unity-accelerator-unity-mcp`; check `~/.kiro/settings/permissions.yaml` (and the workspace-level file) for `capability: mcp` entries with `effect: deny` matching `power-<powerName>-<serverName>/<tool>`, and relax the rule if you want that tool available. On the machine this Power was verified against, such a rule denied `manage_build` and made the whole build workflow unrunnable |
+| `Unknown action` inside a `batch_execute` | `batch_execute` goes straight to Unity and bypasses the bridge's Python server layer, so a server-layer action fails there even though it works. Re-run that one call **directly** before concluding the action does not exist |
 | Two Unity MCP servers registered | Open `~/.kiro/settings/mcp.json` and Kiro's MCP panel; if both the Power's entry and `unityMCP` are present, disable one and restart Kiro (see "Pick exactly one MCP registration path") |
 | Unity 6.3+ with the Unity AI Assistant package installed | The AI Assistant bundles a newer `System.Collections.Immutable` than the Roslyn dependency used by `validate_script` / `execute_code` expects. Upstream's fix is to place `System.Collections.Immutable` v9.0.0 into `Assets/Plugins/` |
 | Asset operations unresponsive | Unity may be compiling; wait for compilation to complete, or read the `mcpforunity://editor/state` resource |

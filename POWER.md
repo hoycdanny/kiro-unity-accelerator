@@ -14,7 +14,7 @@ author: "kiro-unity-accelerator contributors"
 
 Two different mechanisms can register the Unity MCP server with the IDE, and they write to the **same** config file (`~/.kiro/settings/mcp.json`) under different names. Running both leaves two servers pointing at the same Unity Editor, which produces duplicate tool surfaces and ambiguous resource reads.
 
-- **Path A — let this Power register the server.** Install the Power and leave its `mcp.json` alone. A Legacy (`POWER.md`) power's MCP servers are registered into `~/.kiro/settings/mcp.json` under the Powers section, with the server name namespaced by the IDE.
+- **Path A — let this Power register the server.** Install the Power and leave its `mcp.json` alone. A Legacy (`POWER.md`) power's MCP servers are registered into `~/.kiro/settings/mcp.json` under the Powers section, with the server name namespaced by the IDE as **`power-<powerName>-<serverName>`** — for this Power, **`power-kiro-unity-accelerator-unity-mcp`** (VERIFIED 2026-10-21). That namespaced name is what appears in client-side tool errors and what permission rules match against; see [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules).
 - **Path B — let Unity configure the IDE.** In Unity, `Window → MCP for Unity → Configure All Detected Clients` (or select the IDE and `Configure Selected`). The MCP for Unity package writes a server entry named `unityMCP` into the same file.
 
 > **If the MCP panel shows two Unity MCP servers, disable one and restart the IDE.** Config file locations: user-level `~/.kiro/settings/mcp.json`, workspace-level `.kiro/settings/mcp.json`, and this Power's own `mcp.json`.
@@ -78,7 +78,7 @@ Two known interactions with the AI Assistant package, both worth checking if the
 2. **AI-Driven Architecture**: All operations originate from the AI layer; Unity Editor is the controlled target
 3. **Knowledge-Driven**: Architecture separates domain knowledge (steering files) from execution logic (MCP tools)
 4. **Natural Language Driven**: Developers describe intent; the AI translates to MCP tool call sequences
-5. **Composable Architecture**: Complex workflows are composed from multiple MCP tool calls chained via `batch_execute`
+5. **Composable Architecture**: Complex workflows are composed from multiple MCP tool calls chained via `batch_execute` — with one exception: server-layer actions must be called directly, never batched ([`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions))
 6. **Local First**: All operations run through the local Unity Editor via MCP — there is no cloud build or remote device-testing layer in the current tool surface
 
 > **Historical note on `Cloud_Assist`**: earlier drafts of this Power described an optional cloud build / device-farm testing layer called `Cloud_Assist`. No such layer exists in the MCP for Unity tool surface. Build and test automation here runs entirely through the local Editor (`manage_build`, `run_tests`); cloud build or a remote device farm would have to be wired up separately as a custom tool (see `execute_custom_tool`).
@@ -122,7 +122,7 @@ All 15 files listed above exist in `steering/`. The full table with load conditi
 #### Safety & Quality Checks
 
 - **Post-operation**: After scene modifications adding 10+ objects (which can impact rendering performance by increasing draw calls and memory usage), run a quick performance check (draw calls, memory estimate) and check for common issues (missing colliders, shader incompatibilities). Report findings to the developer. For guidance on interpreting these metrics, see the `performance-analysis.md` steering file.
-- **Render pipeline**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets — verify via `manage_graphics(action: "pipeline_get_info")`, which is in the default-on `core` group, rather than assuming. Do **not** read `GraphicsSettings.currentRenderPipeline` through `execute_code` for this: `execute_code` lives in the `scripting_ext` group, which is off by default, and `pipeline_get_info` returns the same answer with no group activation. Flag shader incompatibilities immediately. URP is the default and Unity-recommended pipeline for new Unity 6 projects; Built-in remains usable for existing projects and Unity has not committed to a firm removal version.
+- **Render pipeline**: Always check the project's render pipeline (URP/HDRP/Built-in) before importing or recommending assets — verify via `manage_graphics(action: "pipeline_get_info")`, which is in the default-on `core` group, rather than assuming. Do **not** read `GraphicsSettings.currentRenderPipeline` through `execute_code` for this: `pipeline_get_info` returns the same answer from the default-on `core` group, with no dependence on `execute_code`'s group or on the Editor's Roslyn availability. Flag shader incompatibilities immediately. URP is the default and Unity-recommended pipeline for new Unity 6 projects; Built-in remains usable for existing projects and Unity has not committed to a firm removal version.
 - **Play Mode**: Never make permanent scene changes while in Play Mode. Verify editor state before modifying and saving scenes.
 - **Batch operations**: When placing multiple objects, ensure proper physics, vary rotation/scale for natural appearance, check performance impact for large quantities (50+), and respect the project's existing organizational structure.
 
@@ -145,7 +145,7 @@ This Power targets **Unity 6.4** (release stream `6000.4`) and the MCP tool surf
 - **Unity 6.0 LTS support ended 16 Oct 2026 — never recommend it**, including as a "safe older version".
 - Unity 6.4 remains the right target for *this* Power's claims, because it is the only stream anything here was actually checked against.
 
-If a tool call fails with an "Unknown action" or a validation error, the connected bridge build is likely older than v10.0.0 — tell the developer to update `com.coplaydev.unity-mcp` rather than working around it with legacy syntax.
+If a **direct** tool call fails with an "Unknown action" or a validation error, the connected bridge build is likely older than v10.0.0 — tell the developer to update `com.coplaydev.unity-mcp` rather than working around it with legacy syntax. If the same error came from inside a `batch_execute`, conclude nothing until you have retried it as a direct call ([`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions)).
 
 Two things are still worth a runtime check rather than an assumption, because they vary per-project regardless of Unity version:
 - **Render pipeline**: confirm URP vs. Built-in via `manage_graphics(action: "pipeline_get_info")` before recommending pipeline-specific features like the GPU Resident Drawer (see `performance-analysis.md`)
@@ -198,12 +198,27 @@ This Power automatically adapts to the language the developer uses — write in 
 ### MCP Connection
 
 **Primary — HTTP (default transport)**:
-MCP for Unity's default transport is streamable HTTP, and the default local endpoint is `http://127.0.0.1:8080/mcp` — that value is the Unity-side default (`HttpEndpointUtility.DefaultLocalBaseUrl`) and the Python server default, so it is what this Power's `mcp.json` ships with.
+MCP for Unity's default transport is streamable HTTP, and the default local endpoint is `http://127.0.0.1:8080/mcp` — that value is the Unity-side default (`HttpEndpointUtility.DefaultLocalBaseUrl`) and the Python server default, so it is what this Power's `mcp.json` ships with. **VERIFIED on 2026-10-21**: on the live install, `debug_request_context` reported the server's own argv as
+
+```
+mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools
+  --pidfile <UnityProject>\Library\MCPForUnity\RunState\mcp_http_8080.pid
+  --unity-instance-token <token>
+```
+
+so `http://127.0.0.1:8080` really is the endpoint in use there. **That is not a universal constant** — the endpoint is whatever `--http-url` the server was launched with. (Two other facts from the same response, worth knowing when a client looks mis-wired: the console script is **`mcp-for-unity`**, not `unity-mcp`, resolved from the `uv` cache; and `server.version` was `9.6.8`, matching the installed UPM package exactly, so a server/package version skew is not a default state to suspect.)
 
 **The port is user-editable and 8080 collides with other services** (upstream names Tailscale as an example and suggests moving to 8090). Do the steps in this order:
 
 1. **Let Unity write the config.** `Window → MCP for Unity` → confirm the transport is HTTP → **Configure All Detected Clients** (or select the IDE and **Configure Selected**). The IDE is a first-class supported client, so this writes a port-accurate entry for you.
 2. **Read the real port.** The MCP for Unity window shows the server endpoint. If it is not 8080, the URL is `http://127.0.0.1:<that port>/mcp`.
+   **Discovering the port without the window**: the running server writes a pidfile whose *name encodes the port*, under the Unity project:
+
+   ```
+   <UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid
+   ```
+
+   So listing that directory answers "which port is my server on?" directly — `mcp_http_8080.pid` means 8080. This is a reliable local check when the Editor window is unavailable or the IDE's config and the server disagree.
 3. **Hand-edit `mcp.json` last**, and only if steps 1–2 did not produce a working entry:
 
    ```json
@@ -273,8 +288,9 @@ Before executing any MCP operation, perform a lightweight health check:
 3. If failed → prompt the developer to:
    - Confirm Unity Editor is open with a project loaded
    - Open `Window → MCP for Unity` and confirm the status panel reads **Connected**; use `Restart Server` if it does not
-   - Read the server port shown in that window and confirm the URL in `mcp.json` (or the IDE's MCP panel) matches it — do not assume 8080
+   - Read the server port shown in that window and confirm the URL in `mcp.json` (or the IDE's MCP panel) matches it — do not assume 8080. The pidfile `<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid` names the port the server is actually serving
    - Confirm only one Unity MCP server is registered (see [Onboarding](#1-pick-exactly-one-mcp-registration-path))
+   - If the call came back as *denied by permissions* rather than failing to connect, this is not a connection fault at all — see [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules)
 
 ### Auto-Activation Hook（自動品質檢查）
 
@@ -302,15 +318,42 @@ Before executing any MCP operation, perform a lightweight health check:
 > every mutating action (`create`/`modify`/`delete`/`build`/`play`), `run_tests`/`get_test_job`
 > end-to-end, `manage_probuilder` (package absent), memory-snapshot actions
 > (`com.unity.memoryprofiler` absent), Cinemachine-dependent `manage_camera` paths (package
-> absent), and the `asset_gen` group (absent at 9.6.8). If a call fails with an "Unknown action"
-> or a validation error, that error message lists the real valid values and **overrides this
-> document**.
+> absent), and the `asset_gen` group (absent at 9.6.8). If a **direct** call fails with an
+> "Unknown action" or a validation error, that error message lists the real valid values and
+> **overrides this document**. That rule holds for direct calls **only** — an identical error
+> raised inside `batch_execute` is not evidence of anything, because the batch path does not
+> reach the server-layer action handlers. See
+> [`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions).
 
 No tool was renamed or removed between bridge 9.6.8 and v10.3.0 — the difference is purely additive, so a tool documented here exists on both.
 
+### `batch_execute` and server-layer actions
+
+`batch_execute` is **not** equivalent to calling the same tools one at a time, and this trips up both agents and anyone verifying this document.
+
+**VERIFIED on 2026-10-21** (bridge 9.6.8, direct calls vs. the same calls wrapped in a batch):
+
+| Call | Direct | Inside `batch_execute` |
+|---|---|---|
+| `manage_editor(action: "telemetry_status")` | `{"success": true, "telemetry_enabled": true}` | fails — `Unknown action: 'telemetry_status'` |
+| `manage_editor(action: "telemetry_ping")` | `{"success": true, "message": "telemetry ping queued"}` | fails — `Unknown action: 'telemetry_ping'` |
+
+The error raised inside the batch lists only the 12 Unity-side `manage_editor` actions (`play`, `pause`, `stop`, `set_active_tool`, `add_tag`, `remove_tag`, `add_layer`, `remove_layer`, `deploy_package`, `restore_package`, `undo`, `redo`) — the two telemetry actions are missing from it even though they work.
+
+**Why:** `batch_execute` forwards each command straight to Unity's C# handler, **bypassing the action handlers implemented in the Python server layer**. A server-layer action therefore fails inside a batch with a message that makes it look as though the action does not exist.
+
+**Rules that follow from this:**
+
+- **Call server-layer actions directly. Never wrap them in `batch_execute`.** `manage_editor`'s `telemetry_status` / `telemetry_ping` are the confirmed, worked example.
+- **An "Unknown action" error from inside a batch is not proof the action does not exist.** Retest it as a direct call before concluding anything, and before "correcting" this document.
+- Batch what is genuinely Unity-side work: GameObject/component/asset mutation, the repetitive calls the rest of this document batches. That is unaffected.
+- The server-layer/Unity-layer split is **established only for these two actions**. Do not assume a broader list — there is no enumerated catalog of server-layer actions, so if a batched action fails, retest it directly rather than guessing which layer owns it.
+
 ### Tool Groups
 
-**Read this before using any tool outside the `core` group.** MCP for Unity partitions its entrypoints into **10 groups**, and **only `core` is enabled by default**. Nine groups are opt-in:
+MCP for Unity partitions its entrypoints into **10 groups**. The bridge's own default is `core` only — the other nine are declared opt-in in the source and reported as `enabled: false` by `list_groups`.
+
+> **Do not treat group activation as a required preamble.** On the live-verified install (bridge 9.6.8 over HTTP, server launched with `--project-scoped-tools`) **all 43 tools were callable from the start of the session**, before any `manage_tools` call — including `manage_profiler`, `manage_ui`, `execute_code`, `unity_reflect` and `manage_animation`. Activation is **conditional troubleshooting**: run it only when a tool is actually reported as not existing. The table below is the catalog and the ownership map, not a checklist to work through first.
 
 | Group | Default | Tools |
 |---|---|---|
@@ -339,21 +382,47 @@ No tool was renamed or removed between bridge 9.6.8 and v10.3.0 — the differen
 
 Valid `group` values: `animation`, `asset_gen`, `core`, `docs`, `probuilder`, `profiling`, `scripting_ext`, `testing`, `ui`, `vfx`.
 
-**Recovery sequence when a documented tool is missing from the tool list:**
+**Conditional recovery sequence — run this only when a tool is reported as not existing:**
 
 ```
 manage_tools(action: "list_groups")              # see the catalog
 manage_tools(action: "sync")                     # adopt the Unity Tools-window toggles
-manage_tools(action: "activate", group: "...")   # enable what this workflow needs
+manage_tools(action: "activate", group: "...")   # enable the group that owns the missing tool
 manage_tools(action: "reset")                    # back to core-only when finished
 ```
 
 **Enforcement semantics — read these distinctions carefully:**
 
 - **VERIFIED**: the gate is a *tool-listing* filter (per-session component visibility keyed on a `group:<name>` tag), and the server-level default that hides non-`core` groups at startup is applied **only on HTTP transport**. On stdio every group is enabled at startup and then reconciled against Unity's toggles.
-- **VERIFIED**: `list_groups`' `enabled` field reports the session's own rule **only if an `activate`/`deactivate` has been issued in this session — otherwise it reports the group's DEFAULT.** So after the Editor's toggle sync has already made a group's tools visible, `list_groups` can still show `enabled: false` for it. **It is not a reliable readout of what is actually callable.** This is the single most confusing behaviour in the group system.
-- **UNVERIFIED**: whether invoking a tool whose group is currently hidden returns an unknown-tool error rather than executing. A hidden group's tools do not appear in the tool list, so the agent normally never selects them; whether a hand-written call to a hidden tool still succeeds was not observed. **Do not claim that a deactivated group blocks the call.**
+- **VERIFIED (2026-10-21)**: deactivation really is enforced. After `manage_tools(action: "deactivate", group: "profiling")`, a `manage_profiler` call was rejected by the client with `Tool 'manage_profiler' does not exist on server 'power-kiro-unity-accelerator-unity-mcp'`. So `deactivate` is a real off-switch — do not use it casually mid-workflow.
+- **VERIFIED (2026-10-21)**: the *default* state on that install was the opposite of the reported flags — **every non-core tool was callable before any `manage_tools` call**, and still callable immediately after `manage_tools(action: "reset")` returned `{"reset": true, "default_groups": ["core"]}`. The server was launched with `--project-scoped-tools`, which may be why the HTTP session exposed the full surface regardless. **Treat "the group is off" as a hypothesis to test, never as the reason a call failed.**
+- **VERIFIED**: `list_groups`' `enabled` / `default_enabled` fields are **misleading**. They reported `enabled: false` for all eight non-core groups both before and after `reset`, while those tools were demonstrably callable. **The fields are not a readout of what is callable** — the only reliable test is to make the call.
 - Some MCP clients **cache the tool list** until the server is restarted or the client refreshes. After `activate`, a tool may not appear until the client reconnects — so always tell the developer that a refresh may be needed rather than assuming the activation failed.
+- A tool can also be missing or refused for reasons that have nothing to do with groups — most notably an IDE-side permission rule. See [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules).
+
+### Tool denied by the IDE's own permission rules
+
+A tool call can be refused **before it ever reaches Unity**, by the IDE's permission layer. This is a distinct failure mode from a missing tool group and from a bridge error, and it was **VERIFIED on 2026-10-21**.
+
+**The namespace.** The IDE exposes a Power's MCP server under **`power-<powerName>-<serverName>`**. For this Power that is **`power-kiro-unity-accelerator-unity-mcp`** (`powerName` from the POWER.md frontmatter `name`, `serverName` from the key in `mcp.json`). This is the string permission rules match against, and it is also the name that appears in client-side errors such as `Tool '<tool>' does not exist on server 'power-kiro-unity-accelerator-unity-mcp'`.
+
+**The symptom.** A direct `manage_build(action: "settings")` call was refused with an IDE-side message, not a Unity one:
+
+```
+Tool call denied by user's permissions.
+Rule: deny mcp matching "power-kiro-unity-accelerator-unity-mcp/manage_build"
+Source: C:\Users\<you>\.kiro\settings\permissions.yaml
+```
+
+The rule was a `capability: mcp` / `effect: deny` entry in the user's own `permissions.yaml`. Consequence on that machine: **[Workflow 3 (Build Automation)](#workflow-3-build-automation-requirement-3) cannot run at all**, for a reason that has nothing to do with Unity, the bridge, or tool groups.
+
+**What to do.** If a call comes back as denied-by-permissions rather than with a Unity or bridge error:
+
+1. Check `~/.kiro/settings/permissions.yaml` (and the workspace-level equivalent) for `capability: mcp` entries with `effect: deny` whose `match` list contains `power-<powerName>-<serverName>/<tool>`.
+2. Tell the developer which rule matched and let **them** decide whether to relax it. Never edit a user's permission file on their behalf, and never present the denial as a Power or bridge defect.
+3. Do not retry the same call in a loop — the denial is deterministic.
+
+> **Security note.** Permission denials observed here applied to the **outer** tool call. Treat a per-tool MCP deny rule as a guard on the tool the agent names, not as a guarantee that the underlying Unity operation is unreachable by any route. If a tool is denied, stop and tell the developer — do not look for another path to the same operation. (Reported as an observation in the task record for upstream follow-up.)
 
 ### Server & Session Meta-Tools
 
@@ -371,8 +440,8 @@ manage_tools(action: "reset")                    # back to core-only when finish
 |------|-------------|-------|
 | `manage_asset` | `import`, `create`, `modify`, `delete`, `duplicate`, `move`, `rename`, `search`, `get_info`, `create_folder`, `get_components` | There is **no `list` action** — use `search` with `path` + `search_pattern` (e.g. `"*.fbx"`) to enumerate assets. Use `get_info` for import settings/metadata on a single asset. **`path` is required on every action.** `asset_type` is required for `create`. Paging on `search` uses **`page_size` + `page_number` (1-based), not `cursor`**. `search_pattern` also accepts AssetDatabase filter syntax such as `t:MonoScript`. Other params: `properties`, `destination`, `filter_type`, `filter_date_after`. Leave `generate_preview` at its default `false` — enabling it returns large base64 payloads |
 | `manage_material` | `ping`, `get_material_info`, `create`, `set_material_shader_property`, `set_material_color`, `assign_material_to_renderer`, `set_renderer_color` | `assign_material_to_renderer` also takes a `search_method` using the same `by_*` vocabulary as `find_gameobjects` |
-| `manage_texture` | `create`, `modify`, `delete`, `create_sprite`, `apply_pattern`, `apply_gradient`, `apply_noise`, `set_import_settings` | Procedural texture generation, not just import-setting management. **Group `vfx` — off by default**, activate with `manage_tools(action: "activate", group: "vfx")` |
-| `manage_shader` | `read` (read-only); `create`, `update`, `delete` (modifying) | Requires `name` + `path`; there is no `list` action — use `manage_asset(action: "search", search_pattern: "*.shader")` to enumerate shaders first. **Group `vfx` — off by default**, activate with `manage_tools(action: "activate", group: "vfx")` |
+| `manage_texture` | `create`, `modify`, `delete`, `create_sprite`, `apply_pattern`, `apply_gradient`, `apply_noise`, `set_import_settings` | Procedural texture generation, not just import-setting management. **Group `vfx` — reported off by default**; activate with `manage_tools(action: "activate", group: "vfx")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)) |
+| `manage_shader` | `read` (read-only); `create`, `update`, `delete` (modifying) | Requires `name` + `path`; there is no `list` action — use `manage_asset(action: "search", search_pattern: "*.shader")` to enumerate shaders first. **Group `vfx` — reported off by default**; activate with `manage_tools(action: "activate", group: "vfx")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)) |
 
 ### Scene & GameObject Management
 
@@ -387,11 +456,11 @@ manage_tools(action: "reset")                    # back to core-only when finish
 
 | Tool | Key Actions | Notes |
 |------|-------------|-------|
-| `manage_ui` | Read-only: `ping`, `read`, `get_visual_tree`, `list`. Modifying: `create`, `update`, `delete`, `attach_ui_document`, `detach_ui_document`, `create_panel_settings`, `update_panel_settings`, `modify_visual_element`, `render_ui`, `link_stylesheet` | This manages **UI Toolkit** (UXML/USS/UIDocument), not legacy uGUI Canvas/Button/Text. For legacy uGUI, create the GameObject + components via `manage_gameobject`/`manage_components` directly. **Group `ui` — off by default**, activate with `manage_tools(action: "activate", group: "ui")` |
+| `manage_ui` | Read-only: `ping`, `read`, `get_visual_tree`, `list`. Modifying: `create`, `update`, `delete`, `attach_ui_document`, `detach_ui_document`, `create_panel_settings`, `update_panel_settings`, `modify_visual_element`, `render_ui`, `link_stylesheet` | This manages **UI Toolkit** (UXML/USS/UIDocument), not legacy uGUI Canvas/Button/Text. For legacy uGUI, create the GameObject + components via `manage_gameobject`/`manage_components` directly. **Group `ui` — reported off by default**; activate with `manage_tools(action: "activate", group: "ui")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)) |
 | `manage_camera` | `ping`, `ensure_brain`, `get_brain_status`, `create_camera`, `set_target`, `set_priority`, `set_lens`, `set_body`, `set_aim`, `set_noise`, `add_extension`, `remove_extension`, `set_blend`, `force_camera`, `release_override`, `list_cameras`, `screenshot`, `screenshot_multiview` | `create_camera` supports presets (`third_person`, `freelook`, `follow`, `dolly`, `static`, `top_down`, `side_scroller`) and works with or without Cinemachine installed. To *read* the camera setup prefer the `mcpforunity://scene/cameras` resource. Cinemachine-specific paths are **UNVERIFIED** (package absent on the verification machine) |
-| `manage_animation` | Prefixed actions: `animator_*`, `controller_*`, `clip_*` | Action-specific params go in the `properties` dict. **Group `animation` — off by default**, activate with `manage_tools(action: "activate", group: "animation")` |
-| `manage_vfx` | Prefixed actions: `particle_*`, `vfx_*`, `line_*`, `trail_*` | ParticleSystem, VisualEffect, LineRenderer, TrailRenderer. **Group `vfx` — off by default** |
-| `manage_probuilder` | `create_shape`, `extrude_faces`, `bevel_edges`, `subdivide`, `get_mesh_info`, and many more mesh-editing actions | Requires `com.unity.probuilder` package. **Group `probuilder` — off by default.** Not exercised live (package absent on the verification machine) |
+| `manage_animation` | Prefixed actions: `animator_*`, `controller_*`, `clip_*` | Action-specific params go in the `properties` dict. **Group `animation` — reported off by default**; activate with `manage_tools(action: "activate", group: "animation")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)) |
+| `manage_vfx` | Prefixed actions: `particle_*`, `vfx_*`, `line_*`, `trail_*` | ParticleSystem, VisualEffect, LineRenderer, TrailRenderer. **Group `vfx` — reported off by default**; activate only if the tool is reported as not existing |
+| `manage_probuilder` | `create_shape`, `extrude_faces`, `bevel_edges`, `subdivide`, `get_mesh_info`, and many more mesh-editing actions | Requires `com.unity.probuilder` package. **Group `probuilder` — reported off by default**; activate only if the tool is reported as not existing (see [Tool Groups](#tool-groups)). Not exercised live (package absent on the verification machine) |
 | `manage_graphics` | Action-prefixed by area — `stats_get`/`stats_list_counters`/`stats_get_memory` (rendering stats); `pipeline_get_info`/`pipeline_get_settings`/`pipeline_set_settings`/`pipeline_set_quality` (render pipeline); `feature_list`/`feature_add`/`feature_remove`/`feature_configure`/`feature_toggle` (URP renderer features); `skybox_get`/`skybox_set_*` (environment/fog/ambient); `volume_*` (Volume/post-processing, requires URP/HDRP); `bake_*` (lightmap/probe baking, Edit mode only) | There is **no `get_settings` or `get_rendering_stats` action** — those are `pipeline_get_settings` and `stats_get` respectively. **Unity 6.4 reading note for `stats_get`**: the redesigned Rendering Statistics window separates draw calls optimised by the SRP Batcher, the GPU Resident Drawer, BatchRendererGroup and GPU instancing, and reports more accurate frame times — report *which batching path absorbed the draw calls* rather than treating "draw calls" as one number. **Unity 6.4 caveat for `volume_*`**: SRP Core now takes `com.unity.modules.physics` as a soft dependency, so a project that disabled the physics module to shrink its build loses local Volumes (global Volumes are unaffected); `IVolume` was also removed in favour of `VolumeGizmoDrawer` |
 
 ### Project & Editor
@@ -400,18 +469,18 @@ manage_tools(action: "reset")                    # back to core-only when finish
 |------|-------------|-------|
 | `manage_packages` | `list_packages`, `search_packages`, `get_package_info`, `add_package`, `remove_package`, `list_registries`, `add_registry`, `remove_registry`, `embed_package`, `resolve_packages`, `ping`, `status` | **Asynchronous**: `list_packages`/`search_packages`/`add_package`/`remove_package` return `{job_id}` immediately with `_mcp_status: "pending"`; poll with `action: "status", job_id: "..."` until it resolves |
 | `manage_build` | `build`, `status`, `platform`, `settings`, `scenes`, `profiles`, `batch`, `cancel` | **This is the build tool — `manage_editor` has no build action.** Supports Build Profiles (Unity 6+) via the `profile`/`profiles` params, and `batch` for multi-target builds. See the parameter detail immediately below this table |
-| `manage_editor` | `play`, `pause`, `stop`, `set_active_tool`, `add_tag`, `remove_tag`, `add_layer`, `remove_layer`, `deploy_package`, `restore_package`, `undo`, `redo`. Params: `tool_name`, `tag_name`, `layer_name` (each optional, used by the matching action) | Does **not** build or refresh — use `manage_build` for builds and `refresh_unity` for asset-database refresh/recompile. Prefab-stage operations live in `manage_prefabs`. **To read editor state, project info, tags, layers, selection, windows, prefab stage or the active tool, use the resources in [MCP Resources](#mcp-resources-read-only) — not this tool.** The `telemetry_status`/`telemetry_ping` actions do exist, but they are **server-side telemetry diagnostics** handled in the Python layer; they return only whether telemetry is enabled / that a ping was queued, and report **nothing** about editor state or compilation. Never use them as a readiness probe |
+| `manage_editor` | Read-only: `telemetry_status`, `telemetry_ping`. Modifying: `play`, `pause`, `stop`, `set_active_tool`, `add_tag`, `remove_tag`, `add_layer`, `remove_layer`, `deploy_package`, `restore_package`, `undo`, `redo`. Params: `tool_name`, `tag_name`, `layer_name` (each optional, used by the matching action) | Does **not** build or refresh — use `manage_build` for builds and `refresh_unity` for asset-database refresh/recompile. Prefab-stage operations live in `manage_prefabs`. **To read editor state, project info, tags, layers, selection, windows, prefab stage or the active tool, use the resources in [MCP Resources](#mcp-resources-read-only) — not this tool.** `telemetry_status` and `telemetry_ping` are real, working read-only actions — **VERIFIED by direct call** on 2026-10-21, returning `{"success": true, "telemetry_enabled": true}` and `{"success": true, "message": "telemetry ping queued"}`. They are handled in the Python server layer, which has two consequences: they **must be called directly and never inside `batch_execute`** (see [`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions)), and they report **nothing** about editor state or compilation, so they are not a readiness probe — use `mcpforunity://editor/state` for that |
 | `refresh_unity` | N/A (single-purpose) | Params: `mode`, `scope`, `compile`, `wait_for_ready`. Use after script/asset changes made outside Unity's own import pipeline |
 | `create_script` / `delete_script` / `validate_script` / `get_sha` | N/A (single-purpose each) | Modern script CRUD; prefer these over the legacy `manage_script` router. See the `uri` and edit-shape detail below this table |
 | `apply_text_edits` / `script_apply_edits` | N/A | Line/column-based and structured (method/class-level) C# edits respectively; prefer `script_apply_edits` for method-level changes. See the edit-shape detail below this table |
 | `manage_script` | `create`, `read`, `delete` only | Legacy compatibility router — **no `list` or `get_info` action**. To enumerate scripts, use `manage_asset(action: "search", search_pattern: "*.cs")` |
-| `manage_scriptable_object` | `create`, `modify` | Uses SerializedObject property paths for patches. **Group `scripting_ext` — off by default**, activate with `manage_tools(action: "activate", group: "scripting_ext")` |
+| `manage_scriptable_object` | `create`, `modify` | Uses SerializedObject property paths for patches. **Group `scripting_ext` — reported off by default**; activate with `manage_tools(action: "activate", group: "scripting_ext")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)) |
 | `manage_physics` | `ping`, `get_settings`, `set_settings`, collision matrix, materials, joints, raycasts, `apply_force`, `simulate_step`, `validate` | 3D and 2D via the `dimension` param |
 | `execute_menu_item` | N/A — param: `menu_path` | Executes a Unity menu item by its menu path. Enumerate the available paths with the `mcpforunity://menu-items` resource before guessing a path |
 
 #### `manage_build` parameters
 
-- **`action: "settings"` requires a `property` argument.** Valid properties: `product_name`, `company_name`, `version`, `bundle_id`, `scripting_backend`, `defines`, `architecture`. Pass `value` to write; omit `value` to read. A bare `manage_build(action: "settings")` is rejected by Unity.
+- **`action: "settings"` — pass a `property`.** Valid properties: `product_name`, `company_name`, `version`, `bundle_id`, `scripting_backend`, `defines`, `architecture`. Pass `value` to write; omit `value` to read. Whether a bare `manage_build(action: "settings")` is *rejected* is **UNVERIFIED**: the `'property' parameter is required.` error that this claim rested on was observed only through `batch_execute`, which is not equivalent to a direct call (see [`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions)), and `manage_build` could not be retested directly on the verification machine because the IDE's own permission rules denied it ([permission denials](#tool-denied-by-the-ides-own-permission-rules)). Treat `property` as the shape to use, not as a proven requirement, until someone with `manage_build` permitted retests it directly.
 - **`scripting_backend` accepts only `mono` or `il2cpp`.** There is no `coreclr` option — whatever the Editor's own enum contains, this Power cannot select CoreCLR through `manage_build`.
 - **`options`** takes a JSON array drawn from: `clean_build`, `auto_run`, `deep_profiling`, `compress_lz4`, `strict_mode`, `detailed_report`. Map any local build-config vocabulary onto these names.
 - **`subtarget`**: `player` or `server`.
@@ -430,15 +499,15 @@ manage_tools(action: "reset")                    # back to core-only when finish
 
 | Tool | Key Actions | Notes |
 |------|-------------|-------|
-| `run_tests` | N/A — params: `mode` (`EditMode`/`PlayMode`), `test_names`, `group_names`, `category_names`, `assembly_names`, `include_failed_tests`, `include_details`, `init_timeout`, `clear_stuck` | **Asynchronous**: returns `{job_id}` immediately; poll with `get_test_job(job_id, wait_timeout: 30)` until the run completes. There is no `platform` filter param — filtering is by test mode/category/assembly, not target platform. `test_names` needs exact full names; `group_names` is the same filter but matched as a **regex**. `init_timeout` is in **milliseconds** (default 15000; 120000 recommended for PlayMode, which starts with a domain reload). `clear_stuck: true` clears an orphaned `running` job that is blocking new runs and starts nothing. Param list from the [v10.3.0 `run_tests` reference](https://github.com/CoplayDev/unity-mcp/blob/v10.3.0/website/docs/reference/tools/testing/run_tests.md), retrieved 2026-10-21. **Group `testing` — off by default.** End-to-end behaviour is **UNVERIFIED** (not exercised on the verification machine) |
-| `get_test_job` | N/A | Poll target for `run_tests`; supports `wait_timeout` (seconds) to reduce polling round-trips. May report `progress.stuck_suspected` / `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run (suppress by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server). **Group `testing` — off by default** |
+| `run_tests` | N/A — params: `mode` (`EditMode`/`PlayMode`), `test_names`, `group_names`, `category_names`, `assembly_names`, `include_failed_tests`, `include_details`, `init_timeout`, `clear_stuck` | **Asynchronous**: returns `{job_id}` immediately; poll with `get_test_job(job_id, wait_timeout: 30)` until the run completes. There is no `platform` filter param — filtering is by test mode/category/assembly, not target platform. `test_names` needs exact full names; `group_names` is the same filter but matched as a **regex**. `init_timeout` is in **milliseconds** (default 15000; 120000 recommended for PlayMode, which starts with a domain reload). `clear_stuck: true` clears an orphaned `running` job that is blocking new runs and starts nothing. Param list from the [v10.3.0 `run_tests` reference](https://github.com/CoplayDev/unity-mcp/blob/v10.3.0/website/docs/reference/tools/testing/run_tests.md), retrieved 2026-10-21. **Group `testing` — reported off by default**; activate only if the tool is reported as not existing (see [Tool Groups](#tool-groups)). End-to-end behaviour is **UNVERIFIED** (not exercised on the verification machine) |
+| `get_test_job` | N/A | Poll target for `run_tests`; supports `wait_timeout` (seconds) to reduce polling round-trips. May report `progress.stuck_suspected` / `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run (suppress by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server). **Group `testing` — reported off by default**; activate only if the tool is reported as not existing |
 | `read_console` | `get` (default), `clear` | Supports `filter_text`, `types`, `page_size`/`cursor` for paging |
-| `batch_execute` | N/A | Each command is `{"tool": "...", "params": {...}}` — **the per-command key is `params`, not `args`**. Supports `parallel`/`fail_fast`/`max_parallelism`. **`fail_fast` defaults to `true`** — pass `fail_fast: false` explicitly for any "record the failure and continue" workflow. **Command cap**: configurable in the Unity MCP Tools window, **default 25, hard maximum 100** — split larger jobs into successive batches |
+| `batch_execute` | N/A | Each command is `{"tool": "...", "params": {...}}` — **the per-command key is `params`, not `args`**. Supports `parallel`/`fail_fast`/`max_parallelism`. **`fail_fast` defaults to `true`** — pass `fail_fast: false` explicitly for any "record the failure and continue" workflow. **Command cap**: configurable in the Unity MCP Tools window, **default 25, hard maximum 100** — split larger jobs into successive batches. **Not equivalent to direct calls**: the batch path goes straight to Unity's C# handler and bypasses server-layer action handlers, so a server-layer action (confirmed: `manage_editor`'s `telemetry_status` / `telemetry_ping`) fails inside a batch with a misleading `Unknown action` error. Call those directly, and never take a batch error as proof an action does not exist — see [`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions) |
 | `find_in_file` | N/A — params: `uri` (required), `pattern` (required, regex), `project_root`, `max_results`, `ignore_case` | Regex search inside one file; returns line numbers plus excerpts. Cheaper and safer than reading a whole script when only a symbol's location is needed |
 | `find_gameobjects` | N/A — params: `search_term` (**required**); optional: `search_method`, `include_inactive`, `page_size`, `cursor` | **No `filter` param.** Only `search_term` is required — `search_method` is optional. Valid `search_method` values are prefixed: `by_name`, `by_tag`, `by_layer`, `by_component`, `by_path`, `by_id`. Returns instance IDs only (paginated); fetch full data via the `mcpforunity://scene/gameobject/{id}` resource. **Unity 6.4 caveat**: `InstanceID` is deprecated in favour of the new `EntityId` type, and Unity's own guidance warns against casting ids to/from `int`, sign-based asset checks, `GetHashCode`, `ToString`-then-parse, and sorting by id to infer creation order. **Treat the returned id as an opaque token** — pass it straight back to the bridge; never do arithmetic on it, sort by it, or parse it |
-| `execute_code` | `execute`, `get_history`, `replay`, `clear_history` | Runs arbitrary C# in-Editor. **Group `scripting_ext` — off by default.** Default `compiler: "auto"` falls back to `codedom` (C# 6 syntax only) unless Roslyn is installed — avoid C# 7+ syntax (e.g. `var x = (a, b);` tuples, pattern matching) unless you've confirmed Roslyn is available. `safety_checks` (bool, **default `true`**) rejects patterns such as `File.Delete`, `Process.Start` and obvious infinite loops; it is explicitly **not a full sandbox**, so it is no substitute for reading the snippet before running it. `index` selects which history entry `replay` re-runs; `limit` (1–50, default 10) bounds `get_history` |
-| `manage_profiler` | Session: `profiler_start/stop/status/set_areas`. Counters: `get_frame_timing`, `get_counters`, `get_object_memory`. Memory: `memory_take_snapshot/list_snapshots/compare_snapshots`. Frame Debugger: `frame_debugger_*` | Memory snapshot actions require `com.unity.memoryprofiler` package (**UNVERIFIED** — absent on the verification machine). **Group `profiling` — off by default**, activate with `manage_tools(action: "activate", group: "profiling")` |
-| `unity_docs` / `unity_reflect` | `get_doc`/`get_manual`/`get_package_doc`/`lookup`; `get_type`/`get_member`/`search` | **Group `docs` — off by default**, activate with `manage_tools(action: "activate", group: "docs")`. Use `unity_reflect` to confirm an API exists on the connected Editor version before writing code against it, then `unity_docs` for usage examples. **Parameter names**: `unity_reflect(action: "get_type", class_name: "...")`; `get_member` needs `class_name` + `member_name`; `search` needs `query` and takes an optional `scope`. `unity_docs(action: "get_doc", class_name: "...")` with optional `member_name` and `version`. The parameter is **`class_name`** — `type_name` is rejected |
+| `execute_code` | `execute`, `get_history`, `replay`, `clear_history` | Runs arbitrary C# in-Editor. **Group `scripting_ext` — reported off by default**; activate only if the tool is reported as not existing (see [Tool Groups](#tool-groups)). Default `compiler: "auto"` falls back to `codedom` (C# 6 syntax only) unless Roslyn is installed — avoid C# 7+ syntax (e.g. `var x = (a, b);` tuples, pattern matching) unless you've confirmed Roslyn is available. `safety_checks` (bool, **default `true`**) rejects patterns such as `File.Delete`, `Process.Start` and obvious infinite loops; it is explicitly **not a full sandbox**, so it is no substitute for reading the snippet before running it. `index` selects which history entry `replay` re-runs; `limit` (1–50, default 10) bounds `get_history` |
+| `manage_profiler` | Session: `profiler_start/stop/status/set_areas`. Counters: `get_frame_timing`, `get_counters`, `get_object_memory`. Memory: `memory_take_snapshot/list_snapshots/compare_snapshots`. Frame Debugger: `frame_debugger_*` | Memory snapshot actions require `com.unity.memoryprofiler` package (**UNVERIFIED** — absent on the verification machine). **Group `profiling` — reported off by default**; activate with `manage_tools(action: "activate", group: "profiling")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)) |
+| `unity_docs` / `unity_reflect` | `get_doc`/`get_manual`/`get_package_doc`/`lookup`; `get_type`/`get_member`/`search` | **Group `docs` — reported off by default**; activate with `manage_tools(action: "activate", group: "docs")` **only if the tool is reported as not existing** (see [Tool Groups](#tool-groups)). Use `unity_reflect` to confirm an API exists on the connected Editor version before writing code against it, then `unity_docs` for usage examples. **Parameter names**: `unity_reflect(action: "get_type", class_name: "...")`; `get_member` needs `class_name` + `member_name`; `search` needs `query` and takes an optional `scope`. `unity_docs(action: "get_doc", class_name: "...")` with optional `member_name` and `version`. The parameter is **`class_name`** — `type_name` is rejected |
 
 ### Generative Tools (`asset_gen` group) — awareness only
 
@@ -519,7 +588,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 **Step-by-step:**
 1. **Identify scene type** — Confirm which Scene_Scaffold the developer needs
 2. **Load scaffold** — Read the matching JSON scaffold from `templates/scaffolds/`
-3. **Activate the `ui` group — only if the scaffold or the request includes UI Toolkit elements** — `manage_tools(action: "activate", group: "ui")`, because `manage_ui` is not in the default-on `core` group. The MCP client may need a refresh or reconnect before `manage_ui` appears in its tool list. Skip this step entirely for a scene with no UI Toolkit content, or one using legacy uGUI (which goes through `manage_gameobject` + `manage_components` and needs no group)
+3. **(Conditional) `manage_ui` availability** — skip this step unless the scaffold or the request includes UI Toolkit elements *and* `manage_ui` is reported as not existing. `manage_ui` is declared in the `ui` group, reported off by default but callable without activation on the live-verified install; if it really is missing, run `manage_tools(action: "activate", group: "ui")` and expect the MCP client may need a refresh or reconnect. Legacy uGUI needs none of this — it goes through `manage_gameobject` + `manage_components`
 4. **Create scene** — `manage_scene(action: "create", name: "NewScene")`
 5. **Check conflicts** — `find_gameobjects(search_term: name, search_method: "by_name")` for each planned object name, to detect name conflicts with existing objects (there is no generic `filter` param; only `search_term` is required, and `search_method` values carry the `by_` prefix)
 6. **Build hierarchy** — `batch_execute(commands: [{tool: "manage_gameobject", params: {action: "create", ...}} × N])` following the scaffold's hierarchy definition (each command uses `params`, not `args`; keep each batch within the command cap — default 25, hard max 100), including:
@@ -564,7 +633,9 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 - `profile`/`profiles` take Build Profile **asset paths** and are Unity 6+ only
 
 **Reading or writing a build setting:**
-- `manage_build(action: "settings", property: "...")` reads; add `value` to write. `property` is **required** — see [`manage_build` parameters](#manage_build-parameters) for the accepted properties and for the `options`/`subtarget` vocabulary
+- `manage_build(action: "settings", property: "...")` reads; add `value` to write. Always pass `property` — see [`manage_build` parameters](#manage_build-parameters) for the accepted properties, for the `options`/`subtarget` vocabulary, and for why "`property` is required" is currently labelled **UNVERIFIED** rather than asserted
+
+> **Before anything else in this workflow**: if a `manage_build` call comes back as *denied by permissions*, the IDE's permission layer blocked it before Unity saw it — on the verification machine a `capability: mcp` / `effect: deny` rule in `~/.kiro/settings/permissions.yaml` matching `power-kiro-unity-accelerator-unity-mcp/manage_build` made this entire workflow unrunnable. See [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules). Do not work around it; report the matched rule to the developer.
 
 **Common build error patterns:**
 - `CS` compilation errors → suggest code fixes
@@ -583,7 +654,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 **To run cross-platform tests (e.g., "Run EditMode and PlayMode tests"):**
 
 **Step-by-step:**
-1. **Activate the `testing` group** — `manage_tools(action: "activate", group: "testing")`. `run_tests` and `get_test_job` are **not** in the default-on `core` group, so without this step they may be absent from the tool list entirely. If they still do not appear, run `manage_tools(action: "sync")` to adopt the Unity Tools-window toggles, and tell the developer the MCP client may need a refresh or reconnect before a newly activated tool shows up
+1. **Start with step 3 — activate the `testing` group only if you have to.** `run_tests` and `get_test_job` are declared in the `testing` group, which the bridge reports as off by default, but on the live-verified install they were callable with no activation at all. Only if a call is rejected with *tool does not exist*: `manage_tools(action: "list_groups")` → `manage_tools(action: "activate", group: "testing")`, then `manage_tools(action: "sync")` if that was not enough, and tell the developer the MCP client may need a refresh or reconnect. If instead the call is refused with a permission message, see [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules) — no amount of activation will help
 2. **Discover tests (optional, no group needed)** — read `mcpforunity://tests`, or `mcpforunity://tests/EditMode` / `mcpforunity://tests/PlayMode`, to see what exists before running anything
 3. **Start tests** — `run_tests(mode: "EditMode")` or `run_tests(mode: "PlayMode")` to execute Unity Test Framework tests. This returns `{job_id}` immediately — `run_tests` is asynchronous, not a blocking call. There is no `platform` param on `run_tests`; Unity Test Framework runs in the Editor (EditMode/PlayMode), not against a specific build target, so "testing for Android" in practice means building for that platform first (`manage_build`) and then reasoning about platform-specific code paths, not passing `platform` to `run_tests`
 4. **Poll for completion** — `get_test_job(job_id: ..., wait_timeout: 30)` until `status` is no longer `"running"`; use `include_failed_tests: true` to get failure details without a huge payload. A long run may report `progress.stuck_suspected`, and the server may briefly focus the Unity window to unstick it
@@ -622,7 +693,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 **To analyze performance (e.g., "Analyze the current scene's performance"):**
 
 **Step-by-step:**
-1. **Activate the `profiling` group** — `manage_tools(action: "activate", group: "profiling")`. `manage_profiler` is **not** in the default-on `core` group. If it still does not appear, run `manage_tools(action: "sync")` and warn the developer the MCP client may need a refresh or reconnect. `manage_graphics` and `read_console` are `core` and need no activation, so a graphics-only pass can skip this step
+1. **Go straight to step 2.** `manage_profiler` is declared in the `profiling` group, reported off by default, yet it answered without any activation on the live-verified install. Only if a `manage_profiler` call is rejected with *tool does not exist*: `manage_tools(action: "activate", group: "profiling")`, then `manage_tools(action: "sync")` if needed, and warn the developer the MCP client may need a refresh or reconnect. `manage_graphics` and `read_console` are `core` regardless
 2. **Collect metrics** — `manage_graphics(action: "stats_get")` for Draw Calls, batches, triangles, etc. (this is the real action name — there is no `get_rendering_stats`); `manage_profiler(action: "get_frame_timing")` for frame-time data; `manage_profiler(action: "get_counters", category: "Memory")` for GC/memory counters. The `mcpforunity://rendering/stats` resource gives the same snapshot with no tool group required
 3. **Read logs** — `read_console()` to collect performance-related logs
 4. **Locate bottlenecks** — `find_gameobjects(search_term: "MeshRenderer", search_method: "by_component")` to identify objects with heavy renderers (the param is `search_term` plus an optional prefixed `search_method`, not `filter`). Treat the returned instance IDs as opaque tokens — do not sort or parse them
@@ -650,7 +721,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 **To check code quality (e.g., "Check the project's code architecture"):**
 
 **Step-by-step:**
-1. **Get project info — prefer the resource** — read `mcpforunity://project/info` for the Unity version, project root and platform. It needs no tool group. Use `manage_packages(action: "list_packages")` (`core`, asynchronous) for the package inventory. Only if you genuinely need to evaluate C# in the Editor, **activate the group first** — `manage_tools(action: "activate", group: "scripting_ext")` — because `execute_code` is not in the default-on `core` group; then `execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")`, keeping to C# 6 syntax unless Roslyn is confirmed installed
+1. **Get project info — prefer the resource** — read `mcpforunity://project/info` for the Unity version, project root and platform. It needs no tool group. Use `manage_packages(action: "list_packages")` (`core`, asynchronous) for the package inventory. Only if you genuinely need to evaluate C# in the Editor, call `execute_code(action: "execute", code: "return UnityEngine.Application.unityVersion;")` directly, keeping to C# 6 syntax unless Roslyn is confirmed installed — and reach for `manage_tools(action: "activate", group: "scripting_ext")` only if `execute_code` is reported as not existing
 2. **List scripts** — `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to get all C# script paths (`manage_script` has no `list` action). `search_pattern` also accepts AssetDatabase filters such as `t:MonoScript`, and paging is `page_size` + `page_number`
 3. **Read scripts** — `manage_script(action: "read", name: scriptName, path: folderPath)` to read script content (both `name` and `path` are required — `path` is the containing folder, not the full file path). For a targeted lookup inside one large file, `find_in_file(uri: ..., pattern: ...)` is cheaper than reading the whole script
 4. **Load rules** — Read enabled ArchitectureRule definitions from `templates/architecture-rules/`
@@ -679,7 +750,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 **Step-by-step:**
 1. **Search** — Query the Knowledge_Base by keyword and tags, results sorted by relevance
 2. **Asset lookup** — When the developer selects a script or component, find related documents via `relatedAssets` matching
-3. **API change detection** — When Unity API updates, compare the project's used APIs against the change list to generate migration guides. To check an API against the *connected* Editor rather than against memory, **activate the `docs` group first** — `manage_tools(action: "activate", group: "docs")` — because `unity_reflect` and `unity_docs` are not in the default-on `core` group; then `unity_reflect(action: "get_type", class_name: "...")` to confirm the type exists and `unity_docs(action: "get_doc", class_name: "...")` for usage. The parameter is `class_name`, not `type_name`. If the tools do not appear, run `manage_tools(action: "sync")` and expect that the MCP client may need a refresh
+3. **API change detection** — When Unity API updates, compare the project's used APIs against the change list to generate migration guides. To check an API against the *connected* Editor rather than against memory, call `unity_reflect(action: "get_type", class_name: "...")` to confirm the type exists and `unity_docs(action: "get_doc", class_name: "...")` for usage. The parameter is `class_name`, not `type_name`. These two live in the `docs` group, reported off by default but callable without activation on the live-verified install — so only if one of them is reported as not existing, run `manage_tools(action: "activate", group: "docs")`, then `sync`, and expect that the MCP client may need a refresh
 4. **Onboarding** — For new team members, auto-generate an onboarding checklist based on project structure and existing docs
 5. **Staleness check** — Flag documents not updated in 180+ days as "NeedsReview" and notify the document owner
 
@@ -694,7 +765,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 
 **Step-by-step:**
 1. **Load profile** — Read the target PlatformProfile from `templates/platform-profiles/`
-2. **Scan shaders** — `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate shader assets — this is a `core` call and needs no group. **To read a shader's contents, activate the `vfx` group first**: `manage_tools(action: "activate", group: "vfx")`, because `manage_shader` is not in the default-on `core` group (if it does not appear, `manage_tools(action: "sync")`, then expect a possible client refresh). `manage_shader` itself has no `list` action — it only reads/creates/updates/deletes a shader by `name`+`path` — so use `manage_shader(action: "read", name: ..., path: ...)` per shader for content inspection
+2. **Scan shaders** — `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate shader assets — this is a `core` call and needs no group. To read a shader's contents, call `manage_shader` directly; it is declared in the `vfx` group, reported off by default but callable without activation on the live-verified install — **only if it is reported as not existing** run `manage_tools(action: "activate", group: "vfx")` (then `manage_tools(action: "sync")`, then expect a possible client refresh). `manage_shader` itself has no `list` action — it only reads/creates/updates/deletes a shader by `name`+`path` — so use `manage_shader(action: "read", name: ..., path: ...)` per shader for content inspection
 3. **Get graphics settings** — `manage_graphics(action: "pipeline_get_info")` and `manage_graphics(action: "pipeline_get_settings")` to get current render pipeline configuration (there is no `get_settings` action). `mcpforunity://pipeline/renderer-features` lists the renderer features on the active URP renderer
 4. **Check shader compatibility** — Compare shader features against the platform's supported feature list
 5. **Estimate memory** — `manage_asset(action: "get_info", path: assetPath)` per asset to estimate memory usage against the platform's memory budget
@@ -719,7 +790,7 @@ This is the complete set of resource URI forms, taken from the bridge's generate
 **To analyze asset dependencies (e.g., "Analyze dependencies of hero.fbx"):**
 
 **Step-by-step:**
-1. **Activate the `scripting_ext` group** — `manage_tools(action: "activate", group: "scripting_ext")`. This whole workflow depends on `execute_code`, which is **not** in the default-on `core` group; without the activation it may be absent from the tool list. If it still does not appear, run `manage_tools(action: "sync")` and tell the developer the MCP client may need a refresh or reconnect. Keep generated snippets to C# 6 syntax unless Roslyn is confirmed installed, and leave `safety_checks` at its default `true`
+1. **Call `execute_code` directly; activate its group only if you must.** This whole workflow depends on `execute_code`, declared in the `scripting_ext` group — reported off by default, but callable with no activation on the live-verified install. Only if it is reported as not existing: `manage_tools(action: "activate", group: "scripting_ext")`, then `manage_tools(action: "sync")`, and tell the developer the MCP client may need a refresh or reconnect. Keep generated snippets to C# 6 syntax unless Roslyn is confirmed installed, and leave `safety_checks` at its default `true`
 2. **Get dependencies** — `manage_asset` has **no `get_dependencies` action**. Use `execute_code` to call Unity's own API directly: `execute_code(action: "execute", code: "return string.Join(\",\", UnityEditor.AssetDatabase.GetDependencies(\"Assets/Characters/hero.fbx\", false));")` — the `false` argument means direct (non-recursive) dependencies only
 3. **Recursive analysis** — Either pass `true` as the second argument to `GetDependencies` to get the full transitive closure in one call, or call it per-asset with `false` and walk the graph manually if you need per-level structure
 4. **Build tree** — Construct a complete dependency tree (DependencyTree JSON) from the `execute_code` results
@@ -870,10 +941,12 @@ There are **15** files in `steering/`, and this table lists all of them:
 | Category | Example | Response |
 |----------|---------|----------|
 | MCP connection failure | Server not started, network issue | Prompt the developer to confirm Unity Editor is open with a project loaded, that `Window → MCP for Unity` shows **Connected** (`Restart Server` if not), and that the URL's port matches the one shown in that window |
-| **Tool missing because its group is not active** | A documented tool such as `manage_profiler`, `manage_ui`, `run_tests`, `execute_code` or `manage_shader` is absent from the tool list | Only `core` is enabled by default. Run `manage_tools(action: "list_groups")`, then `manage_tools(action: "sync")` to adopt the Unity Tools-window toggles, then `manage_tools(action: "activate", group: "...")`. Then **refresh or reconnect the MCP client** — many clients cache the tool list, so a successful activation can look like it did nothing. Remember that `list_groups`' `enabled` field reports the group's *default* unless this session has already activated or deactivated it, so do not use it to prove a tool is unavailable |
+| **A documented tool is reported as not existing** | `Tool 'manage_profiler' does not exist on server 'power-kiro-unity-accelerator-unity-mcp'`, or the tool is absent from the tool list | *Then* — not before — treat tool groups as the suspect: `manage_tools(action: "list_groups")`, `manage_tools(action: "sync")` to adopt the Unity Tools-window toggles, `manage_tools(action: "activate", group: "...")`, then **refresh or reconnect the MCP client** (many clients cache the tool list, so a successful activation can look like it did nothing). Note that on the live-verified install every non-core tool was callable with no activation, and `list_groups`' `enabled`/`default_enabled` fields read `false` for groups whose tools worked — so those fields never prove a tool is unavailable. Also check that nobody ran `manage_tools(action: "deactivate", ...)` earlier in the session: deactivation *is* enforced |
+| **Tool call denied by the IDE's permissions** | `Tool call denied by user's permissions. Rule: deny mcp matching "power-<powerName>-<serverName>/<tool>"` | The IDE blocked the call before Unity saw it; this is neither a bridge nor a tool-group problem. Check `~/.kiro/settings/permissions.yaml` (and the workspace-level file) for `capability: mcp` entries with `effect: deny`, report the matched rule to the developer, and stop — do not retry and do not route around it. Full detail: [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules) |
+| **"Unknown action" raised inside `batch_execute`** | A batched `manage_editor(action: "telemetry_status")` fails with `Unknown action: 'telemetry_status'` although the direct call succeeds | `batch_execute` bypasses the Python server layer, so server-layer actions fail inside a batch with a misleading message. Retest the action as a **direct** call before concluding it does not exist, and keep server-layer actions out of batches: [`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions) |
 | **Duplicate Unity MCP server registrations** | Two Unity servers in the IDE's MCP panel, duplicated or oddly prefixed tool names, calls landing on the wrong server | This Power's `mcp.json` and Unity's `Configure All Detected Clients` both write into `~/.kiro/settings/mcp.json` under different names (`unity-mcp` vs `unityMCP`). Pick exactly one path (see [Onboarding](#1-pick-exactly-one-mcp-registration-path)), disable the other entry, restart the IDE |
 | **`resources/read` unknown-server error** | Reading `mcpforunity://...` fails with an unknown or ambiguous server key | Some clients need the server discovery key passed alongside the URI. List the resources first and reuse the server key exactly as the client reports it; if two Unity servers are registered, fix that first (row above) |
-| MCP tool schema mismatch | "Unknown action" or Pydantic validation error naming valid values | The connected bridge version differs from what this Power expects — trust the error message's list of valid values over this document, and suggest the developer update `com.coplaydev.unity-mcp` to v10.3.0 or newer if core actions seem missing |
+| MCP tool schema mismatch | "Unknown action" or Pydantic validation error naming valid values, **on a direct call** | The connected bridge version differs from what this Power expects — trust the error message's list of valid values over this document, and suggest the developer update `com.coplaydev.unity-mcp` to v10.3.0 or newer if core actions seem missing. **Direct calls only**: the same error from inside `batch_execute` means nothing (row above) |
 | MCP operation timeout | Unity compiling or building | Wait and retry; inform the developer Unity may be busy |
 | MCP tool error | Asset path not found, invalid params | Parse error, suggest correct path or parameters |
 | Asset operation error | Preset apply failed, file locked | Record failure, continue with remaining assets, report at end |

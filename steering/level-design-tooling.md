@@ -69,7 +69,7 @@ Describe batch rules → Parse rules → Filter objects → Show preview → Con
 | Filter scene objects | `find_gameobjects(search_term, search_method)` | Search objects by name, Tag, Layer, component, path or id. Only `search_term` is required; `search_method` is optional and its values are always prefixed — `by_name`, `by_tag`, `by_layer`, `by_component`, `by_path`, `by_id`. Returns instance IDs only — treat each id as an opaque token: pass it straight back to the bridge, never cast it to `int`, do arithmetic on it, parse it or sort by it. Unity 6.4 deprecates `InstanceID` in favour of `EntityId` ([Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), retrieved 2026-10-21) |
 | Set Layer/Tag | `manage_gameobject(action: "modify", target, layer/tag)` | Modify an object's Layer or Tag |
 | Modify component properties | `manage_components(action: "set_property", target, component_type, property, value)` | Modify property values on an object's components |
-| Batch execute | `batch_execute(commands)` | Package multiple MCP calls into a single batch operation — each command's second key is `params`, not `args` |
+| Batch execute | `batch_execute(commands)` | Package multiple MCP calls into a single batch operation — each command's second key is `params`, not `args`. Batch Unity-side work only: the batch path bypasses the Python server layer, so a server-layer action fails there with a misleading `Unknown action` error — retest such a failure as a direct call (see "`batch_execute` is not equivalent to direct calls" in `unity-general.md`) |
 
 ## MCP Tool Call Sequence Examples
 

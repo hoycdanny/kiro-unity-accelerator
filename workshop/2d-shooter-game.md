@@ -26,33 +26,36 @@
 
 ---
 
-## 步驟 0：先啟用這個 Workshop 需要的工具群組
+## 步驟 0：確認連線（工具群組先不用動）
 
-**目標**：讓 Kiro 看得到後面會用到的 MCP 工具。
-
-MCP for Unity 把工具分成 **10 個群組**，而**預設只有 `core` 是啟用的**，其餘 9 個都要手動開啟。場景、GameObject、元件、腳本、建置這些本 Workshop 的主力工具都在 `core`，但有幾個步驟會用到 `core` 以外的群組。
+**目標**：確認 Kiro 真的連得上 Unity，然後就可以直接開始。
 
 **複製貼上這段 Prompt：**
 
 ```
-請先呼叫 manage_tools(action: "list_groups") 列出目前的工具群組狀態，然後執行：
-- manage_tools(action: "sync")                                 # 先採用 Unity Tools 視窗裡的開關狀態
-- manage_tools(action: "activate", group: "scripting_ext")      # 需要 execute_code 做專案查詢時
-- manage_tools(action: "activate", group: "testing")            # 步驟 10 要跑 run_tests 時
-
-如果我後面要求用 UI Toolkit（而不是本 Workshop 預設的 legacy uGUI）做 HUD，再額外執行：
-- manage_tools(action: "activate", group: "ui")                 # manage_ui 在這個群組
-
-做完請再跑一次 manage_tools(action: "list_groups") 回報結果。
+請呼叫 manage_scene(action: "get_active") 確認 MCP 連線正常，並回報目前開啟的場景名稱。
 ```
 
-**預期結果**：Kiro 回報群組清單與啟用結果。
+**預期結果**：Kiro 回報目前的場景（例如 `SampleScene`）。
 
-> **兩個必須知道的細節**：
-> 1. `list_groups` 回傳的 `enabled` 欄位，只有在這個 session 已經下過 `activate`／`deactivate` 時才反映 session 的規則，否則它回報的是該群組的**預設值** —— 所以它不是「目前實際可呼叫什麼」的可靠讀數。
-> 2. 部分 MCP client 會**快取工具清單**，`activate` 之後新工具可能要等 client 重新整理或重新連線才會出現。如果 Kiro 說找不到某個工具，先重新整理 MCP 伺服器再重試，不要急著換做法。
+> **不需要預先啟用工具群組。** MCP for Unity 把工具分成 **10 個群組**，bridge 宣告的預設值只有 `core`，但在本 Power 實機驗證的那台機器上，**43 個工具在任何 `manage_tools` 呼叫之前就全部可以呼叫**（包含 `execute_code`、`run_tests`、`manage_ui`、`manage_profiler`）。所以請直接做後面的步驟，不要先跑一串 activate。
 >
-> 全部做完後想回到乾淨狀態，可以用 `manage_tools(action: "reset")` 回到只剩 `core`。
+> **只有在 Kiro 回報某個工具「不存在」時**，才依序執行：
+>
+> ```
+> manage_tools(action: "list_groups")                        # 看群組目錄
+> manage_tools(action: "sync")                               # 採用 Unity Tools 視窗裡的開關狀態
+> manage_tools(action: "activate", group: "scripting_ext")   # execute_code 所在的群組
+> manage_tools(action: "activate", group: "testing")         # run_tests／get_test_job（步驟 10）
+> manage_tools(action: "activate", group: "ui")              # manage_ui（只有改用 UI Toolkit 才需要）
+> ```
+>
+> **三個必須知道的細節**：
+> 1. `list_groups` 的 `enabled`／`default_enabled` 欄位會誤導人：實機驗證時，八個非 core 群組在 `reset` 前後都回報 `enabled: false`，但那些工具全都能正常呼叫。**不要拿這個欄位當作「工具不可用」的證據**，要以重試是否成功來判斷。
+> 2. 部分 MCP client 會**快取工具清單**，`activate` 之後新工具可能要等 client 重新整理或重新連線才會出現。
+> 3. 如果錯誤訊息是 `Tool call denied by user's permissions`，那是 Kiro 的權限規則擋下來的，跟群組和 Unity 都無關 —— 請檢查 `~/.kiro/settings/permissions.yaml` 裡 `capability: mcp` 且 `effect: deny` 的規則。
+>
+> `manage_tools(action: "deactivate", ...)` 是真的會生效的（實機驗證過），所以不要在流程中隨意關閉群組；要回到乾淨狀態用 `manage_tools(action: "reset")`。
 
 ---
 

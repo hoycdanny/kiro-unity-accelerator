@@ -129,7 +129,15 @@ Unity で `Window → MCP for Unity` を開き → transport が HTTP である�
 
 #### 実際のポートを読み取る
 
-**8080 を定数と考えないでください。** このポートはユーザーが変更でき、8080 は他サービスと衝突します（上流は Tailscale を例に挙げ、8090 への変更を提案しています）。MCP for Unity ウィンドウに現在のエンドポイントが表示されます — 8080 でない場合、URL は `http://127.0.0.1:<そのポート>/mcp` です。
+**8080 を定数と考えないでください。** ポートはサーバー起動時の `--http-url` に渡された値そのものでユーザーが変更でき、8080 は他サービスと衝突します（上流は Tailscale を例に挙げ、8090 への変更を提案しています）。MCP for Unity ウィンドウに現在のエンドポイントが表示されます — 8080 でない場合、URL は `http://127.0.0.1:<そのポート>/mcp` です。
+
+ポートはディスクから直接読み取ることもできます。稼働中のサーバーは Unity プロジェクト配下に、ポート名を含む pidfile を書き出します。
+
+```
+<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid
+```
+
+`mcp_http_8080.pid` があれば、サーバーは `http://127.0.0.1:8080` で動作しています。本 Power を実機検証したマシンはまさにこの状態で、サーバー自身のコマンドラインは `mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile ...mcp_http_8080.pid` でした。
 
 #### 手動設定（最後の手段）
 
@@ -326,7 +334,9 @@ kiro-unity-accelerator/
 |------|--------|
 | Kiro が Unity に接続できない | Unity Editor がプロジェクトを開いた状態であることを確認 → `Window → MCP for Unity` → ステータスパネルが **Connected** であることを確認（そうでなければ `Restart Server`） |
 | ポート 8080 が使用中 (Port 8080 is already in use by another program) | MCP for Unity の設定でポートを変更（上流は 8090 を提案）し、**Configure All Detected Clients** を再実行、Kiro を再起動、`mcp.json` の `url` を Unity ウィンドウ表示のポートに合わせる |
-| ドキュメント記載のツールがツール一覧に出てこない | そのツールのグループが有効でない可能性が高い — デフォルトで有効なのは `core` だけです。`manage_tools(action: "list_groups")` → `manage_tools(action: "sync")` → `manage_tools(action: "activate", group: "<名前>")` の順に実行。Kiro はツール一覧をキャッシュすることがあるため、その後 MCP サーバーの更新または再接続を行ってください |
+| ドキュメント記載のツールが「存在しない」と報告される | そのツールのグループが無効な可能性があります — bridge が宣言するデフォルトは `core` のみですが、実機検証したマシンでは有効化なしで全ツールが呼び出せました。`manage_tools(action: "list_groups")` → `manage_tools(action: "sync")` → `manage_tools(action: "activate", group: "<名前>")` の順に実行し、その後 MCP サーバーの更新または再接続を行ってください（Kiro はツール一覧をキャッシュすることがあります）。`list_groups` は正常に動くグループにも `enabled: false` を返しうるため、そのフィールドではなく再試行が成功したかどうかで判断してください |
+| `Tool call denied by user's permissions` | Unity に届く前に Kiro の権限ルールが呼び出しを拒否しています。bridge の問題ではありません。Kiro は本 Power のサーバーを `power-kiro-unity-accelerator-unity-mcp` として公開するため、`~/.kiro/settings/permissions.yaml`（およびワークスペース階層の同名ファイル）に `capability: mcp` かつ `effect: deny` で `power-<powerName>-<serverName>/<tool>` に一致するルールがないか確認し、そのツールを使いたい場合はルールを緩めてください。本 Power を検証したマシンでは、このルールが `manage_build` を拒否し、ビルドワークフロー全体が実行不能でした |
+| `batch_execute` の中で `Unknown action` が出る | `batch_execute` はコマンドを Unity へ直接転送し、bridge の Python サーバー層をバイパスします。そのためサーバー層の action は実際には使えてもバッチ内では失敗します。その 1 件を**直接呼び出し**で再実行してから、action の有無を判断してください |
 | Unity MCP サーバーが 2 つ登録されている | `~/.kiro/settings/mcp.json` と Kiro の MCP パネルを確認。本 Power のエントリと `unityMCP` の両方があれば一方を無効化して Kiro を再起動（「登録経路は必ずどちらか一方だけ」参照） |
 | Unity 6.3+ で Unity AI Assistant パッケージを導入している | AI Assistant が同梱する `System.Collections.Immutable` が、`validate_script` / `execute_code` で使う Roslyn 依存が要求するものより新しいバージョンです。上流の対処は `System.Collections.Immutable` v9.0.0 を `Assets/Plugins/` に配置すること |
 | アセット操作が無応答 | Unity がコンパイル中の可能性あり。コンパイル完了を待つか、`mcpforunity://editor/state` リソースで状態を確認 |

@@ -10,11 +10,11 @@ This document provides Unity testing expertise for verifying behavior across pla
 
 ## Testing Execution Flow
 
-> **Tool group prerequisite**: `run_tests` and `get_test_job` live in the **`testing`** tool group, which is **off by default** — only `core` is enabled. Activate it before step 2 with `manage_tools(action: "activate", group: "testing")`, and note the MCP client may need a refresh or reconnect before the tools appear. `manage_build`, `read_console` and `manage_graphics`, used elsewhere in this flow, are all `core` and need no activation. The canonical procedure, including the `list_groups` → `sync` → `activate` → `reset` recovery order, is in `unity-general.md` under "Tool Group Activation (`manage_tools`)".
+> **Tool group note**: `run_tests` and `get_test_job` are declared in the **`testing`** group, which the bridge reports as off by default — but on the live-verified install both were callable with no activation. **Do not open this flow with an activation step.** Call `run_tests`; only if it is reported as not existing do you run `manage_tools(action: "activate", group: "testing")` and then expect the MCP client may need a refresh or reconnect. `manage_build`, `read_console` and `manage_graphics`, used elsewhere in this flow, are `core`. The canonical procedure, including the `list_groups` → `sync` → `activate` → `reset` recovery order, is in `unity-general.md` under "Tool Group Activation (`manage_tools`)".
 
 > **Version baseline**: this file targets **Unity 6.4** (stream `6000.4`, pinned patch `6000.4.12f1`); the live-verified Test Framework pairing is `com.unity.test-framework` 1.6.0. Anything past 6.4 is forward-looking and unverified — see `unity-general.md` under "Unity Version Baseline (Unity 6.4)".
 
-0. **Activate the `testing` group**: `manage_tools(action: "activate", group: "testing")`
+0. **(Only if `run_tests` is reported as not existing)** `manage_tools(action: "activate", group: "testing")` — otherwise start at step 1
 1. **Confirm test scope**: Ask the developer whether to run `EditMode` tests, `PlayMode` tests, or both, and whether to filter by category/assembly/test name
 2. **Start tests** — `run_tests(mode: "EditMode")` (or `"PlayMode"`). **This is asynchronous**: it returns `{job_id}` immediately, it does not block until tests finish
 3. **Poll for completion** — `get_test_job(job_id: ..., wait_timeout: 30)` repeatedly until `status` is no longer `"running"`. `wait_timeout` lets the server hold the response for up to that many seconds before returning, reducing the number of round-trips needed
@@ -64,7 +64,7 @@ batch_execute(commands: [
 ], fail_fast: false)
 ```
 
-Each `run_tests` call still returns its own `job_id` — `batch_execute` here just fires both requests together; the developer still needs to poll each `job_id` separately with `get_test_job`. `fail_fast: false` is what makes "both requests" true: `fail_fast` defaults to `true`, so without it a rejected first call would stop the second from ever being sent. See `unity-general.md` under "Batch Operation Partial Failure Handling Guide" for the command cap and the rest of the batch semantics.
+Each `run_tests` call still returns its own `job_id` — `batch_execute` here just fires both requests together; the developer still needs to poll each `job_id` separately with `get_test_job`. `fail_fast: false` is what makes "both requests" true: `fail_fast` defaults to `true`, so without it a rejected first call would stop the second from ever being sent. See `unity-general.md` under "Batch Operation Partial Failure Handling Guide" for the command cap and the rest of the batch semantics — including the verified rule that `batch_execute` bypasses the Python server layer, so an `Unknown action` error from inside a batch must be retested as a direct call before it is believed.
 
 > **Common patterns**: The most common cross-platform *behavioral* failures (surfaced during PlayMode tests, or discovered manually on-device) are shader incompatibilities on mobile (especially OpenGL ES fallback devices — Unity 6 recommends Vulkan as the primary Android Graphics API, with OpenGL ES retained only as a compatibility fallback for older/unsupported hardware) and memory pressure on devices with 2GB RAM or less. Prioritize testing on low-end target devices first.
 
@@ -96,7 +96,8 @@ Each `run_tests` call still returns its own `job_id` — `batch_execute` here ju
 
 ## Test Failure and Environment Troubleshooting
 
-- If `run_tests`/`get_test_job` is reported as an unknown tool, the `testing` group is not active for this session — run `manage_tools(action: "list_groups")`, then `sync`, then `activate` with `group: "testing"`, then refresh or reconnect the MCP client before retrying
+- If `run_tests`/`get_test_job` is reported as an unknown tool, the `testing` group may not be active for this session — run `manage_tools(action: "list_groups")`, then `sync`, then `activate` with `group: "testing"`, then refresh or reconnect the MCP client before retrying. Note that `list_groups` can report `enabled: false` for a group whose tools work fine, so judge by whether the retry succeeds, not by that field
+- If the call comes back as *denied by permissions* instead, an IDE-side `capability: mcp` deny rule blocked it before Unity saw it — check `~/.kiro/settings/permissions.yaml`, report the matched rule, and stop (see "Tool Call Denied by the IDE's Permissions" in `unity-general.md`)
 - If `run_tests`/`get_test_job` returns a connection error, prompt the developer to confirm Unity Editor is open and the MCP for Unity status panel reads `Connected`
 - `get_test_job` may report `progress.stuck_suspected` or `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run. That behaviour can be disabled by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server. End-to-end `run_tests`/`get_test_job` behaviour was **not** exercised live for this Power — treat it as unverified
 - If a test job's status stays `"running"` far longer than expected (check `progress.stuck_suspected` if present), suggest the developer check if the Editor lost focus (some PlayMode test runs pause without an active window) or narrow the test scope
