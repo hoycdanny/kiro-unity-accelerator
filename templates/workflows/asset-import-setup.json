@@ -4,7 +4,7 @@
   "description": "Scans a folder for assets, detects types, applies matching presets, and generates a change summary.",
   "isBuiltIn": true,
   "requiresToolGroups": [],
-  "toolGroupNotes": "Every tool in this workflow (manage_asset, batch_execute, read_console) is in the bridge's default-on `core` group, so no manage_tools activation step is needed. On Unity 6.4, note that a dependent asset reimports only when its dependency's import result changes -- a project with custom ScriptedImporter/AssetPostprocessor code may need explicit DependsOnSourceAsset/DependsOnArtifact declarations for a batch apply to propagate. See steering/asset-automation.md.",
+  "toolGroupNotes": "Every tool in this workflow (manage_asset, batch_execute, read_console) is in the bridge's default-on `core` group, so no manage_tools activation step is needed. On Unity 6.4, note that a dependent asset reimports only when its dependency's import result changes -- a project with custom ScriptedImporter/AssetPostprocessor code may need explicit DependsOnSourceAsset/DependsOnArtifact declarations for a batch apply to propagate (source: https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64, retrieved 2026-10-21). See steering/asset-automation.md.",
   "steps": [
     {
       "id": "scan-folder",

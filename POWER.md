@@ -325,7 +325,7 @@ No tool was renamed or removed between bridge 9.6.8 and v10.3.0 — the differen
 | `ui` | off | `manage_ui` |
 | `vfx` | off | `manage_shader`, `manage_texture`, `manage_vfx` |
 
-The five server meta-tools (`manage_tools`, `set_active_instance`, `manage_script_capabilities`, `debug_request_context`, `execute_custom_tool`) are declared with no group, so they are always visible and cannot be switched off. At bridge 9.6.8 they were reported outside `core`; from v10.0.0 the catalog lists them under `core`. Either way they are callable.
+`manage_tools` itself is declared with **no group** (`group=None`) in the bridge source, so it is always visible and cannot be switched off — that is what makes it a usable recovery lever. The other four server meta-tools (`set_active_instance`, `manage_script_capabilities`, `debug_request_context`, `execute_custom_tool`) are listed under **`core`** in the v10.3.0 catalog, which is the only default-on group; at bridge 9.6.8 the live `list_groups` response reported them outside `core`. Either way all five are callable without activating anything.
 
 **`manage_tools` — the control surface:**
 

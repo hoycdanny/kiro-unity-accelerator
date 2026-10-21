@@ -341,7 +341,7 @@ const TWO_D_PLANS: PlanTemplate[] = [
     description: 'Pack sprites into atlases to reduce draw calls and improve batching.',
     steps: [
       'Create Sprite Atlas assets for sprites that appear together in scenes',
-      'Use Sprite Atlas Analyzer (Unity 6.3) to check for issues',
+      'Audit atlas packing with the Project Auditor, which ships inside the Editor on the Unity 6.4 baseline',
       'Avoid rotation of sprites when packed for tilemaps',
       'Enable alpha dilation to maintain sharp tile edges',
       'Use Tight mesh type in Sprite Editor to reduce overdraw',

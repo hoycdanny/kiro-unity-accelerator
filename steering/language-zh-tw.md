@@ -1,5 +1,7 @@
 # Language Setting
 
+<!-- File Purpose / 本檔案用途: Response-language steering guide for this Power / 本 Power 的回覆語言 steering 指引，說明如何依開發者的輸入語言自動切換回覆語言、未偵測到偏好時預設使用繁體中文的規則，以及程式碼識別字保留英文、技術術語首次出現附上中文說明的處理方式。此檔案不包含任何 MCP 工具呼叫或 Unity 版本相關聲明。 -->
+
 ## Language Preference / 語言偏好
 
 This Power supports multiple languages and automatically adapts to the language you use — no manual configuration needed. Simply write in your preferred language and the Power responds in kind:
