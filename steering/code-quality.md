@@ -88,7 +88,7 @@ find_in_file(uri: "Assets/Scripts/PlayerController.cs", pattern: "GetComponent<"
 → line numbers + excerpts
 ```
 
-`find_in_file` searches **C# scripts only**, despite a parameter description that reads like a general asset search. It rewrites the target's extension to `.cs`, so a non-script URI fails outright — live on Unity 6000.4.6f1 (bridge 9.6.8, 2026-10-21), `find_in_file(uri: "Assets/Scenes/SampleScene.unity", pattern: "m_Name")` returned `Script not found at 'Assets/Scenes/SampleScene.cs'.`. To search a scene, prefab or `.asset` file, use the scene/prefab resources or `manage_asset` instead. Its **success path is UNVERIFIED** here: the verification project held zero `.cs` assets, which equally blocked verifying `get_sha`, `validate_script`, `apply_text_edits` and `script_apply_edits` succeeding.
+`find_in_file` searches **C# scripts only**, despite a parameter description that reads like a general asset search. It rewrites the target's extension to `.cs`, so a non-script URI fails outright — live on Unity 6000.4.6f1 on **both bridge 9.6.8 and bridge 10.3.0** (2026-10-21), `find_in_file(uri: "Assets/Scenes/SampleScene.unity", pattern: "m_Name")` returned `Script not found at 'Assets/Scenes/SampleScene.cs'.`. The same call was re-run after the 10.3.0 upgrade and reproduced the same error, so this is settled behaviour on both versions, not a quirk waiting to be fixed in v10. To search a scene, prefab or `.asset` file, use the scene/prefab resources or `manage_asset` instead. Its **success path is UNVERIFIED** here: the verification project held zero `.cs` assets, which equally blocked verifying `get_sha`, `validate_script`, `apply_text_edits` and `script_apply_edits` succeeding.
 
 ## Incremental Checking
 

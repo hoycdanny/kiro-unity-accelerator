@@ -54,7 +54,7 @@
 
 **預期結果**：Kiro 回報目前的場景（例如 `SampleScene`）。
 
-> **不需要預先啟用工具群組。** MCP for Unity 把工具分成 **10 個群組**，bridge 宣告的預設值只有 `core`，但在本 Power 實機驗證的那台機器上，**43 個工具在任何 `manage_tools` 呼叫之前就全部可以呼叫**（包含 `execute_code`、`run_tests`、`manage_ui`、`manage_profiler`）。所以請直接做後面的步驟，不要先跑一串 activate。
+> **不需要預先啟用工具群組。** MCP for Unity 把工具分成 **10 個群組**，bridge 宣告的預設值只有 `core`，但在本 Power 實機驗證的那台機器上，**本 Workshop 用到的工具在任何 `manage_tools` 呼叫之前就都可以呼叫**（bridge 9.6.8 當時是 43 個，含 `execute_code`、`run_tests`、`manage_ui`、`manage_profiler`；升級到 10.3.0 後實測清單是 49 個，預設關閉群組裡的工具一樣直接可用）。所以請直接做後面的步驟，不要先跑一串 activate。唯一不要去啟用的是第十個群組 `asset_gen` — 它已實測確認預設關閉，而且裡面的工具會花你自己的錢。
 >
 > **只有在 Kiro 回報某個工具「不存在」時**，才依序執行：
 >
@@ -373,7 +373,7 @@
 
 **預期結果**：擊敗敵人與收集水晶時有粒子特效；三個音效的 AudioSource/AudioClip 欄位都接好，等你把音效檔放進 `Assets/Audio/SFX/` 並在 Inspector 指派後就會發聲。
 
-> **為什麼不請 Kiro 生成音效**：MCP for Unity 有一個 `asset_gen` 工具群組（`generate_audio`、`generate_image`、`generate_model` 等），但它**預設關閉**，而且會呼叫第三方服務、消耗開發者自備的 API 金鑰與點數。本 Power **刻意不把任何工作流、steering 檔或範本路由到 `asset_gen`**（見 `POWER.md` 的「Generative Tools (`asset_gen` group) — awareness only」）。所以這個步驟走手動路線：免費音效可以在 Unity Asset Store 的免費音效包、[freesound.org](https://freesound.org/)（注意各檔案的授權條款）或 [kenney.nl](https://kenney.nl/assets)（CC0）找到。真的想用 AI 生成，請自行啟用該群組並自備金鑰，那是一次明確的、你自己決定的動作，不該由本 Workshop 代替你決定。
+> **為什麼不請 Kiro 生成音效**：MCP for Unity 有一個 `asset_gen` 工具群組（`generate_audio`、`generate_image`、`generate_model` 等），但它**預設關閉（已在 bridge 10.3.0 上以 `manage_tools(action: "list_groups")` 實測確認：`enabled: false`、`default_enabled: false`）**，而且會呼叫第三方服務、消耗開發者自備的 API 金鑰與點數。本 Power **刻意不把任何工作流、steering 檔或範本路由到 `asset_gen`**（見 `POWER.md` 的「Generative Tools (`asset_gen` group) — awareness only」）。所以這個步驟走手動路線：免費音效可以在 Unity Asset Store 的免費音效包、[freesound.org](https://freesound.org/)（注意各檔案的授權條款）或 [kenney.nl](https://kenney.nl/assets)（CC0）找到。真的想用 AI 生成，請自行啟用該群組並自備金鑰，那是一次明確的、你自己決定的動作，不該由本 Workshop 代替你決定。
 
 > **Unity 6.4 的 2D 畫面進階選項**：6.4 起可以把**自訂 render pass 注入 URP 2D 的 frame loop**，也就是能為 2D 專案加上自訂渲染與後處理（例如全畫面受傷閃紅、過關時的色調變化），不必再繞過 2D Renderer。這屬於超出本 Workshop 範圍的進階題，但如果之後想做畫面特效，這是 6.4 該走的路。另外要注意：URP Compatibility Mode 與 `URP_COMPATIBILITY_MODE` 腳本定義在 6.4 已**完全移除**，自訂 render pass 只剩 Render Graph 一條路。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) 與 [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64)（皆於 2026-10-21 取得）。
 

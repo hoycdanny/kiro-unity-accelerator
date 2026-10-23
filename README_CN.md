@@ -4,7 +4,7 @@
 
 Unity 开发 AI 加速器。通过 MCP（Model Context Protocol）以自然语言指挥 Unity Editor，涵盖资产管理、场景构建、构建自动化、性能分析、代码质量检查等功能 — 内置 40+ TypeScript 工具模块与 15 个领域知识文件，为个人开发者和团队提供 Unity 开发 AI 支持。
 
-> **Unity 6.4 基准版本**：本 Power 以 **Unity 6.4**（发布流 `6000.4`，最新补丁版 `6000.4.12f1`，2026-06-17 发布）与 **MCP for Unity v10.3.0 或更新版本（最低 v10.0.0）** 的工具接口为目标。本 Power 支持的最低 Editor 版本是 **Unity 6.0（`6000.0`）**；桥接包自身的下限更低（Unity 2021.3 LTS）。所有指南都是在 **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8、Windows Editor、2026-10-21** 这组环境上实机核对的 — Unity 6.5、6.6 及之后的 6.x 预期可用，但**并未**在此验证。该机器上的桥接之后**实际升级到了 10.3.0，升级过程本身也已观察记录**（见[升级桥接：两个必须保持一致的版本锁定](#升级桥接两个必须保持一致的版本锁定)），但**在 10.3.0 上一个工具都还没调用过** — 重启先让 client 的 MCP session 失效了，因此 v10.3.0 的工具列表与各工具行为仍属文档推导，而非实机观察。Unity 6.4 属于 Update 版本，其补丁流已于 2026-06-17 结束，因此要锁定版本进入正式生产的项目，应改用 **Unity 6.3 LTS**（支持至 2027 年 12 月）或前进到当前的 Update 版本。**Unity 6.0 LTS 已于 2026-10-16 结束支持 — 任何情况下都不建议使用，包括当作"比较保险的旧版"。** 来源：[unity.com/releases](https://unity.com/releases/) 与 [endoflife.date/unity](https://endoflife.date/unity)，均于 2026-10-21 获取。
+> **Unity 6.4 基准版本**：本 Power 以 **Unity 6.4**（发布流 `6000.4`，最新补丁版 `6000.4.12f1`，2026-06-17 发布）与 **MCP for Unity v10.3.0 或更新版本（最低 v10.0.0）** 的工具接口为目标。本 Power 支持的最低 Editor 版本是 **Unity 6.0（`6000.0`）**；桥接包自身的下限更低（Unity 2021.3 LTS）。所有指南都是在 **Unity `6000.4.6f1` + URP 17.4.0、Windows Editor、2026-10-21** 这组环境上实机核对的：先在 MCP for Unity **9.6.8** 上核对，之后在同一台机器把桥接升级到 **10.3.0**，再用直接调用重新核对一遍（见[升级桥接：两个必须保持一致的版本锁定](#升级桥接两个必须保持一致的版本锁定)） — Unity 6.5、6.6 及之后的 6.x 预期可用，但**并未**在此验证。**已在 10.3.0 上通过直接调用实测确认的项目**：桥接实际运行的版本；完整 **49 个工具**的列表，以及 9.6.8 → 10.3.0 的差异纯属新增（新增 6 个工具，**没有任何工具被移除或改名**，所以这次升级对本 Power 不产生任何迁移成本）；新的 `asset_gen` 工具组**默认关闭**，而且该组的工具会消耗开发者自备的第三方服务额度；十个工具组的成员与默认值；以及本文档记载的 `manage_asset`／`find_gameobjects`／`manage_scene` 契约。**两个版本都仍未验证**的项目：所有会写入的动作、`asset_gen` 的那六个工具（**刻意完全没有调用 — 它们会花真钱**）、`manage_build`（被验证机器自己的权限规则挡住）以及 `run_tests` 的端到端流程。Unity 6.4 属于 Update 版本，其补丁流已于 2026-06-17 结束，因此要锁定版本进入正式生产的项目，应改用 **Unity 6.3 LTS**（支持至 2027 年 12 月）或前进到当前的 Update 版本。**Unity 6.0 LTS 已于 2026-10-16 结束支持 — 任何情况下都不建议使用，包括当作"比较保险的旧版"。** 来源：[unity.com/releases](https://unity.com/releases/) 与 [endoflife.date/unity](https://endoflife.date/unity)，均于 2026-10-21 获取。
 >
 > **6.4 专属指南涵盖的内容**：URP **只剩 Render Graph 一条路** — URP Compatibility Mode 与 `URP_COMPATIBILITY_MODE` 脚本定义在 6.4 已完全移除，不再是旧版自定义 render pass 的退路；GPU Resident Drawer（Forward+/Deferred+ 的 GPU Instancing，2D Renderer 不支持）配合改版后的 Rendering Statistics 窗口，该窗口会分别列出各批处理路径各自吸收了多少 draw call，而不是只给一个数字；`InstanceID` 已被 `EntityId` 取代，因此桥接返回的 instance id 要视为不透明的 token — 原样传回给桥接即可，切勿对它做运算、排序或解析；iOS 的 PVRTC 已移除（只能用 ASTC 或 ETC）；Web 构建现在会把 `[BurstCompile]` job 放到后台工作线程执行，但多线程*渲染*仍然不支持；6.4 起可以把自定义 render pass 注入 URP 2D 的 frame loop；OculusXR 包已不建议使用，请改用 OpenXR plug-in，而 HoloLens 2 支持与其 plug-in 在 6.4 已标记为 deprecated（OculusXR 的实际移除版本未经验证）。Scripting Backend：`manage_build` 只接受 **`mono` 或 `il2cpp`** — 无法通过本 Power 选用 CoreCLR。来源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) 与 [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64)，均于 2026-10-21 获取。
 >
@@ -58,7 +58,7 @@ Kiro Unity Accelerator (Intelligence Layer)
 
 | 项目 | 身份 | 连接方式 | 状态 |
 |---|---|---|---|
-| **(a) CoplayDev MCP for Unity** — *本 Power 使用的就是这个* | UPM `com.coplaydev.unity-mcp`，仓库 [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)，Python 服务器以 `mcpforunityserver` 发布于 PyPI，MIT 许可 | 默认走 streamable HTTP，端点 `http://127.0.0.1:8080/mcp`；或通过 `uvx` 走 stdio。Unity 端的桥接另外监听 TCP `6400` | 活跃。已核对的最新版本为 **v10.3.0**（2026-10-04）；本 Power 记载的是 **v10.3.0 或更新版本，最低 v10.0.0**。10 个工具组共 49 个工具入口 |
+| **(a) CoplayDev MCP for Unity** — *本 Power 使用的就是这个* | UPM `com.coplaydev.unity-mcp`，仓库 [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)，Python 服务器以 `mcpforunityserver` 发布于 PyPI，MIT 许可 | 默认走 streamable HTTP，端点 `http://127.0.0.1:8080/mcp`；或通过 `uvx` 走 stdio。Unity 端的桥接另外监听 TCP `6400` | 活跃。已核对的最新版本为 **v10.3.0**（2026-10-04）；本 Power 记载的是 **v10.3.0 或更新版本，最低 v10.0.0**。10 个工具组共 **49** 个工具入口 — 这是在 10.3.0 上实际调用 `manage_tools(action: "list_groups")` 数出来的数字，以它为准（上游 README 写的是 48）|
 | **(b) IvanMurzak/Unity-MCP** — *另一个项目，本 Power 不使用* | UPM `com.ivanmurzak.unity.mcp`，仓库 [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | 会自动下载独立的服务器可执行文件到 `Library/mcp-server/`；端口由项目路径的哈希推导（范围 20000–29999），所以没有端口可配置 | 活跃，最新 1.3.0（约 2026-10-20）。其工具名称与端口机制与本 Power **不兼容** |
 | **(c) Unity 官方内置的 Editor 内 MCP 服务器** | 随 `com.unity.ai.assistant` 一起发布；UI 在 `Edit > Project Settings > AI > Unity MCP` | MCP client 直接连到 Editor 内的服务器 | **已不建议使用（deprecated）** — 见下方说明 |
 
@@ -249,6 +249,14 @@ uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url 
 v10.3.0 是当前的正式（非 prerelease）版本（GitHub tag `v10.3.0`，2026-10-04 发布，附件 `unity-mcp-10.3.0.mcpb`），对应的 `mcpforunityserver-10.3.0` 也在 PyPI 上（同一分钟上传，需要 Python 3.10 以上）。与本 Power 相关的 release note 条目：Unity 6000.6 的 `InstanceIDToObjectCompat` 修复、stdio 在重连退避前重新探测端口、修复 `read_console` 会被 Console 窗口的筛选条件隐藏条目的问题、上游新增「工具没出现在工具列表时该去哪里看」的文档、新的 Blender Bridge，以及自动探测 fal / OpenRouter 的素材生成模型。
 
 v10.3.0 的服务器 CLI（在 10.3.0 上执行 `mcp-for-unity --help`）接受 `--default-instance`、`--transport {stdio,http}`、`--http-url`、`--http-host`、`--http-port`、`--http-remote-hosted`、`--api-key-*` 这组参数（远程托管的鉴权用）、`--unity-instance-token`、`--pidfile` 与 `--project-scoped-tools`。这也确认了上面的 stdio 备用写法是正确的；唯一要补充的是：在 `--from` 里锁定版本才是实际惯例，Unity 自己的启动器就是这么做的。
+
+#### 工具接口实际变了什么（实测）
+
+升级完成、client 重新连接之后，v10 的工具就被直接调用过了。在同一台机器上，实际的工具列表从 9.6.8 的 **43 个**变成 10.3.0 的 **49 个**。新增的六个是 `blender_bridge`、`generate_audio`、`generate_image`、`generate_model`、`import_model`、`import_model_file`；**没有任何工具被移除或改名**，所以这次升级对本 Power 不产生迁移成本。请以 49 为准 — 上游 README 写的是「48 focused MCP tool entrypoints」，实测数字优先。
+
+这六个新工具全部属于新的第十个工具组 **`asset_gen`**，而 `manage_tools(action: "list_groups")` 报告它是 `enabled: false`、`default_enabled: false`。**默认关闭这一点已经实测确认，而且这是正确的安全默认**：这些工具是通过付费的第三方服务、用你自己的 API 密钥去生成 3D 模型、图片与音频。启用这个组就等于把会花钱的工具摊在 agent 面前，所以本 Power 不让任何工作流路由到它，验证过程中那六个工具也**一次都没有调用过**。其余九个组与 9.6.8 完全一致。
+
+另外有一项值得知道的安全改进：10.3.0 的 `debug_request_context` 会把 `--unity-instance-token` 的值遮成 `***`，而 9.6.8 是直接明文打印出来。分享调试输出前先看一眼仍然是好习惯，只是在 v10 上没那么要紧了。它的 `session_state` 区块也不再返回 9.6.8 会给的 `derived_key` / `all_keys_in_store` 字段。
 
 ### 安装自动引导 Hook（推荐）
 

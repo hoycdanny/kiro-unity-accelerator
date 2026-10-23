@@ -589,3 +589,112 @@ pinning a version in `--from` is the real-world convention.
 - Whether the earlier Round-2/Round-3 findings still hold on 10.3.0 — in particular C-2
   (`batch_execute` bypassing server-layer actions), D-1 (`unity_docs` name form) and D-2
   (`find_in_file` coercing to `.cs`) were all observed on 9.6.8 and must be re-checked.
+
+---
+
+# ROUND 5 — live verification ON v10.3.0 (2026-10-21)
+
+The client reconnected after the upgrade, so the v10 tool surface was finally exercised directly.
+This round **closes the biggest UNVERIFIED gap** left by Round 4. All calls are direct calls
+unless stated. Unity 6000.4.6f1, bridge now 10.3.0 on both sides. Nothing was mutated.
+
+## F-1 — version confirmed, and a v10 security improvement
+
+`debug_request_context` → `server.version: "10.3.0"`, running from uv cache archive
+`i8nZG0Ewwibnn1em`, argv:
+`mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile <project>\Library\MCPForUnity\RunState\mcp_http_8080.pid --unity-instance-token ***`
+
+**New in v10:** the instance token is **masked as `***`** in the debug output. On 9.6.8 the same
+call returned the token in clear text. Worth noting as a hardening improvement (it also means
+earlier guidance about manually redacting that value before sharing logs is less critical,
+though still good practice). New session id issued; `session_state` no longer reports the
+`derived_key` / `all_keys_in_store` fields that 9.6.8 returned.
+
+## F-2 — tool inventory: 43 → 49, PURELY ADDITIVE (verified, not inferred)
+
+Diffing the live tool list from the two bridge versions on the same machine:
+
+- 9.6.8: **43** tools
+- 10.3.0: **49** tools
+- **Added (6):** `blender_bridge`, `generate_audio`, `generate_image`, `generate_model`,
+  `import_model`, `import_model_file`
+- **Removed or renamed: NONE**
+
+So the 9.6.8 → 10.3.0 delta really is purely additive. Earlier passes asserted "no migration
+cost" from documentation; that is now an observed fact. Every tool name the Power documents
+still exists on 10.3.0.
+
+Minor discrepancy worth recording: upstream's README advertises "48 focused MCP tool
+entrypoints" while the live count is 49. Treat the live count as authoritative and do not
+repeat a hard number from upstream marketing copy.
+
+## F-3 — the `asset_gen` group: exists, OFF by default, spends third-party credits
+
+`manage_tools(list_groups)` on 10.3.0 returned a tenth group absent from 9.6.8:
+
+| Group | `enabled` | `default_enabled` | Tools |
+|---|---|---|---|
+| **asset_gen** | false | **false** | `blender_bridge`, `generate_audio`, `generate_image`, `generate_model`, `import_model`, `import_model_file` (6) |
+
+Its description: AI asset generation — 3D model gen/import, 2D image gen and audio gen,
+**bring-your-own-key**.
+
+**VERIFIED: it is off by default.** That is the safe default, because these tools call paid
+third-party services (the v10.3.0 release notes add auto-discovery of fal and OpenRouter
+models). Document that activating `asset_gen` exposes credit-spending tools, and keep routing
+no workflow through it.
+
+**Deliberately NOT exercised:** none of the six asset_gen tools was called, because doing so
+would spend the user's money. Their per-action contracts remain documentation-derived.
+
+All nine other groups are byte-for-byte identical to 9.6.8: core 25 (on by default), animation 1,
+docs 2, probuilder 1, profiling 1, scripting_ext 2, testing 2, ui 1, vfx 3 — all
+`default_enabled: false` except `core`.
+
+## F-4 — the three earlier findings REPRODUCE EXACTLY on 10.3.0
+
+Each had been observed only on 9.6.8 and was flagged for re-check. All three still hold:
+
+| Finding | Re-test on 10.3.0 | Result |
+|---|---|---|
+| **C-2** `batch_execute` bypasses server-layer action handlers | `manage_editor(telemetry_status)` direct vs. inside `batch_execute` | Direct → `{"success":true,"telemetry_enabled":true}`. Batched → `Unknown action: 'telemetry_status'` with the same 12-Unity-action list. **Divergence persists.** |
+| **D-1** `unity_docs` needs an unqualified class name | `unity_docs(get_doc, class_name:"UnityEngine.Rigidbody2D")` | `{"success":true,"data":{"found":false,...}}` — same silent miss. **Persists.** |
+| **D-2** `find_in_file` is C#-script-only | `find_in_file(uri:"Assets/Scenes/SampleScene.unity", pattern:"m_Name")` | `Script not found at 'Assets/Scenes/SampleScene.cs'.` — still rewrites the extension. **Persists.** |
+
+So all three are now **verified on BOTH 9.6.8 and 10.3.0**, not version-specific quirks. The
+documentation for them can drop any "may be fixed in v10" hedging.
+
+## F-5 — core tool contracts unchanged on 10.3.0
+
+| Call | Result |
+|---|---|
+| `manage_asset(action:"list", path:"Assets/")` | Rejected with the identical valid-action list: `import, create, modify, delete, duplicate, move, rename, search, get_info, create_folder, get_components`. Still **no `list` action**. |
+| `find_gameobjects(search_term:"Main Camera", search_method:"name")` | Rejected with the identical list: `by_name, by_tag, by_layer, by_component, by_path, by_id`. Prefixed values and `by_id` both still correct. |
+| `manage_scene(action:"get_active")` | Works — `SampleScene`, buildIndex 0, rootCount 3. |
+
+The Power's documented action/parameter contracts therefore survive the major version bump
+intact.
+
+## Verification status after Round 5 — what is now settled
+
+Converted from documentation-derived to **VERIFIED on 10.3.0**: the bridge version; the full
+49-tool inventory and the purely-additive delta; the existence, membership and default-off state
+of `asset_gen`; all ten group memberships and defaults; the `batch_execute` server-layer
+divergence; the `unity_docs` name-form trap; `find_in_file` being script-only; and the
+`manage_asset` / `find_gameobjects` / `manage_scene` contracts.
+
+## Still NOT verified (unchanged, and honest)
+
+- **All mutating actions** — `create`/`modify`/`delete`, `manage_gameobject`,
+  `manage_components`, `manage_prefabs` mutations, `execute_menu_item`, `refresh_unity`.
+  Nothing in the user's project was ever modified across all five rounds.
+- **`asset_gen`'s six tools** — intentionally never called; they spend real money.
+- **`manage_build`** — still blocked by the user's own `permissions.yaml` MCP deny rule (C-5),
+  so C-6 (the `settings` action's `property` requirement) stays UNVERIFIED.
+- **`run_tests` / `get_test_job`** end to end.
+- **Script-tool success paths** (`find_in_file`, `get_sha`, `validate_script`,
+  `apply_text_edits`, `script_apply_edits`) — the verification project still has zero `.cs`
+  assets.
+- **`manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths** — packages absent.
+- **The 25-URI `mcpforunity://` resource table** — this client exposes no resource-reading tool,
+  so the URIs still could not be enumerated or fetched.

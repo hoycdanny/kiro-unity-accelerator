@@ -27,7 +27,7 @@ Multi-step workflows in Unity — "import these assets, configure them, build, t
 
 ## MCP Tool Usage
 
-> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** connected to Unity **6000.4.6f1** — **read-only calls only; no mutating action was exercised and nothing in the project was changed.** The `search` syntax and the `params` key on `batch_execute` are live-verified; the `manage_asset(action: "modify", ...)` and `manage_build(action: "build", ...)` calls below are reconciled against the MCP for Unity v10.3.0 generated tool reference, not live-verified.
+> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** and then again against **10.3.0**, both connected to Unity **6000.4.6f1** — **read-only calls only; no mutating action was exercised and nothing in the project was changed.** The `search` syntax and the `params` key on `batch_execute` are live-verified, and `batch_execute`'s divergence from direct calls (server-layer actions fail inside a batch) was reproduced on **both** bridge versions. The `manage_asset(action: "modify", ...)` and `manage_build(action: "build", ...)` calls below are reconciled against the MCP for Unity v10.3.0 generated tool reference, not live-verified on either version.
 
 ### Execute a Single Workflow Step
 

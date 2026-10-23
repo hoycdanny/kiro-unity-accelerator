@@ -1954,3 +1954,160 @@ still valid and nothing anywhere tells a reader to change it); the `unity_docs` 
 trap; and `find_in_file` being C#-script-only. The stdio fallback command form was **confirmed, not
 changed**. No `src/*.ts`, template, hook or `mcp.json` file was touched by this pass, and each
 localized README stays in its own language.
+
+---
+
+## 16. Round 5 applied (2026-10-21, fifth pass — live verification ON v10.3.0)
+
+Round 5 is the first pass that exercised the **v10.3.0 tool surface directly**. The client
+reconnected after the Round-4 upgrade, so the biggest UNVERIFIED gap Round 4 left behind is now
+closed. Unity stayed on `6000.4.6f1`; the bridge is 10.3.0 on both the UPM and the Python side;
+nothing in the user's project was mutated. Full capture:
+`.agents/tasks/unity-6.4-compat-update/live-verification.md` -> "ROUND 5".
+
+**The one-line summary of the verification status change:** the v10.3.0 **tool inventory, the group
+catalog (including `asset_gen` and its default-off state) and the core per-tool contracts** moved
+from UNVERIFIED (documentation-derived) to **VERIFIED ON 10.3.0**. The three cross-version
+behavioural findings moved from "observed on 9.6.8, needs re-checking on v10" to **VERIFIED on both
+9.6.8 and 10.3.0**. Mutating actions, the six `asset_gen` tools, `manage_build`, `run_tests` and the
+script tools' success paths are all still UNVERIFIED, and are labelled as such.
+
+### F-1 — bridge version confirmed, and a v10 token-masking improvement — VERIFIED on 10.3.0
+
+- **Observed:** `debug_request_context` -> `server.version: "10.3.0"`, running from uv cache archive
+  `i8nZG0Ewwibnn1em`, with argv
+  `mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile <project>\Library\MCPForUnity\RunState\mcp_http_8080.pid --unity-instance-token ***`.
+- **VERIFIED v10 hardening:** the `--unity-instance-token` value is **masked as `***`** on 10.3.0.
+  On 9.6.8 the same call returned it in clear text. The repo had no "redact this token before
+  sharing logs" instruction to soften, so nothing was deleted; the masking is documented as an
+  improvement, with "check the output before you paste it somewhere" kept as good practice that is
+  simply less critical on v10.
+- **VERIFIED response-shape change:** 10.3.0's `session_state` no longer returns the `derived_key` /
+  `all_keys_in_store` fields that 9.6.8 returned, and the restart issues a new session id. No
+  product doc described that response shape, so there was nothing to correct beyond stating the
+  change; the absence of those fields is explicitly **not** a fault.
+- **Documented in:** POWER.md -> the `debug_request_context` tool row, and a note under step 8 of
+  the ordered upgrade procedure. README.md plus all four localized READMEs -> the new
+  "what changed on the tool surface, measured" subsection, each in that file's own language.
+- **Label:** VERIFIED on 10.3.0.
+
+### F-2 — tool inventory 43 -> 49, purely additive — VERIFIED on 10.3.0 (observed, not inferred)
+
+- **Observed on the same machine under both bridge versions:** 9.6.8 exposed **43** tools, 10.3.0
+  exposes **49**. Added (6): `blender_bridge`, `generate_audio`, `generate_image`, `generate_model`,
+  `import_model`, `import_model_file`. **Removed or renamed: NONE.**
+- **Consequence:** every tool name this Power documents still exists on 10.3.0, and the earlier
+  "no migration cost" claim is now an **observed fact** rather than an inference from upstream docs.
+  Every place that stated it as documentation-derived now states it as observed.
+- **Upstream count discrepancy, recorded deliberately:** upstream's README advertises
+  "48 focused MCP tool entrypoints" while the live count is **49**. The live count is authoritative.
+  The repo now says so explicitly and does not carry a hard tool-count figure sourced from upstream
+  marketing copy; no stale "48" survives anywhere as a repo claim. (findings.md section 3.2 already
+  analysed "48" as upstream prose rounding and landed on 49 for v10.3.0, which the live count
+  confirms.)
+- **Documented in:** POWER.md -> the paragraph replacing the old documentation-derived
+  no-rename/no-removal note under "Available MCP Tools", plus a "use the live count, not upstream's"
+  callout; the Unity 6.4 Baseline table rows. README.md and the four localized READMEs -> the
+  baseline blockquote, the three-projects comparison row (now says the 49 was counted from a live
+  `list_groups` call and names upstream's 48 as the discrepancy), and the new measured-delta
+  subsection. `steering/unity-general.md` -> the "Bridge target" bullet.
+- **Label:** VERIFIED on 10.3.0 (live tool-list diff across both versions, one machine).
+
+### F-3 — the `asset_gen` group: exists, VERIFIED off by default, spends third-party credits
+
+- **Observed:** `manage_tools(action: "list_groups")` on 10.3.0 returned a tenth group absent from
+  9.6.8 — `asset_gen`, `enabled: false`, `default_enabled: false`, 6 tools (`blender_bridge`,
+  `generate_audio`, `generate_image`, `generate_model`, `import_model`, `import_model_file`),
+  described as AI asset generation (3D model generation/import, 2D image generation, audio
+  generation) on a **bring-your-own-key** basis.
+- **VERIFIED off by default**, which is the safe default because these tools call **paid**
+  third-party services; the v10.3.0 release notes add auto-discovery of fal and OpenRouter models.
+  This is the finding with money attached, which is why its default state mattered.
+- **All nine other groups are unchanged from 9.6.8** (also verified): `core` 25 (the only
+  `default_enabled: true`), `animation` 1, `docs` 2, `probuilder` 1, `profiling` 1, `scripting_ext`
+  2, `testing` 2, `ui` 1, `vfx` 3. The remaining five of the 49 tools are the server meta-tools,
+  reported outside every group on both versions.
+- **UNVERIFIED, deliberately:** none of the six `asset_gen` tools was ever called, because calling
+  one would spend the user's money. Their per-action contracts stay documentation-derived and
+  **no parameter table was invented for them** anywhere in the repo.
+- **Documented in:** POWER.md -> the "Generative Tools (`asset_gen` group) — awareness only"
+  subsection now opens with an explicit **cost warning** ("activating `asset_gen` exposes
+  credit-spending tools"), states the verified default-off listing, and closes with a what-is-and-
+  is-not-verified paragraph that says plainly why the six tools were never called and that no
+  parameter table is published for them; the Tool Groups table carries the per-group tool counts,
+  an `asset_gen` cost note in its Default column, and a cost callout above it.
+  `steering/unity-general.md` -> the `asset_gen` row of the group-ownership table. The two workshops
+  already warned that the group is off by default and spends the developer's credits; that warning
+  is now labelled as live-confirmed on 10.3.0, in Traditional Chinese. README.md and the four
+  localized READMEs -> the measured-delta subsection, in each file's own language.
+- **The existing rule is unchanged:** no workflow, steering file or template in this Power routes to
+  `asset_gen`, and activating it is never a diagnostic step.
+- **Label:** group existence / membership / default-off state VERIFIED on 10.3.0; the six tools'
+  per-action contracts UNVERIFIED (intentionally never called).
+
+### F-4 — C-2, D-1 and D-2 reproduce exactly on 10.3.0 — VERIFIED on BOTH 9.6.8 and 10.3.0
+
+Each had been observed only on 9.6.8 and was flagged for re-check. All three were re-tested on
+10.3.0 and reproduced identically:
+
+| Finding | Re-test on 10.3.0 | Result |
+|---|---|---|
+| **C-2** `batch_execute` bypasses server-layer action handlers | `manage_editor(telemetry_status)` direct vs. inside `batch_execute` | direct -> `{"success":true,"telemetry_enabled":true}`; batched -> `Unknown action: 'telemetry_status'` with the same 12-Unity-action list. Divergence persists |
+| **D-1** `unity_docs` needs an unqualified `class_name` | `unity_docs(get_doc, class_name:"UnityEngine.Rigidbody2D")` | `{"success":true,"data":{"found":false,...}}` — same silent miss. Persists |
+| **D-2** `find_in_file` rewrites the uri extension to `.cs` | `find_in_file(uri:"Assets/Scenes/SampleScene.unity", pattern:"m_Name")` | `Script not found at 'Assets/Scenes/SampleScene.cs'.` Persists |
+
+- **Consequence for the wording:** these are bridge behaviours, not version-specific quirks. Every
+  "may be fixed in v10" / "needs re-checking on v10" hedge attached to them has been **removed**.
+- **Documented in:** POWER.md -> the `batch_execute` and server-layer actions section (now
+  "VERIFIED on BOTH bridge 9.6.8 and bridge 10.3.0", with an explicit "there is nothing here to
+  re-check on v10"), the `find_in_file` row, the `unity_docs` / `unity_reflect` row, and the
+  verification-scope note, which no longer carries the three-findings re-check warning.
+  `steering/code-quality.md` -> the `find_in_file` paragraph. `steering/knowledge-management.md` ->
+  the two-docs-tools name-form warning. `steering/workflow-automation.md` -> the verification-scope
+  note. `steering/unity-general.md` -> the "Bridge target" bullet.
+- **Label:** VERIFIED on both 9.6.8 and 10.3.0.
+
+### F-5 — core tool contracts survive the major version bump — VERIFIED on 10.3.0
+
+- `manage_asset(action:"list", path:"Assets/")` -> rejected with the identical valid-action list
+  (`import, create, modify, delete, duplicate, move, rename, search, get_info, create_folder,
+  get_components`). Still **no `list` action**.
+- `find_gameobjects(search_term:"Main Camera", search_method:"name")` -> rejected with the identical
+  list (`by_name, by_tag, by_layer, by_component, by_path, by_id`). Prefixed values and the
+  undocumented-upstream `by_id` both still correct.
+- `manage_scene(action:"get_active")` -> works (`SampleScene`, buildIndex 0, rootCount 3), so the
+  Connection Health Check probe is safe on both versions.
+- **Documented in:** POWER.md -> the `manage_asset` row, the `find_gameobjects` row, and step 1 of
+  the Connection Health Check. `steering/asset-automation.md` -> the verification-scope note.
+- **Label:** VERIFIED on 10.3.0.
+
+### Still UNVERIFIED after Round 5 — stated plainly
+
+- **All mutating actions** — `create` / `modify` / `delete`, `manage_gameobject`,
+  `manage_components`, `manage_prefabs` mutations, `execute_menu_item`, `refresh_unity`. Nothing in
+  the user's project was modified across any of the five rounds.
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`** — still blocked by the user's own `permissions.yaml` MCP deny rule (C-5), which
+  keeps **C-6** (the `settings` action's `property` requirement) UNVERIFIED.
+- **`run_tests` / `get_test_job`** end to end.
+- **The script tools' SUCCESS paths** — `find_in_file`, `get_sha`, `validate_script`,
+  `apply_text_edits`, `script_apply_edits` — the verification project still has zero `.cs` assets.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The 25-URI `mcpforunity://` resource table** — still could not be enumerated, because this
+  client exposes no resource-reading tool.
+
+### Preserved unchanged by Round 5
+
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`"
+corrected-instruction blocks in POWER.md and all five READMEs; the two-pin (UPM vs Python server)
+upgrade mechanism and its ordered procedure; the DISTINCT `no_unity_session` vs `Session not found`
+troubleshooting entries; the restored `manage_editor` `telemetry_status` / `telemetry_ping` rows;
+tool-group activation phrased as conditional troubleshooting only, never mandatory and never
+asserted as the root cause; the `permissions.yaml` MCP deny-rule root cause and the
+`power-<powerName>-<serverName>` namespace; the pidfile port-discovery guidance; `class_name` never
+`type_name`; the prefixed `by_name`-style `search_method` values; and the Unity 6.4 obsolete-physics
+mapping with the 2D-only `isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid, and
+nothing anywhere tells a reader to change it). Each localized README stays in its own language, with
+all new Round-5 text written in that language. No `src/*.ts`, template, hook or `mcp.json` file was
+touched by this pass.
