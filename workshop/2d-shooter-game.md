@@ -24,6 +24,24 @@
 
 > **Unity 6.4 的 Input 補充**：6.4 的 Input System 套件新增了 `OnMouse*` 事件支援，作為從舊 Input Manager 遷移的過渡路徑 —— 如果專案還留著依賴 `OnMouseDown` 這類訊息的舊腳本，切到 New Input System 之後它們仍可運作。本 Workshop 的腳本仍以上面查到的 Active Input Handling 設定為準。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64)（2026-10-21 取得）。
 
+> **Unity 6.4 的物理 API 名稱（只要用 Rigidbody2D 驅動移動就會用到）**
+>
+> 6.4 把 `Rigidbody2D` 幾個常用成員標記為 obsolete。這份 Workshop 的移動邏輯如果用 Rigidbody2D 來推，請讓 Kiro 用新名稱（舊名稱還能編譯，但會產生一堆過時警告）：
+>
+> | 舊名稱（obsolete） | 現在要用 | 適用範圍 |
+> |---|---|---|
+> | `velocity` | `linearVelocity` | 2D 與 3D 都適用 |
+> | `velocityX` / `velocityY` | `linearVelocityX` / `linearVelocityY` | 只有 2D |
+> | `drag` | `linearDamping` | 2D 與 3D 都適用 |
+> | `angularDrag` | `angularDamping` | 2D 與 3D 都適用 |
+> | `isKinematic` | `bodyType`（`RigidbodyType2D`） | **只有 `Rigidbody2D`** |
+>
+> **特別注意這個不對稱**：`isKinematic` 只有在 `Rigidbody2D` 上是 obsolete；3D `Rigidbody.isKinematic` 仍然是有效、沒有被標記 obsolete 的屬性，**不要把 3D 的 `isKinematic` 改成 `bodyType`**。
+>
+> 至於 Prompt 裡的 **Gravity Scale**（`gravityScale`），那是沒有被標記 obsolete 的屬性，照寫即可。
+>
+> 來源：對實機 Unity `6000.4.6f1` 編輯器（bridge 9.6.8）呼叫 `unity_reflect(action: "get_type", class_name: "Rigidbody2D")` 與 `class_name: "Rigidbody"`，讀取回應裡的 `obsolete_members` 欄位（2026-10-21）。換到別的 Unity 版本時，用同一個呼叫重新確認，不要憑記憶。
+
 ---
 
 ## 步驟 0：確認連線（工具群組先不用動）
@@ -115,7 +133,7 @@
 - BoxCollider2D 的 size 請依照 Sprite 的實際大小設定（不要留預設或空值），完成後回報 size 數值供我確認
 - 位置放在畫面下方中間偏下，例如 (0, -4, 0)
 - 幫我寫一個 C# 腳本 PlayerController，掛在 Player 上：
-  - 用方向鍵或 WASD 控制上下左右移動，移動速度用 public 變數 moveSpeed（預設 8）
+  - 用方向鍵或 WASD 控制上下左右移動，移動速度用 public 變數 moveSpeed（預設 8）。用 transform 位移或 Rigidbody2D 都可以；如果用 Rigidbody2D 驅動，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = direction * moveSpeed`），**不要用已經 obsolete 的 `velocity`**
   - 限制移動範圍，不要讓玩家飛出攝影機可視範圍外（大約 x: -8~8，y: -5~5）
   - 依照專案的 Input System 設定選用對應 API
 
@@ -138,7 +156,7 @@
 1. 建立一個子彈 Prefab，名稱 Bullet：
    - Sprite（先用簡單的小色塊代表），SpriteRenderer 先指派好 Sprite
    - Rigidbody2D（Gravity Scale = 0）、CircleCollider2D（radius 依照 Sprite 大小設定，isTrigger = true）
-   - 腳本 Bullet.cs：往上飛（沿著 Y 軸正方向），速度用 public 變數 speed（預設 12）控制，飛出畫面範圍外（例如 y > 6）就自動銷毀自己
+   - 腳本 Bullet.cs：往上飛（沿著 Y 軸正方向），速度用 public 變數 speed（預設 12）控制，飛出畫面範圍外（例如 y > 6）就自動銷毀自己。如果用 Rigidbody2D 驅動飛行，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = Vector2.up * speed`），不要用已經 obsolete 的 `velocity`
    - 存成 Prefab（Assets/Prefabs/Bullet.prefab）
 
 2. 修改 PlayerController.cs，加上射擊邏輯：
@@ -166,7 +184,7 @@
    - Sprite（用另一種顏色的色塊區分玩家與敵人），SpriteRenderer 先指派好 Sprite
    - Rigidbody2D（Gravity Scale = 0）、BoxCollider2D（size 依照 Sprite 大小設定，isTrigger = true）
    - 腳本 Enemy.cs：
-     - 往下移動（Y 軸負方向），速度用 public 變數 speed（預設 3）控制
+     - 往下移動（Y 軸負方向），速度用 public 變數 speed（預設 3）控制。如果用 Rigidbody2D 驅動，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = Vector2.down * speed`），不要用已經 obsolete 的 `velocity`
      - 飛出畫面下方（例如 y < -6）時，代表玩家漏接：呼叫 GameManager.Instance.DamagePlayer(missedDamage)（新增一個 public int missedDamage 欄位，預設 1），再銷毀自己
      - 偵測 OnTriggerEnter2D，如果碰到的物件 Tag 是 "Player"：呼叫 GameManager.Instance.DamagePlayer(1)，銷毀對方，並銷毀自己
    - 存成 Prefab（Assets/Prefabs/Enemy.prefab）

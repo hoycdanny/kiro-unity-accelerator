@@ -24,6 +24,22 @@
 
 > **Unity 6.4 的 Input 補充**：6.4 的 Input System 套件新增了 `OnMouse*` 事件支援，作為從舊 Input Manager 遷移的過渡路徑 —— 如果專案還留著依賴 `OnMouseDown` 這類訊息的舊腳本，切到 New Input System 之後它們仍可運作。本 Workshop 的腳本仍以上面查到的 Active Input Handling 設定為準。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64)（2026-10-21 取得）。
 
+> **Unity 6.4 的物理 API 名稱（這份 Workshop 會一直用到）**
+>
+> 6.4 把 `Rigidbody2D` 幾個常用成員標記為 obsolete。本 Workshop 的 Prompt 都已經指名新名稱，請讓 Kiro 照著寫，不要用舊名稱（舊名稱還能編譯，但會產生一堆過時警告）：
+>
+> | 舊名稱（obsolete） | 現在要用 | 適用範圍 |
+> |---|---|---|
+> | `velocity` | `linearVelocity` | 2D 與 3D 都適用 |
+> | `velocityX` / `velocityY` | `linearVelocityX` / `linearVelocityY` | 只有 2D |
+> | `drag` | `linearDamping` | 2D 與 3D 都適用 |
+> | `angularDrag` | `angularDamping` | 2D 與 3D 都適用 |
+> | `isKinematic` | `bodyType`（`RigidbodyType2D`） | **只有 `Rigidbody2D`** |
+>
+> **特別注意這個不對稱**：`isKinematic` 只有在 `Rigidbody2D` 上是 obsolete；3D `Rigidbody.isKinematic` 仍然是有效、沒有被標記 obsolete 的屬性，**不要把 3D 的 `isKinematic` 改成 `bodyType`**。
+>
+> 來源：對實機 Unity `6000.4.6f1` 編輯器（bridge 9.6.8）呼叫 `unity_reflect(action: "get_type", class_name: "Rigidbody2D")` 與 `class_name: "Rigidbody"`，讀取回應裡的 `obsolete_members` 欄位（2026-10-21）。換到別的 Unity 版本時，用同一個呼叫重新確認，不要憑記憶。
+
 ---
 
 ## 步驟 0：確認連線（工具群組先不用動）
@@ -121,8 +137,8 @@
 - 位置放在 Ground_Base 上方，例如 (-6, -1.5, 0)
 
 幫我寫一個 C# 腳本 PlayerController，掛在 Player 上，功能：
-- 左右移動：用方向鍵或 A/D 控制，速度用 public 變數 moveSpeed（預設 6），直接設定 Rigidbody2D 的水平速度（不要用 MovePosition，因為需要保留重力對垂直速度的影響）
-- 跳躍：按下跳躍鍵（空白鍵）時，如果角色目前在地面上，給予一個向上的瞬間速度，大小用 public 變數 jumpForce（預設 12）
+- 左右移動：用方向鍵或 A/D 控制，速度用 public 變數 moveSpeed（預設 6），直接設定 Rigidbody2D 的水平速度 —— 請用 Unity 6.4 的 `linearVelocity`（例如 `rb.linearVelocity = new Vector2(input * moveSpeed, rb.linearVelocity.y)`），**不要用已經 obsolete 的 `velocity`**；也不要用 MovePosition，因為需要保留重力對垂直速度的影響
+- 跳躍：按下跳躍鍵（空白鍵）時，如果角色目前在地面上，給予一個向上的瞬間速度，大小用 public 變數 jumpForce（預設 12）；同樣透過 `linearVelocity` 設定垂直分量（`rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce)`）
 - 地面偵測（isGrounded）：在腳本裡用 Physics2D.OverlapBox 做檢測，位置取角色 BoxCollider2D 底部邊緣往下一點的位置（用 `collider.bounds.center` 減去 `collider.bounds.extents.y` 再往下偏移約 0.1 個單位計算），偵測範圍是一個扁的小方框（寬度略小於角色本身、高度約 0.2），只要偵測到的物件 Tag 是 "Ground" 就視為在地面上。這個判定請在 FixedUpdate 裡持續更新
 - 依照專案的 Input System 設定選用對應 API
 
@@ -165,7 +181,7 @@
 - public int score（預設 0）、public int lives（預設 3）
 - private Vector3 respawnPoint，在 Start() 時記錄 Player 目前的初始位置（用 Tag "Player" 找到玩家）作為預設重生點
 - 方法 AddScore(int amount)：加分
-- 方法 LoseLife()：扣一條生命；如果扣完後 lives > 0，把 Player 的位置重設到 respawnPoint、並把 Player 的 Rigidbody2D 速度歸零（避免重生後還帶著原本的墜落速度）；如果 lives <= 0，觸發遊戲結束（先在 Console 印出 "Game Over" 即可，之後步驟會做畫面）
+- 方法 LoseLife()：扣一條生命；如果扣完後 lives > 0，把 Player 的位置重設到 respawnPoint、並把 Player 的 Rigidbody2D 速度歸零（用 Unity 6.4 的 `linearVelocity`：`rb.linearVelocity = Vector2.zero`，不要用已經 obsolete 的 `velocity`；避免重生後還帶著原本的墜落速度）；如果 lives <= 0，觸發遊戲結束（先在 Console 印出 "Game Over" 即可，之後步驟會做畫面）
 - 方法 ReachGoal()：觸發過關（先在 Console 印出 "Level Complete" 即可，之後步驟會做畫面）
 
 完成後幫我測試編譯，並確認 GameManager 的 score、lives 初始值正確，且 respawnPoint 有正確記錄到 Player 的起始位置。
@@ -217,7 +233,7 @@
    - 存成 Prefab（Assets/Prefabs/Patroller.prefab）
 
 2. 修改 PlayerController.cs，加上踩踏判定：偵測 OnTriggerEnter2D，如果碰到的物件 Tag 是 "Enemy"：
-   - 如果玩家當下 Rigidbody2D 的垂直速度小於 0（代表正在下落）且玩家目前的 Y 座標高於敵人的 Y 座標（代表是從上方接觸），視為「踩踏」：呼叫該敵人的 Defeat() 方法，並給玩家一個小幅向上的瞬間速度（例如 jumpForce 的一半），同時呼叫 GameManager.Instance.AddScore(20)
+   - 如果玩家當下 Rigidbody2D 的垂直速度小於 0（代表正在下落；請讀 Unity 6.4 的 `rb.linearVelocity.y`，不要用已經 obsolete 的 `velocity`）且玩家目前的 Y 座標高於敵人的 Y 座標（代表是從上方接觸），視為「踩踏」：呼叫該敵人的 Defeat() 方法，並透過 `linearVelocity` 給玩家一個小幅向上的瞬間速度（例如 jumpForce 的一半），同時呼叫 GameManager.Instance.AddScore(20)
    - 否則視為「側面碰撞」：呼叫 GameManager.Instance.LoseLife()
 
 3. 在關卡中的地面上放置兩個 Patroller 實例，位置分別在 (2, -2, 0) 跟 (10, -2, 0)

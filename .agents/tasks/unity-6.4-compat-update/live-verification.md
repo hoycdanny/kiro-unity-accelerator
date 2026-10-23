@@ -294,7 +294,7 @@ asserting "9 of 10 groups are opt-in so your tools are missing" as the explanati
   --unity-instance-token <token>`
 - Executable resolved from the uv cache: `...\uv\cache\archive-v0\<hash>\Scripts\mcp-for-unity`
   → the console script is **`mcp-for-unity`**, not `unity-mcp`.
-- `server.cwd` / Unity project: `C:\Users\Danny\kiro-workshop`
+- `server.cwd` / Unity project: `<user-home>\kiro-workshop`
 - `session_state.active_instance`: `kiro-workshop@b81f852b5f42fc9d`; `derived_key: "global"`;
   `plugin_hub_configured: true`
 - `request_context.client_id` / `session_id`: both `null`; `direct_properties.session_id` is set.
@@ -313,7 +313,7 @@ way for a user to discover it. Document that discovery path.
 - **`manage_build` is denied on this machine.** A direct `manage_build(action:"settings")` call
   returned: `Tool call denied by user's permissions. Rule: deny mcp matching
   "power-kiro-unity-accelerator-unity-mcp/manage_build" Source:
-  C:\Users\Danny\.kiro\settings\permissions.yaml`. The rule is at permissions.yaml line ~2281:
+  <user-home>\.kiro\settings\permissions.yaml`. The rule is at permissions.yaml line ~2281:
   `- capability: mcp` / `effect: deny` / `match: [power-kiro-unity-accelerator-unity-mcp/manage_build]`.
 
   So **Workflow 3 (Build Automation) cannot run on this machine** for a reason that has nothing
@@ -364,3 +364,107 @@ These were tested with direct calls in Round 1 and remain valid:
   no resource-reading tool was available to enumerate them from this client.
 - Anything about bridge v10.x: this machine runs 9.6.8, so every v10 claim remains
   documentation-derived, not observed.
+
+---
+
+# ROUND 3 — read-only sweep of previously untested tools (2026-10-21)
+
+All calls below are **direct** calls (never wrapped in `batch_execute`, per C-2). Environment
+unchanged: Unity 6000.4.6f1, bridge `com.coplaydev.unity-mcp` 9.6.8, URP, project
+`kiro-workshop` with `SampleScene` (3 roots, 8473 assets). Nothing in the project was modified.
+
+## D-1 — `unity_docs(get_doc)` requires an UNQUALIFIED class name (silent failure otherwise)
+
+| Call | Result |
+|---|---|
+| `unity_docs(action:"get_doc", class_name:"UnityEngine.Rigidbody2D")` | `{"success":true,"data":{"found":false,"suggestion":"Try unity_reflect search action..."}}` |
+| `unity_docs(action:"get_doc", class_name:"Rigidbody2D")` | `{"success":true,"data":{"found":true,"url":"https://docs.unity3d.com/ScriptReference/Rigidbody2D.html","class":"Rigidbody2D","description":"Provides physics movement and other dynamics, and the ability to attach Collider2D to it."}}` |
+| `unity_reflect(action:"get_type", class_name:"Rigidbody2D")` | found:true |
+| `unity_reflect(action:"get_type", class_name:"UnityEngine.GameObject")` | found:true (Round 1) |
+
+**VERIFIED:** `unity_docs` wants the short name; `unity_reflect` accepts either short or
+namespace-qualified. The `unity_docs` failure mode is **`success: true` with `found: false`** —
+a silent miss, not an error. This is a trap for POWER.md's own guidance ("use `unity_reflect` to
+confirm an API exists, then `unity_docs` for usage"): an agent that passes a qualified name to
+`unity_docs` gets `found:false` and can wrongly conclude the API does not exist. Document the
+parameter-form difference and the silent-miss shape explicitly.
+
+## D-2 — `find_in_file` is C#-script-only, despite its description
+
+Call: `find_in_file(uri:"Assets/Scenes/SampleScene.unity", pattern:"m_Name", max_results:3)`
+Result: `{"success":false,"error":"Script not found at 'Assets/Scenes/SampleScene.cs'."}`
+
+**VERIFIED:** the tool rewrote the extension from `.unity` to `.cs` and looked for a script. Its
+own parameter description ("The resource URI to search under Assets/ or file path form supported
+by read_resource") implies general asset search, which is misleading. Document it as a
+**C# script search tool only**.
+
+UNVERIFIED: the success path. This project contains **zero `.cs` assets**
+(`manage_asset(action:"search", path:"Assets/", search_pattern:"*.cs")` returned 0), so no
+positive case could be exercised. Same reason blocks testing `get_sha`, `validate_script`,
+`apply_text_edits` and `script_apply_edits`.
+
+## D-3 — Unity 6.4 obsolete physics members (live reflection — affects the workshops)
+
+`unity_reflect(get_type, ...)` reported `obsolete_members` directly from the connected 6.4 Editor:
+
+| Type | Assembly | `obsolete_members` |
+|---|---|---|
+| `Rigidbody2D` | UnityEngine.Physics2DModule | `angularDrag`, `drag`, `fixedAngle`, `isKinematic`, `OverlapCollider`, `velocity`, `velocityX`, `velocityY` |
+| `Rigidbody` | UnityEngine.PhysicsModule | `angularDrag`, `drag`, `SetDensity`, `velocity` |
+
+Current replacements, confirmed present in the same `properties` lists:
+
+| Obsolete | Use instead | Applies to |
+|---|---|---|
+| `velocity` | `linearVelocity` | both 2D and 3D |
+| `velocityX` / `velocityY` | `linearVelocityX` / `linearVelocityY` | 2D only |
+| `drag` | `linearDamping` | both |
+| `angularDrag` | `angularDamping` | both |
+| `isKinematic` | `bodyType` (`RigidbodyType2D`) | **2D only** |
+
+**Note the asymmetry, it is easy to get wrong:** `isKinematic` is obsolete on `Rigidbody2D` but
+is still a valid, non-obsolete property on the 3D `Rigidbody`. Do not "correct" 3D code to
+`bodyType`.
+
+**Why this matters here:** `workshop\2d-platformer-game.md` and `workshop\2d-shooter-game.md`
+describe physics behaviour in Chinese prose without naming the API — e.g. line 124 says to set
+the Rigidbody2D's horizontal velocity directly, and line 168 says to zero the velocity on
+respawn. A grep confirmed the workshops contain **zero** occurrences of `velocity`, `drag`,
+`angularDrag`, `isKinematic`, `velocityX`, `velocityY`, `FindObjectOfType`, `Input.GetAxis` or
+`GetComponent<`, so nothing is currently wrong. But because the prompts never name the current
+API, an agent generating the code from memory will very likely emit the classic `rb.velocity`
+pattern, which is obsolete on 6.4. The workshops should name `linearVelocity` (and the rest of
+the table above) explicitly so the generated code is 6.4-clean. The only concrete API the
+workshops do name is `SceneManager.LoadScene` (platformer L328, shooter L230), which is current.
+
+## D-4 — Newly verified working read-only calls
+
+| Call | Observed |
+|---|---|
+| `manage_script_capabilities()` | `ops`: replace_class, delete_class, replace_method, delete_method, insert_method, anchor_insert, anchor_delete, anchor_replace; `text_ops`: replace_range, regex_replace, prepend, append; `max_edit_payload_bytes`: **262144**; `guards.using_guard`: true; `extras.get_sha`: true |
+| `manage_scene(get_loaded_scenes)` | 1 scene, `isActive:true`, rootCount 3 |
+| `manage_graphics(feature_list)` | rendererDataName `PC_Renderer`, 1 feature: `ScreenSpaceAmbientOcclusion` active |
+| `manage_graphics(skybox_get)` | full environment block — skybox `Default-Skybox` / `Skybox/Procedural`, ambient mode `Skybox`, fog disabled (`ExponentialSquared`), reflection mode `Skybox` res 128, sun `Directional Light` (instanceID 49234) |
+| `manage_asset(get_info, path:"Assets/Scenes/SampleScene.unity")` | guid `99c9720ab356a0642a771bea13969a05`, assetType `UnityEditor.SceneAsset`, instanceID 49644 |
+| `manage_profiler(get_counters, category:"Memory")` | 44 counters; each counter also returns `_valid` and `_unit` companion keys (e.g. `Texture Memory` 148440708 Bytes, `Asset Count` 8473, `Game Object Count` 9, `Scene Object Count` 474) |
+| `manage_camera(get_brain_status)` | correctly fails with a clear message: action requires `com.unity.cinemachine`, package not installed |
+
+Two documentation-relevant details from the above: `manage_profiler(get_counters)` returns
+`<name>`, `<name>_valid` and `<name>_unit` triples rather than flat values, and
+`manage_camera`'s Cinemachine-dependent actions fail with an explicit package-missing message
+rather than silently — which supports POWER.md's existing "works with or without Cinemachine"
+wording for `create_camera` while making clear that `*_brain_*` actions do not.
+
+## Still NOT verified after Round 3
+
+- Everything that writes: all `create`/`modify`/`delete` actions, `manage_gameobject`,
+  `manage_components`, `manage_prefabs` mutations, `execute_menu_item`, `refresh_unity`.
+- `manage_build` — blocked by the user's own `permissions.yaml` deny rule (C-5).
+- `run_tests` / `get_test_job` end to end.
+- All script tools' success paths — the project has no `.cs` assets (D-2).
+- `manage_probuilder`, memory snapshots, Cinemachine camera paths — packages absent.
+- The 25-URI `mcpforunity://` resource table added in this update: this client exposes no
+  resource-reading tool, so the URIs could not be enumerated or fetched. Still
+  documentation-derived.
+- Anything about bridge v10.x — this machine runs 9.6.8.

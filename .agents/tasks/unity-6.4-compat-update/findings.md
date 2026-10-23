@@ -1195,7 +1195,7 @@ Server argv from the same response, kept because it is the connection ground tru
 `mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools
 --pidfile <project>\Library\MCPForUnity\RunState\mcp_http_8080.pid --unity-instance-token <token>`;
 console script **`mcp-for-unity`** (not `unity-mcp`), resolved from the uv cache; `server.cwd`
-`C:\Users\Danny\kiro-workshop`; `session_state.active_instance`
+`<user-home>\kiro-workshop`; `session_state.active_instance`
 `kiro-workshop@b81f852b5f42fc9d`; `derived_key` `global`; `plugin_hub_configured` true;
 `request_context.client_id`/`session_id` both null while `direct_properties.session_id` is set.
 
@@ -1223,7 +1223,7 @@ and it was previously unconsidered.**
 A direct `manage_build(action:"settings")` call was refused by the IDE, not Unity:
 `Tool call denied by user's permissions. Rule: deny mcp matching
 "power-kiro-unity-accelerator-unity-mcp/manage_build" Source:
-C:\Users\Danny\.kiro\settings\permissions.yaml` — a `capability: mcp` / `effect: deny` rule at
+<user-home>\.kiro\settings\permissions.yaml` — a `capability: mcp` / `effect: deny` rule at
 roughly line 2281 of the user's own file. **Workflow 3 (Build Automation) therefore cannot run on
 this machine at all**, for a reason that has nothing to do with Unity, the bridge or tool groups.
 Namespace fact that makes this diagnosable: the IDE exposes a Power's MCP server as
@@ -1569,7 +1569,7 @@ documentation-derived.
 - **VERIFIED server argv:** `mcp-for-unity --transport http --http-url http://127.0.0.1:8080
   --project-scoped-tools --pidfile <project>\Library\MCPForUnity\RunState\mcp_http_8080.pid
   --unity-instance-token <token>`; console script **`mcp-for-unity`** (not `unity-mcp`), resolved
-  from the uv cache; `server.cwd` `C:\Users\Danny\kiro-workshop`; `session_state.active_instance`
+  from the uv cache; `server.cwd` `<user-home>\kiro-workshop`; `session_state.active_instance`
   `kiro-workshop@b81f852b5f42fc9d`; `derived_key` `global`; `plugin_hub_configured` true;
   `request_context.client_id` / `session_id` both null while `direct_properties.session_id` is set.
 - **Documented:** `http://127.0.0.1:8080` is the real in-use endpoint on this install, driven by the
@@ -1588,7 +1588,7 @@ documentation-derived.
 - **VERIFIED:** a direct `manage_build(action:"settings")` was refused by Kiro, not Unity:
   `Tool call denied by user's permissions. Rule: deny mcp matching
   "power-kiro-unity-accelerator-unity-mcp/manage_build" Source:
-  C:\Users\Danny\.kiro\settings\permissions.yaml` (a `capability: mcp` / `effect: deny` rule at
+  <user-home>\.kiro\settings\permissions.yaml` (a `capability: mcp` / `effect: deny` rule at
   ~line 2281). **Workflow 3 (Build Automation) cannot run on that machine** for reasons unrelated to
   Unity or the bridge.
 - **Added as a new ranked root cause (RC-7b)** and to the troubleshooting surfaces: POWER.md gets a
@@ -1630,9 +1630,112 @@ the build configs), and the bilingual `File Purpose / 本檔案用途` comments 
 localized README was converted to English; each correction was written in that file's own language,
 with README_CN kept Simplified and README_ZH kept Traditional.
 
+## 14. Round 3 applied (2026-10-21, third pass)
 
+Round 3 was a read-only sweep of tools the first two rounds never exercised. All observations are
+**direct** tool calls (never wrapped in `batch_execute`, per C-2) against the same live Editor:
+Unity `6000.4.6f1`, bridge `com.coplaydev.unity-mcp` 9.6.8, URP, project `kiro-workshop`. Nothing
+in that project was modified. Full capture:
+`.agents/tasks/unity-6.4-compat-update/live-verification.md` → "ROUND 3".
 
+### D-1 — ADDED: `unity_docs` needs an UNQUALIFIED class name; the miss is silent — VERIFIED
 
+- **VERIFIED:** `unity_docs(action:"get_doc", class_name:"UnityEngine.Rigidbody2D")` returned
+  `{"success":true,"data":{"found":false,...}}`, while `class_name:"Rigidbody2D"` returned
+  `found:true`. `unity_reflect` accepts either form (`Rigidbody2D`, `UnityEngine.GameObject`).
+  The failure shape is `success: true` + `found: false` — a **silent miss**, not an error.
+- **Why it mattered:** it undermined POWER.md's own "confirm with `unity_reflect`, then document with
+  `unity_docs`" guidance. An agent passing a qualified name to `unity_docs` gets `found:false` and
+  can wrongly conclude the API is absent.
+- **Changed:** POWER.md's `unity_docs` / `unity_reflect` row in Available MCP Tools and its
+  Workflow 8 "API change detection" step; `steering/knowledge-management.md`'s docs-tool note plus
+  step 4 of API Change Detection. All now state the parameter-form difference and that a
+  `found:false` means "wrong name form or spelling", never "API absent". The same places note that
+  `unity_reflect(get_type)` returns `obsolete_members`, which is the live deprecation check.
 
+### D-2 — CORRECTED: `find_in_file` searches C# scripts only — VERIFIED; success path UNVERIFIED
 
+- **VERIFIED:** `find_in_file(uri:"Assets/Scenes/SampleScene.unity", pattern:"m_Name")` failed with
+  `Script not found at 'Assets/Scenes/SampleScene.cs'.` — the tool rewrites the extension to `.cs`.
+  Its own parameter description implies a general asset search, which is misleading. `find_in_file`
+  was added to the docs by the previous pass with that misleading framing.
+- **UNVERIFIED:** the success path. The project contains **zero `.cs` assets**
+  (`manage_asset(action:"search", path:"Assets/", search_pattern:"*.cs")` → 0), which equally blocks
+  success-path verification of `get_sha`, `validate_script`, `apply_text_edits` and
+  `script_apply_edits`.
+- **Changed:** POWER.md's `find_in_file` row (now "searches C# scripts only", with the observed
+  error), the Workflow-7 mention, a new script-tool bullet carrying the UNVERIFIED success-path
+  note, and a new "Targeted Search Inside a Script" block in `steering/code-quality.md`.
 
+### D-3 — ADDED: Unity 6.4 obsolete physics members → current replacements — VERIFIED
+
+- **VERIFIED via `unity_reflect(get_type)`'s `obsolete_members`:** `Rigidbody2D`
+  (`UnityEngine.Physics2DModule`) — `angularDrag`, `drag`, `fixedAngle`, `isKinematic`,
+  `OverlapCollider`, `velocity`, `velocityX`, `velocityY`; `Rigidbody`
+  (`UnityEngine.PhysicsModule`) — `angularDrag`, `drag`, `SetDensity`, `velocity`.
+- **VERIFIED replacements** (each confirmed present in the same type's `properties` list):
+  `velocity`→`linearVelocity` (2D+3D), `velocityX`/`velocityY`→`linearVelocityX`/`linearVelocityY`
+  (2D only), `drag`→`linearDamping` (2D+3D), `angularDrag`→`angularDamping` (2D+3D),
+  `isKinematic`→`bodyType` (`RigidbodyType2D`) — **2D only**. The asymmetry is explicit everywhere
+  it is written: 3D `Rigidbody.isKinematic` is still valid and non-obsolete and must **not** be
+  rewritten to `bodyType`.
+- **UNVERIFIED:** replacements for `fixedAngle`, `OverlapCollider` (2D) and `SetDensity` (3D) — they
+  are reported obsolete, but no substitute was established, so the docs say to confirm with
+  `unity_reflect` / `unity_docs` before recommending one.
+- **Nothing was wrong to begin with.** A grep confirmed both workshops contain zero occurrences of
+  `velocity`, `drag`, `angularDrag`, `isKinematic`, `velocityX`, `velocityY`, `FindObjectOfType`,
+  `Input.GetAxis` or `GetComponent<`. The defect was a **gap**: the prompts describe physics in
+  Chinese prose without naming any API, so an agent generating the code from memory very likely
+  emits the classic obsolete `rb.velocity` pattern on a 6.4 project.
+- **Changed:** `workshop/2d-platformer-game.md` and `workshop/2d-shooter-game.md` each gained one
+  compact, clearly-marked "Unity 6.4 的物理 API 名稱" block in the prerequisites, and the prompt steps
+  that previously said "velocity" only in prose now name the property — platformer: horizontal move
+  and jump (step 2), respawn zeroing (step 4), stomp detection and bounce (step 6); shooter: player
+  movement (step 2), bullet flight (step 3), enemy descent (step 4). Written in Traditional Chinese
+  to match those files, with API identifiers left in English. `SceneManager.LoadScene` — the only
+  concrete API the workshops already named (platformer L328 / shooter L230 before this pass, L344 /
+  L248 after the inserted blocks) — is current and was left alone.
+- **Canonical mapping table:** `steering/code-quality.md` → "Current Physics APIs on Unity 6.4
+  (obsolete → current)", chosen because that file already owns API-correctness guidance (the "Unity
+  6.4 Code Quality Changes" section). `steering/unity-general.md` cross-references it **by section
+  name** under "Unity Version Compatibility Notes" and does not restate it, per the no-duplication
+  convention of the earlier passes. The table cites `unity_reflect` against the live
+  `6000.4.6f1` Editor on 2026-10-21 and names `obsolete_members` as the way to re-check on another
+  Editor version.
+
+### D-4 — RECORDED: newly verified read-only calls — VERIFIED (no doc change needed)
+
+`manage_script_capabilities()` (`max_edit_payload_bytes` **262144**, eight `ops`, four `text_ops`,
+`using_guard`, `extras.get_sha`), `manage_scene(get_loaded_scenes)`, `manage_graphics(feature_list)`
+(`PC_Renderer`, `ScreenSpaceAmbientOcclusion`), `manage_graphics(skybox_get)`,
+`manage_asset(get_info)`, `manage_profiler(get_counters, category:"Memory")` (44 counters, each
+returned as `<name>` / `<name>_valid` / `<name>_unit` triples) and `manage_camera(get_brain_status)`
+(fails with an explicit "needs `com.unity.cinemachine`" message rather than silently). These
+**confirm** what the repo already says — the `manage_script_capabilities`-before-large-edit
+guidance, and the "`create_camera` works with or without Cinemachine, `*_brain_*` actions do not"
+wording — so this pass changed no documentation for them. They are logged in live-verification.md
+as regression probes.
+
+### D-5 — Local absolute paths scrubbed from the committed research records
+
+`findings.md` (4 hits) and `live-verification.md` (2 hits) contained the verifying user's
+home-directory prefix. This is a public repo, so the prefix is now the neutral placeholder
+`<user-home>` (`<user-home>\kiro-workshop`, `<user-home>\.kiro\settings\permissions.yaml`). Every
+path stays meaningful and no technical claim changed: the Unity project folder **name**
+(`kiro-workshop`), the `Library\MCPForUnity\RunState\mcp_http_<port>.pid` port-discovery path and
+the `~/.kiro/settings/permissions.yaml` reference are all intact, because the port-discovery
+guidance (C-4) and the permission-deny root cause (C-5/RC-7b) depend on them. No secret was
+exposed: the instance token is a `<token>` placeholder in all four places it appears, and the only
+hex id in the records is the 16-char instance hash in `kiro-workshop@b81f852b5f42fc9d` (an instance
+identifier, not a credential).
+
+### Preserved unchanged by Round 3
+
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the MCP for Unity v10.3.0 target; the restored `manage_editor`
+`telemetry_status` / `telemetry_ping` rows (real, direct-call-only actions per C-1); the
+`batch_execute` server-layer divergence caveat (C-2); tool-group activation phrased as conditional
+troubleshooting only (C-3); the `permissions.yaml` MCP deny-rule root cause and the pidfile
+port-discovery guidance (C-4/C-5); `class_name` (never `type_name`); the `by_name`-style prefixed
+`search_method` values; and the five localized READMEs each in their own language. No `src/*.ts`,
+template, hook or `mcp.json` file was touched by this pass.

@@ -81,6 +81,15 @@ manage_script(action: "read", name: "PlayerController", path: "Assets/Scripts")
 
 `name` is the filename without `.cs`; `path` is the containing folder (the tool internally builds `path/name.cs`). Passing a full file path in a single param does not work.
 
+### Targeted Search Inside a Script
+
+```
+find_in_file(uri: "Assets/Scripts/PlayerController.cs", pattern: "GetComponent<", max_results: 20)
+→ line numbers + excerpts
+```
+
+`find_in_file` searches **C# scripts only**, despite a parameter description that reads like a general asset search. It rewrites the target's extension to `.cs`, so a non-script URI fails outright — live on Unity 6000.4.6f1 (bridge 9.6.8, 2026-10-21), `find_in_file(uri: "Assets/Scenes/SampleScene.unity", pattern: "m_Name")` returned `Script not found at 'Assets/Scenes/SampleScene.cs'.`. To search a scene, prefab or `.asset` file, use the scene/prefab resources or `manage_asset` instead. Its **success path is UNVERIFIED** here: the verification project held zero `.cs` assets, which equally blocked verifying `get_sha`, `validate_script`, `apply_text_edits` and `script_apply_edits` succeeding.
+
 ## Incremental Checking
 
 - When a developer saves a C# script, run architecture check only on that file
@@ -190,6 +199,35 @@ Both items below come from [New in Unity 6.4](https://docs.unity.com/en-us/engin
 - **Project Auditor ships in the Editor on 6.4.** It is no longer a separate package to install, so do not tell a developer to add one — point them at the built-in tooling. Several of its analyzer APIs were made `internal` in the same move, so code that drove Project Auditor programmatically through those APIs will not compile against 6.4 and must be reworked or dropped. Flag any such usage during an architecture check
 - **`[SerializeReference]` now warns when the assigned class, or any of its ancestors, lacks `[Serializable]`.** Treat a missing `[Serializable]` on a `[SerializeReference]` target or any of its base classes as a violation during code checks, not just a style issue — Unity will surface it as a warning. Check the whole ancestor chain, not only the concrete type
 - **`Object.Destroy` now invokes `OnDisable` on all descendants**, matching `DestroyImmediate`'s long-standing behaviour. Any teardown code that manually propagated disable callbacks to children now double-fires them. When reviewing or generating teardown code, flag manual propagation as redundant on 6.4 and remove it rather than guarding it
+
+### Current Physics APIs on Unity 6.4 (obsolete → current)
+
+This is the canonical obsolete→current physics mapping for this Power; other files cross-reference this section rather than restating it.
+
+**Source**: `unity_reflect(action: "get_type", class_name: "Rigidbody2D"/"Rigidbody")` against a **live Unity 6000.4.6f1 Editor on 2026-10-21** (bridge 9.6.8), reading the response's `obsolete_members` field. To re-check this on any other Editor version, make the same call and read `obsolete_members` — do not rely on memory, and do not rely on this table for a Unity version you have not checked.
+
+Reported `obsolete_members`:
+
+| Type | Assembly | `obsolete_members` |
+|---|---|---|
+| `Rigidbody2D` | `UnityEngine.Physics2DModule` | `angularDrag`, `drag`, `fixedAngle`, `isKinematic`, `OverlapCollider`, `velocity`, `velocityX`, `velocityY` |
+| `Rigidbody` | `UnityEngine.PhysicsModule` | `angularDrag`, `drag`, `SetDensity`, `velocity` |
+
+Use these names instead (each replacement was confirmed present in the same type's `properties` list):
+
+| Obsolete | Use instead | Applies to |
+|---|---|---|
+| `velocity` | `linearVelocity` | 2D and 3D |
+| `velocityX` / `velocityY` | `linearVelocityX` / `linearVelocityY` | 2D only |
+| `drag` | `linearDamping` | 2D and 3D |
+| `angularDrag` | `angularDamping` | 2D and 3D |
+| `isKinematic` | `bodyType` (`RigidbodyType2D`) | **2D only** |
+
+> **Asymmetry worth getting right**: `isKinematic` is obsolete on `Rigidbody2D`, but on the 3D `Rigidbody` it is still a valid, non-obsolete property. **Never rewrite 3D `rb.isKinematic` to `bodyType`** — `bodyType` is the `Rigidbody2D` replacement only.
+
+- When generating physics code on the 6.4 baseline, write `linearVelocity` / `linearDamping` / `angularDamping` from the start — `rb.velocity` is the single most likely obsolete pattern to come out of a model's memory
+- When reviewing existing code, flag the obsolete members above as deprecation warnings to fix, not as errors; they still compile on 6.4
+- `fixedAngle` and `OverlapCollider` (2D) and `SetDensity` (3D) are also reported obsolete, but their replacements were **not** established in this pass — confirm with `unity_reflect` / `unity_docs` before writing or recommending a substitute
 
 ## CoreCLR Impact on Code Quality Checks
 

@@ -116,6 +116,7 @@ This is the version policy every other steering file in this Power defers to. Cr
 - Use `manage_packages(action: "list_packages")` (asynchronous — poll with `action: "status", job_id: ...`) to confirm all UPM packages are compatible with the target Unity version
 - Note Render Pipeline compatibility: Shaders and materials are not interchangeable between Built-in, URP, and HDRP
 - To read the connected project's version and platform without activating any tool group, read the `mcpforunity://project/info` resource. It reports the project root, Unity version and platform, and replaces the `execute_code` snippet older drafts of this file recommended
+- Several `Rigidbody` / `Rigidbody2D` members are deprecated on the 6.4 baseline. The canonical obsolete→current mapping — including the 2D/3D difference that is easy to get backwards — is in `code-quality.md` under "Current Physics APIs on Unity 6.4 (obsolete → current)". Use that section when generating or reviewing physics code; it is not restated here. To re-check the same facts on another Editor version, call `unity_reflect(action: "get_type", class_name: "...")` and read the `obsolete_members` field
 
 ### Unity 6.x Behavior Changes Worth Verifying Live
 
