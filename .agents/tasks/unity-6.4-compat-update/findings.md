@@ -221,16 +221,21 @@ and the README at the same tag:
 
 | Path | Value |
 |---|---|
-| Git URL (what the repo already documents — **correct**) | `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main` |
-| Pin a release | append `#v10.0.0` style tag instead of `#main` |
+| Git URL as upstream prints it (**but see the Round-4 correction below**) | `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main` |
+| Pin a release — **this is what the repo now documents** | append a `#v10.3.0` style tag instead of `#main` |
 | Beta line | `...#beta` |
 | OpenUPM | `openupm add com.coplaydev.unity-mcp` |
 | Asset Store | "MCP for Unity" listing, then Package Manager → My Assets |
 | Bridge prerequisites | **Unity 2021.3 LTS or newer**; Python 3.10+ with `uv` |
 
-The repo's existing `?path=/MCPForUnity#main` URL is correct and appears identically in `POWER.md:80`
-and all five READMEs — **do not change it**, only add the "pin a tag" and OpenUPM alternatives and
-the Python/`uv` prerequisite (currently absent from the repo's Prerequisites lists).
+> **REVERSED IN ROUND 4 (§15, E-2).** This section originally concluded that the repo's existing
+> `?path=/MCPForUnity#main` URL "is correct — do not change it". That was wrong, and Round 4
+> reproduced the failure on a real install: Unity resolves a git UPM dependency **once** and caches
+> the resolved commit, so `#main` does not track the branch. The verification machine's manifest
+> said `#main` while the resolved package was 9.6.8 and upstream was 10.3.0. The documented install
+> ref in `POWER.md` and all five READMEs is now the pinned tag **`#v10.3.0`**, and `#main` is no
+> longer offered as an option anywhere. The rest of this section stands: the "pin a tag" and
+> OpenUPM alternatives and the Python/`uv` prerequisite were all added as described.
 
 After import the package opens a **setup wizard**; the persistent UI is **Window → MCP for Unity**,
 which start/stops the server, switches transport, and reconfigures clients, and whose status panel
@@ -1375,7 +1380,9 @@ Listed explicitly, as required. All are **UNVERIFIED** and none may be presented
 4. Whether Kiro hard-fails a POWER.md without frontmatter (§6.4).
 5. Whether the Kiro IDE still loads legacy `.kiro.hook` files (§6.5).
 6. The v10.3.0 tool surface against a live Editor — everything in §5 for v10.3.0 is source- and
-   generated-doc-derived, not live-observed. The live column is 9.6.8 only.
+   generated-doc-derived, not live-observed. The live column is 9.6.8 only. **Still true after
+   Round 4**: the machine was upgraded to 10.3.0, but the restart invalidated the client's MCP
+   session before any v10 tool could be called (§15, E-4).
 7. Any mutating action, `run_tests`/`get_test_job` end-to-end, `manage_probuilder`, memory snapshots,
    Cinemachine `manage_camera` paths, and the entire `asset_gen` group.
 8. The 6.4 GPU Resident Drawer enable sequence and the Build Profiles "Hide Classic Platforms"
@@ -1489,6 +1496,11 @@ contradicted, it was corrected in place as well as summarised here.
 Probe environment unchanged: Unity `6000.4.6f1`, bridge `com.coplaydev.unity-mcp` 9.6.8, HTTP
 transport. **Nothing about bridge v10.x was observed** — every v10 claim in this document remains
 documentation-derived.
+
+> **Superseded in part by §15 (Round 4).** That blanket sentence was accurate as of Round 2. Round 4
+> upgraded the verification machine to 10.3.0 and observed the release metadata, the server CLI
+> surface, the two-pin architecture and the upgrade's failure modes. It did **not** observe the
+> v10.3.0 tool inventory or any per-tool contract — see §15 for the exact split.
 
 ### C-1 — REVERTED: `manage_editor`'s telemetry actions DO exist
 
@@ -1739,3 +1751,206 @@ troubleshooting only (C-3); the `permissions.yaml` MCP deny-rule root cause and 
 port-discovery guidance (C-4/C-5); `class_name` (never `type_name`); the `by_name`-style prefixed
 `search_method` values; and the five localized READMEs each in their own language. No `src/*.ts`,
 template, hook or `mcp.json` file was touched by this pass.
+
+---
+
+## 15. Round 4 applied (2026-10-21, fourth pass — live 9.6.8 -> 10.3.0 bridge upgrade)
+
+Round 4 is the first pass with any **observed** v10 data. The bridge on the verification machine was
+actually upgraded from 9.6.8 to 10.3.0 and the whole upgrade was watched: process command lines,
+the Unity editor log, `Packages/manifest.json`, the uv cache archives, the pidfile, and the
+GitHub/PyPI release metadata. The user's Unity stayed on `6000.4.6f1`. Full capture:
+`.agents/tasks/unity-6.4-compat-update/live-verification.md` -> "ROUND 4".
+
+**The one-line summary of the verification status change:** the release/tag/PyPI facts, the v10.3.0
+server CLI surface, the two-pin architecture, the upgrade procedure and its failure modes are now
+**VERIFIED (observed)**. The v10.3.0 **tool inventory and every per-tool contract** are still
+**UNVERIFIED (documentation-derived)**, because the restart invalidated the client's MCP session
+before a single v10 tool could be called.
+
+### E-1 — v10.3.0 is the current release and the matching server exists — VERIFIED (release metadata)
+
+- GitHub `releases/latest`: `tag_name` / `name` `v10.3.0`, `published_at` 2026-10-04T02:52:24Z,
+  `prerelease: false`, `target_commitish: "beta"`, asset `unity-mcp-10.3.0.mcpb`.
+- PyPI: `mcpforunityserver-10.3.0.tar.gz`, uploaded 2026-10-04T02:52:47Z (same minute as the GitHub
+  release), `requires_python: ">=3.10"`.
+- Release-notes items that affect this Power, recorded with their sources: a Unity 6000.6
+  `InstanceIDToObjectCompat` fix; `fix(stdio): refresh port discovery before reconnect backoff`;
+  `fix(read_console): stop the Console window's filters from hiding entries`; upstream docs on
+  where to look when a tool is missing from the tool list; the new Blender Bridge; and
+  auto-discovery of fal / OpenRouter asset-generation models.
+- **Documented in:** POWER.md -> "What v10.3.0 is, with sources" under the new "Upgrading the
+  bridge" section; README.md and all four localized READMEs -> the "What v10.3.0 is" paragraph of
+  each file's new upgrade section, each written in that file's own language.
+- **Label:** VERIFIED from release metadata. Not a claim about runtime behaviour.
+
+### E-2 — ROOT CAUSE, and a documentation bug in this repo: installing with `#main` — VERIFIED
+
+- **Observed:** the machine's `Packages/manifest.json` held
+  `"com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main"`
+  while the resolved package was **9.6.8** and upstream was already **10.3.0**.
+- **VERIFIED mechanism:** Unity resolves a git UPM dependency **once** and caches the resolved
+  commit. A moving ref such as `#main` does **not** track the branch, so the user sits on whatever
+  commit was current at first resolve, indefinitely, with no upgrade prompt. Changing the ref to an
+  explicit tag changes the dependency string, which forces a re-resolve and actually upgrades.
+- **Why it is the highest-impact item:** `POWER.md` and all five READMEs instructed `#main`. Anyone
+  following those instructions was set up to be stranded on whatever version they first installed,
+  and a months-old bridge does not match the tool surface this Power documents — a direct
+  contributor to the reported "cannot drive Unity".
+- **Changed:** the documented install ref is now the pinned tag **`#v10.3.0`** in `POWER.md`
+  (Installation Steps) and in `README.md`, `README_CN.md`, `README_JP.md`, `README_KR.md`,
+  `README_ZH.md`. Each file states, in its own language, (a) why a pinned tag rather than `#main`,
+  (b) that `#main` strands the user on a cached old commit with no update prompt, and (c) how to
+  upgrade later — edit the tag in `Packages/manifest.json`, or remove and re-add the git URL with
+  the new tag. `openupm add com.coplaydev.unity-mcp` is named as the registry alternative, since a
+  registry install does surface updates in Package Manager. The change is framed honestly as a
+  **corrected instruction**, and each file records that the failure was reproduced on a real
+  install. The "pin a release instead of tracking `main`" bullet is gone: `#main` is no longer
+  offered as an option anywhere.
+- **Label:** VERIFIED (reproduced on a real install).
+
+### E-3 — THE TWO INDEPENDENT VERSION PINS — VERIFIED
+
+- **VERIFIED architecture:** MCP for Unity is two components with separately pinned versions — the
+  Unity UPM package (C# editor side), pinned in `Packages/manifest.json`; and the Python MCP server,
+  pinned in its launch command line. The pre-upgrade launch line, observed verbatim:
+  `uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile <project>\Library\MCPForUnity\RunState\mcp_http_8080.pid --unity-instance-token <token>`.
+  Observed process tree: `uvx.exe` -> `uv.exe tool uvx --from mcpforunityserver==9.6.8` ->
+  `mcp-for-unity.exe` (uv cache archive `hIhdP2TZcOvbkf3X`) -> `python.exe` holding port 8080.
+- **VERIFIED consequence:** upgrading the UPM package alone does **not** upgrade the Python server.
+  After the manifest moved to `#v10.3.0` and Unity imported and compiled the v10.3.0 C# cleanly (the
+  editor log showed the new `Editor/Services/Blender`, `Editor/Tools/AssetGen` and
+  `Editor/Security/SecureKeyStore` trees importing with zero `error CS`), the running server still
+  reported `server.version: "9.6.8"` from the old cache archive.
+- **VERIFIED failure mode, and it is selective:** with C# at 10.3.0 and Python at 9.6.8, every
+  Unity-dependent tool call returned
+  `{"success":false,"error":"Unity session not available; please retry","data":{"reason":"no_unity_session","retry_after_ms":250}}`
+  while server-layer-only tools such as `debug_request_context` kept answering normally. The server
+  looks alive; nothing touching Unity works.
+- **VERIFIED recovery:** stop the stale server process chain, then start the server from Unity
+  (`Window > MCP for Unity > Start Server`). Unity, now running v10.3.0 C#, relaunched it with a
+  matching pin:
+  `uvx --offline --from "mcpforunityserver==10.3.0" mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile ... --unity-instance-token ...`
+  from a **new** uv cache archive `i8nZG0Ewwibnn1em`, port 8080 listening, both components at
+  10.3.0. Three specifics that are easy to lose and were all observed: the server did **not**
+  auto-restart after the package upgrade **nor** after the process chain was killed — the explicit
+  Start Server action in Unity was required; a stale `mcp_http_<port>.pid` file was left behind in
+  `<project>\Library\MCPForUnity\RunState\` and had to be removed manually; and pre-seeding the uv
+  cache with `uvx --from "mcpforunityserver==10.3.0" mcp-for-unity --help` made the restart fast and
+  let Unity launch with `--offline` (a useful tip on a slow network).
+- **Documented in:** POWER.md -> new `### Upgrading the bridge — two independent version pins`
+  section (the two-component table, the observed launch lines and process chain, the mismatch
+  failure mode, an ordered 8-step upgrade procedure, and the `no_unity_session` vs `Session not
+  found` comparison); a new Error Handling row keyed on the `no_unity_session` / "Unity session not
+  available" symptom whose **first suspect is a C#-vs-Python version mismatch**; a new step 4 in the
+  Connection Health Check that tells the agent to read the failure text before diagnosing; the
+  Unity 6.4 Baseline table (new "Live-verified bridge upgrade" row); the MCP Connection section's
+  parenthetical about `server.version` matching the package (now says a skew is exactly what an
+  upgrade produces); and the Unity 6.4 Baseline "update the package" advice, which now points at the
+  upgrade section because updating the package alone leaves the server behind.
+  `steering/unity-general.md` -> two new Failure Diagnosis rows (`no_unity_session`,
+  `Session not found`) and an expanded "Invalid Response Format" row. README.md plus all four
+  localized READMEs -> a new upgrade section with the two-pin table, the observed launch line, the
+  ordered procedure and a troubleshooting row each, in each file's own language.
+- **Label:** VERIFIED (observed end to end on one machine, Windows, HTTP transport).
+
+### E-4 — the client's MCP transport session does not survive a server restart — VERIFIED
+
+- **VERIFIED:** after the server restarted at 10.3.0, the already-connected Kiro client's calls
+  failed with `{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Session not found"}}`.
+  The client must reconnect (Kiro's MCP Server panel -> reconnect, or restart the client) to get a
+  new session and re-read the tool list.
+- **This is a different error from E-3's `no_unity_session`** — transport session vs. Unity bridge —
+  and the two are made explicitly distinct everywhere they are written, with a comparison table
+  stating that a reconnect does not fix `no_unity_session` and matching the version pins does not
+  fix `Session not found`.
+- **Documented in:** POWER.md -> `#### The client session does not survive a server restart` with
+  the two-error comparison table, step 7 of the ordered upgrade procedure ("Reconnect the MCP
+  client", marked not optional), the new `Session not found` Error Handling row, and the Connection
+  Health Check's read-the-error step. README.md and the four localized READMEs -> the "two errors
+  that look alike and are not" table, the reconnect step in the procedure, and a troubleshooting
+  row. `steering/unity-general.md` -> the `Session not found` Failure Diagnosis row.
+- **Label:** VERIFIED. It also explains why no v10 tool could be exercised (see "Still UNVERIFIED"
+  below).
+
+### E-5 — v10.3.0 server CLI surface — VERIFIED (from `mcp-for-unity --help` on 10.3.0)
+
+```
+mcp-for-unity [-h] [--default-instance INSTANCE] [--transport {stdio,http}] [--http-url URL]
+              [--http-host HOST] [--http-port PORT] [--http-remote-hosted]
+              [--api-key-validation-url URL] [--api-key-login-url URL]
+              [--api-key-cache-ttl SECONDS] [--api-key-service-token-header HEADER]
+              [--api-key-service-token TOKEN] [--unity-instance-token TOKEN] [--pidfile PATH]
+              [--project-scoped-tools]
+```
+
+- **New in v10** relative to the 9.6.8 launch line: `--http-host` / `--http-port` as separate
+  options alongside `--http-url`; `--http-remote-hosted`; the `--api-key-*` group (remote-hosted
+  auth); and `--default-instance`. `--project-scoped-tools` and `--unity-instance-token` carry over.
+- **Consequence for the docs:** this **confirms** the stdio fallback form already documented
+  (`uvx --from mcpforunityserver mcp-for-unity --transport stdio`) is correct — it was **not**
+  changed. The only addition is that pinning a version in `--from` is the real-world convention,
+  matching what Unity's own launcher does.
+- **Documented in:** POWER.md -> `#### v10.3.0 server CLI surface` plus a pointer added to the
+  existing stdio note; README.md and the four localized READMEs -> the CLI paragraph at the end of
+  each upgrade section, in each file's own language.
+- **Label:** VERIFIED (CLI help output on 10.3.0).
+
+### Verification status labels corrected (Task 5)
+
+Blanket "all v10 claims are documentation-derived" statements were replaced with a statement that
+splits observed from not-observed:
+
+- **POWER.md** -> the Available-MCP-Tools verification-scope note now has three parts: what was
+  checked on 9.6.8; what the 10.3.0 upgrade **did** verify (release metadata, CLI surface, two-pin
+  architecture, failure modes, recovery) and what it **did not** (tool inventory, group catalog,
+  per-tool contracts, `asset_gen` and its default state); and the explicit warning that the three
+  behavioural findings below it were observed on 9.6.8 and must be re-checked on 10.3.0 (C-2
+  `batch_execute`, D-1 `unity_docs` name form, D-2 `find_in_file` `.cs` coercion). The Unity 6.4
+  Baseline table gained a "Live-verified bridge upgrade" row with the same split. The Tool Groups
+  table is now explicitly labelled documentation-derived (the live `list_groups` seen was 9 groups /
+  43 tools on 9.6.8, not 10 groups / 49 tools). The `asset_gen` subsection is labelled
+  documentation-derived in full, **including whether the group is off by default**, which matters
+  because those tools spend the developer's third-party credits.
+- **README.md and the four localized READMEs** -> the Unity 6.4 baseline blockquote now says the
+  bridge was upgraded to 10.3.0 and the upgrade observed, but no v10.3.0 tool was ever called, so
+  v10.3.0's tool inventory and per-tool behaviour remain documentation-derived. Each in its own
+  language.
+- **`steering/unity-general.md`** -> the "Bridge target" bullet under Unity Version Baseline now
+  enumerates observed vs. documentation-derived for v10.3.0 and names the three 9.6.8-only
+  behavioural findings that need re-checking.
+- The per-file "Verification scope" notes in `steering/asset-automation.md` and
+  `steering/workflow-automation.md` already said their v10.3.0 content is reconciled against the
+  generated tool reference and **not** live-verified. That is still exactly right, so they were left
+  alone.
+
+### Still UNVERIFIED after Round 4 — stated plainly
+
+- **The v10.3.0 tool inventory and every per-tool contract.** No v10 tool was ever called: E-4's
+  session invalidation hit before any could be. So v10's tool count, the group catalog, the
+  `asset_gen` group — **including whether it is off by default**, which matters because it spends
+  third-party credits — and all per-action parameters remain documentation-derived.
+- **All mutating actions** — nothing in the user's project was modified in any round.
+- **`run_tests` / `get_test_job`** end to end.
+- **`manage_build`** — still blocked by the user's own `permissions.yaml` MCP deny rule (C-5).
+- **Script-tool success paths** — the verification project contains zero `.cs` assets (D-2).
+- **Whether the Round-2 / Round-3 findings still hold on 10.3.0.** C-2 (`batch_execute` bypassing
+  server-layer action handlers), D-1 (`unity_docs` requiring an unqualified `class_name`) and D-2
+  (`find_in_file` coercing the `uri` extension to `.cs`) were all observed on **9.6.8** and must be
+  re-checked on 10.3.0.
+- `manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths — packages absent.
+
+### Preserved unchanged by Round 4
+
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the restored `manage_editor` `telemetry_status` / `telemetry_ping`
+rows (real, direct-call-only actions per C-1); the `batch_execute` server-layer divergence caveat
+(C-2); tool-group activation phrased as conditional troubleshooting only, never as a mandatory step
+and never asserted as the root cause (C-3); the `permissions.yaml` MCP deny-rule root cause and the
+`power-<powerName>-<serverName>` namespace (C-5); the pidfile port-discovery guidance (C-4);
+`class_name` never `type_name`; the prefixed `by_name`-style `search_method` values; the Unity 6.4
+obsolete-physics mapping with the 2D-only `isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is
+still valid and nothing anywhere tells a reader to change it); the `unity_docs` unqualified-name
+trap; and `find_in_file` being C#-script-only. The stdio fallback command form was **confirmed, not
+changed**. No `src/*.ts`, template, hook or `mcp.json` file was touched by this pass, and each
+localized README stays in its own language.

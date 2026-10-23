@@ -6,7 +6,7 @@
 
 IDE を Unity 開発の AI アシスタントに変換します。MCP（Model Context Protocol）を通じて自然言語で Unity Editor を操作し、アセット管理、シーン構築、ビルド自動化、パフォーマンス分析、コード品質チェックなどをカバーします — 40 以上の TypeScript ツールモジュールと 15 のドメインナレッジファイルを内蔵。
 
-> **Unity 6.4 を基準バージョンとして対応**: 本 Power は **Unity 6.4**（リリースストリーム `6000.4`、最新パッチ `6000.4.12f1`、2026-06-17 リリース）と **MCP for Unity v10.3.0 以降（最低 v10.0.0）** のツール群を対象としています。本 Power がサポートする最小 Editor バージョンは **Unity 6.0（`6000.0`）** です。ブリッジ自体の下限はさらに低く Unity 2021.3 LTS です。本ドキュメントのガイダンスは **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8、Windows Editor、2026-10-21** の組み合わせで実機確認しました — Unity 6.5、6.6 以降の 6.x でも動作する見込みですが、ここでは検証**していません**。Unity 6.4 は Update リリースであり、そのパッチストリームは 2026-06-17 に終了しているため、バージョンを固定して本番運用に入るプロジェクトは **Unity 6.3 LTS**（2027 年 12 月までサポート）または現行の Update リリースへ移行してください。**Unity 6.0 LTS は 2026-10-16 にサポートが終了しました — 「安全な旧バージョン」としても推奨しません。** 出典: [unity.com/releases](https://unity.com/releases/) および [endoflife.date/unity](https://endoflife.date/unity)（いずれも 2026-10-21 取得）。
+> **Unity 6.4 を基準バージョンとして対応**: 本 Power は **Unity 6.4**（リリースストリーム `6000.4`、最新パッチ `6000.4.12f1`、2026-06-17 リリース）と **MCP for Unity v10.3.0 以降（最低 v10.0.0）** のツール群を対象としています。本 Power がサポートする最小 Editor バージョンは **Unity 6.0（`6000.0`）** です。ブリッジ自体の下限はさらに低く Unity 2021.3 LTS です。本ドキュメントのガイダンスは **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8、Windows Editor、2026-10-21** の組み合わせで実機確認しました — Unity 6.5、6.6 以降の 6.x でも動作する見込みですが、ここでは検証**していません**。そのマシンのブリッジはその後**実際に 10.3.0 へアップグレードし、アップグレードそのものも観察記録しました**（[ブリッジのアップグレード：同期が必要な 2 つのバージョン固定](#ブリッジのアップグレード同期が必要な-2-つのバージョン固定)を参照）。ただし **10.3.0 ではツールを 1 つも呼び出せていません** — 再起動によってクライアントの MCP セッションが先に無効化されたためで、v10.3.0 のツール一覧と各ツールの挙動は依然としてドキュメント由来であり、実機観察ではありません。Unity 6.4 は Update リリースであり、そのパッチストリームは 2026-06-17 に終了しているため、バージョンを固定して本番運用に入るプロジェクトは **Unity 6.3 LTS**（2027 年 12 月までサポート）または現行の Update リリースへ移行してください。**Unity 6.0 LTS は 2026-10-16 にサポートが終了しました — 「安全な旧バージョン」としても推奨しません。** 出典: [unity.com/releases](https://unity.com/releases/) および [endoflife.date/unity](https://endoflife.date/unity)（いずれも 2026-10-21 取得）。
 >
 > **6.4 固有のガイダンスが扱う内容**: URP は **Render Graph の一本道** になりました — URP Compatibility Mode と `URP_COMPATIBILITY_MODE` スクリプティング定義は 6.4 で完全に削除され、旧来のカスタム render pass の逃げ道ではなくなりました。GPU Resident Drawer（Forward+/Deferred+ 向け GPU インスタンシング、2D Renderer では利用不可）と、刷新された Rendering Statistics ウィンドウ（どのバッチング経路がドローコールを吸収したかを内訳表示し、単一の数値では報告しません）。`InstanceID` は `EntityId` に置き換えられたため、ブリッジが返す instance id は不透明なトークンとして扱ってください — そのままブリッジに返すだけにし、演算・ソート・パースは行わないこと。iOS では PVRTC が削除されました（ASTC または ETC のみ）。Web ビルドでは `[BurstCompile]` ジョブがバックグラウンドワーカーで実行されますが、マルチスレッド*レンダリング*は依然として利用できません。6.4 からは URP 2D のフレームループにカスタム render pass を注入できます。OculusXR パッケージは非推奨となり OpenXR プラグインへの移行が推奨され、HoloLens 2 のサポートとそのプラグインは 6.4 で非推奨になりました（OculusXR が実際に削除されるバージョンは未検証です）。Scripting Backend: `manage_build` が受け付けるのは **`mono` または `il2cpp` のみ** で、CoreCLR を本 Power から選択することはできません。出典: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) および [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64)（いずれも 2026-10-21 取得）。
 >
@@ -70,7 +70,7 @@ Unity Accelerator (Intelligence Layer)
 
 - [Unity Editor](https://unity.com/) がインストール済みでプロジェクトが開いていること — 対象は Unity 6.4、本 Power の最小サポートは Unity 6.0
 - [Kiro IDE](https://kiro.dev/docs/getting-started/installation) がインストール済みであること（他の MCP 互換 IDE でも動作可能）
-- **MCP for Unity v10.3.0 以降（最低 v10.0.0）** — プロジェクトの `com.coplaydev.unity-mcp` が 9.6.8 以前の場合はアップグレードしてください。9.6.8 → 10.3.0 の差分はツールの追加のみで、移行コストはありません
+- **MCP for Unity v10.3.0 以降（最低 v10.0.0）** — プロジェクトの `com.coplaydev.unity-mcp` が 9.6.8 以前の場合はアップグレードしてください。9.6.8 → 10.3.0 の差分はツールの追加のみで、移行コストはありません。作業前に[ブリッジのアップグレード：同期が必要な 2 つのバージョン固定](#ブリッジのアップグレード同期が必要な-2-つのバージョン固定)を読んでください。C# パッケージと Python サーバーは別々にバージョン固定されており、片方だけ上げるとブリッジが壊れます
 - **Python 3.10 以降と [`uv`](https://docs.astral.sh/uv/)** — ブリッジのサーバーは `uv`/`uvx` から起動される Python パッケージ（PyPI の `mcpforunityserver`）です。MCP for Unity のセットアップウィザードが `uv` をインストールできます。Windows で PATH 上に複数の `uv.exe` がある場合は「Choose UV Install Location」を WinGet のシム（`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`）に向けてください
 - Node.js 18+（開発/型チェック用のみ）
 
@@ -88,19 +88,28 @@ IDE → 左パネルの Powers アイコンをクリック →「+」ボタン�
 
    ![ステップ 1：Package Manager を開く](image/Enable-Unity-MCP-Server-1.png)
 
-2. 「+」をクリック →「Add package from git URL...」→ 以下の URL を貼り付けて Add をクリック：
+2. 「+」をクリック →「Add package from git URL...」→ 以下の URL を貼り付けて Add をクリック。**末尾の `#v10.3.0` タグは固定です。`#main` に置き換えないでください：**
 
    ```
-   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0
    ```
 
    ![ステップ 2：git URL からパッケージを追加](image/Enable-Unity-MCP-Server-2.png)
 
-   `main` を追い続けたくない場合、git URL 以外にも次の方法があります：
+   > **これは訂正された手順です。** 以前の README では `...?path=/MCPForUnity#main` を指定するよう書かれていましたが、それは誤りで、**実際のインストール環境でこの不具合を再現・確認しました（2026-10-21 実機）**。Unity は git UPM 依存を**一度だけ**解決し、その結果のコミットをキャッシュします。`#main` のような動くリファレンスはブランチを**追跡しません**。検証マシンの `Packages/manifest.json` は `#main` でしたが、実際にインストールされていたパッケージは **9.6.8** のままで、上流はすでに **10.3.0** — 数か月にわたり旧版に取り残され、Package Manager にも更新の通知は一切出ませんでした。数か月前のブリッジは本 Power が記載するツール群と一致しないため、これは「AI が Unity を操作できない」の直接的な原因のひとつです。
 
-   - **リリースを固定**：`#main` をタグに置き換える（例：`#v10.3.0`）
-   - **OpenUPM**：`openupm add com.coplaydev.unity-mcp`
+   タグ固定の git URL 以外の方法：
+
+   - **OpenUPM**：`openupm add com.coplaydev.unity-mcp` — レジストリ経由のインストールなので、新バージョンが出ると Package Manager が更新を提示します
    - **Asset Store**：「MCP for Unity」のリスティングから Package Manager → My Assets
+
+   **後でアップグレードするときはタグを変更してください** — 依存文字列が変わることで Unity が再解決します。`Packages/manifest.json` を直接編集するか：
+
+   ```json
+   "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0"
+   ```
+
+   …あるいはパッケージを削除して、新しいタグで git URL を再追加します。そのうえで[ブリッジのアップグレード：同期が必要な 2 つのバージョン固定](#ブリッジのアップグレード同期が必要な-2-つのバージョン固定)に従ってください — UPM パッケージはアップグレードの半分にすぎません。
 
 3. 初回インポート時にパッケージが**セットアップウィザード**を開きます。その後の常設 UI は **Window → MCP for Unity** で、サーバーの起動/停止、transport の切り替え、クライアントの再設定を行えます。
 
@@ -195,6 +204,53 @@ macOS/Linux（PATH 上の `uvx` で通常は問題ありません）：
   }
 }
 ```
+
+### ブリッジのアップグレード：同期が必要な 2 つのバージョン固定
+
+MCP for Unity は**2 つのコンポーネントで構成され、それぞれが独立にバージョンを固定しています**。アップグレード時に最も混乱するのがこの点です。以下はすべて **2026-10-21** に実機で実施・観察した 9.6.8 → 10.3.0 のアップグレード記録です。
+
+| コンポーネント | 内容 | バージョン固定の場所 |
+|---|---|---|
+| UPM パッケージ（C# Editor 側） | Unity プロジェクトに取り込む `com.coplaydev.unity-mcp` | `Packages/manifest.json` — git タグ、またはレジストリのバージョン |
+| Python MCP サーバー | PyPI の `mcpforunityserver`、実行エントリは `mcp-for-unity` | Unity が書き出す起動コマンドラインの `--from "mcpforunityserver==<バージョン>"` 引数 |
+
+アップグレード前に観測したサーバー起動コマンドライン（原文のまま）：
+
+```
+uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url http://127.0.0.1:8080
+  --project-scoped-tools --pidfile <UnityProject>\Library\MCPForUnity\RunState\mcp_http_8080.pid
+  --unity-instance-token <token>
+```
+
+**UPM パッケージを上げても Python サーバーは上がりません。** manifest を `#v10.3.0` に変更し、Unity が v10.3.0 の C# を正常にインポート・コンパイルし終えた後も、稼働中のサーバーは `9.6.8` を報告し続けました — 古いキャッシュを実行していたためです。
+
+**バージョンの不一致はブリッジを壊します。しかも壊れ方が「部分的」で非常に分かりにくいです。** C# が 10.3.0、Python が 9.6.8 の状態では、Unity を必要とするツール呼び出しはすべて `{"success":false,"error":"Unity session not available; please retry","data":{"reason":"no_unity_session",...}}` を返す一方、サーバー層だけで完結するツール（`debug_request_context` など）は正常に応答し続けます。サーバーは生きているように見えるのに、Unity に触れる操作は何ひとつ動きません。
+
+#### アップグレード手順
+
+1. **UPM のバージョン固定を変更** — `Packages/manifest.json` のタグを編集するか、パッケージを削除して新しいタグで git URL を再追加します。`#main` のような動くリファレンスは再解決されません。
+2. *任意。回線が遅い場合は推奨：* `uvx --from "mcpforunityserver==10.3.0" mcp-for-unity --help` で **uv キャッシュを事前に用意**します。実機ではこれを行ったため、Unity が後から `--offline` でサーバーを起動できました。
+3. **Unity にインポートとコンパイルをさせ**、editor log に `error CS` がないことを確認します。
+4. **古いサーバーのプロセスチェーンを停止**（`uvx` → `uv` → `mcp-for-unity` → `python`）。自分で新バージョンに切り替わることはありません。
+5. **残った pidfile を削除**（ある場合）：`<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid`。実機ではプロセスを終了させてもこのファイルが残り、手動で削除する必要がありました。
+6. **Unity からサーバーを起動**：`Window → MCP for Unity → Start Server`。**この明示的な操作が必須でした** — パッケージのアップグレード後も、プロセスチェーンを終了させた後も、サーバーは自動的に再起動しませんでした。手動起動すると、v10.3.0 の C# を実行している Unity が一致するバージョン固定でサーバーを再起動します（`uvx --offline --from "mcpforunityserver==10.3.0" ...`）。新しい uv キャッシュ archive が使われ、ポートは再び待ち受け状態になり、両コンポーネントが 10.3.0 になりました。
+7. **Kiro の MCP サーバーを再接続**（MCP Server パネル → reconnect、または Kiro を再起動）。アップグレードは必ずクライアントの MCP セッションを無効化します — 次の項を参照。
+8. **両方のバージョンが一致しているか確認**：`debug_request_context` がサーバーのバージョンを、`manage_packages(action: "list_packages")` がパッケージのバージョンを報告します。
+
+#### よく似ているが別物の 2 つのエラー
+
+サーバーが 10.3.0 で再起動した後、すでに接続済みだったクライアントの呼び出しは `{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Session not found"}}` で失敗しました。これは **MCP トランスポートのセッション**であり、Unity ブリッジではありません：
+
+| エラー | どの層か | 対処 |
+|---|---|---|
+| `Session not found`（`-32600`） | Kiro と Python サーバーの間の MCP トランスポートセッション | Kiro の MCP サーバーを再接続、または Kiro を再起動。バージョン固定とは無関係 |
+| `no_unity_session` /「Unity session not available」 | Python サーバーと Editor の間の Unity ブリッジ | まず 2 つのバージョン固定を一致させる。すでに一致しているなら、Editor が開いているか、コンパイル中でないかを確認。再接続はこのエラーには無効 |
+
+#### v10.3.0 とは
+
+v10.3.0 は現在の正式（prerelease ではない）リリースです（GitHub タグ `v10.3.0`、2026-10-04 公開、アセット `unity-mcp-10.3.0.mcpb`）。対応する `mcpforunityserver-10.3.0` も PyPI にあります（同じ分に公開、Python 3.10 以上が必要）。本 Power に関係するリリースノート項目：Unity 6000.6 の `InstanceIDToObjectCompat` 修正、stdio が再接続のバックオフ前にポート探索を更新するようになった修正、`read_console` が Console ウィンドウのフィルタで項目を隠されないようにする修正、ツールがツール一覧に見つからないときどこを見るかという上流ドキュメントの追加、新しい Blender Bridge、そして fal / OpenRouter のアセット生成モデルの自動検出。
+
+v10.3.0 のサーバー CLI（10.3.0 で `mcp-for-unity --help`）は `--default-instance`、`--transport {stdio,http}`、`--http-url`、`--http-host`、`--http-port`、`--http-remote-hosted`、`--api-key-*` 系（リモートホスティング時の認証用）、`--unity-instance-token`、`--pidfile`、`--project-scoped-tools` を受け付けます。これにより上記の stdio フォールバックの書式が正しいことも確認できました。補足すべき点は 1 つだけで、`--from` でバージョンを固定するのが実運用の慣習であり、Unity 自身のランチャーもそうしているということです。
 
 ### 自動ガイダンス Hook のインストール（推奨）
 
@@ -333,6 +389,9 @@ kiro-unity-accelerator/
 | 問題 | 解決策 |
 |------|--------|
 | Kiro が Unity に接続できない | Unity Editor がプロジェクトを開いた状態であることを確認 → `Window → MCP for Unity` → ステータスパネルが **Connected** であることを確認（そうでなければ `Restart Server`） |
+| Unity 関連の呼び出しがすべて `Unity session not available; please retry` /「`"reason":"no_unity_session"`」を返すが、`debug_request_context` は正常に応答する | **まず疑うべきは、C# パッケージと Python サーバーのバージョン不一致です。** 2026-10-21 実機確認 — C# が 10.3.0、Python が 9.6.8 のときの症状がまさにこれで、部分的な失敗なのでサーバーは健全に見えます。`debug_request_context` でサーバーのバージョンを、`manage_packages(action: "list_packages")` でパッケージのバージョンを確認し、異なれば[アップグレード手順](#アップグレード手順)に従ってください。すでに一致している場合は Editor が開いているか、コンパイル中でないかを確認します。`Session not found` とは**別物**で、Kiro を再接続しても解決しません |
+| `Session not found`（JSON-RPC `-32600`） | **MCP トランスポートのセッション**が失われています。ほぼ常にサーバーが再起動したためです。Kiro の MCP Server パネルで再接続するか Kiro を再起動して、新しいセッションを取得しツール一覧を読み直してください。ブリッジのアップグレード時には必ず発生します。`no_unity_session`（Unity ブリッジ層）とは別物です |
+| 旧バージョンのブリッジから動かず、更新も提示されない | `Packages/manifest.json` を確認してください。その行が `#main` で終わっている場合、Unity は一度解決した結果をキャッシュしているだけで、ブランチを追跡することはありません。明示的なタグ（`#v10.3.0`）に変更して再解決を強制し、[アップグレード手順](#アップグレード手順)に従ってください |
 | ポート 8080 が使用中 (Port 8080 is already in use by another program) | MCP for Unity の設定でポートを変更（上流は 8090 を提案）し、**Configure All Detected Clients** を再実行、Kiro を再起動、`mcp.json` の `url` を Unity ウィンドウ表示のポートに合わせる |
 | ドキュメント記載のツールが「存在しない」と報告される | そのツールのグループが無効な可能性があります — bridge が宣言するデフォルトは `core` のみですが、実機検証したマシンでは有効化なしで全ツールが呼び出せました。`manage_tools(action: "list_groups")` → `manage_tools(action: "sync")` → `manage_tools(action: "activate", group: "<名前>")` の順に実行し、その後 MCP サーバーの更新または再接続を行ってください（Kiro はツール一覧をキャッシュすることがあります）。`list_groups` は正常に動くグループにも `enabled: false` を返しうるため、そのフィールドではなく再試行が成功したかどうかで判断してください |
 | `Tool call denied by user's permissions` | Unity に届く前に Kiro の権限ルールが呼び出しを拒否しています。bridge の問題ではありません。Kiro は本 Power のサーバーを `power-kiro-unity-accelerator-unity-mcp` として公開するため、`~/.kiro/settings/permissions.yaml`（およびワークスペース階層の同名ファイル）に `capability: mcp` かつ `effect: deny` で `power-<powerName>-<serverName>/<tool>` に一致するルールがないか確認し、そのツールを使いたい場合はルールを緩めてください。本 Power を検証したマシンでは、このルールが `manage_build` を拒否し、ビルドワークフロー全体が実行不能でした |

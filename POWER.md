@@ -135,7 +135,8 @@ This Power targets **Unity 6.4** (release stream `6000.4`) and the MCP tool surf
 | Primary target / verified baseline | **Unity 6.4 (`6000.4`)**, pinned patch **`6000.4.12f1`** (released 17 Jun 2026) |
 | Minimum supported Editor for this Power | **Unity 6.0 (`6000.0`)** — below that, the Build Profiles params on `manage_build` (Unity 6+ only) and the Render Graph / GPU Resident Drawer guidance throughout `steering/` simply do not apply |
 | Minimum Editor for the bridge itself | **Unity 2021.3 LTS** — the bridge's floor is lower than this Power's |
-| Live-verified pairing | Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21 |
+| Live-verified pairing | Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21 — every tool/action/parameter claim in this document was checked on **9.6.8** |
+| Live-verified bridge upgrade | **9.6.8 → 10.3.0 performed and observed on the same machine, 2026-10-21.** Observed: the release/tag/PyPI facts, the v10.3.0 server CLI surface, the two-pin architecture, the upgrade failure modes and the recovery ([Upgrading the bridge](#upgrading-the-bridge--two-independent-version-pins)). **Not** observed: the v10.3.0 tool inventory and every per-tool contract on v10.3.0 — the restart invalidated the client's MCP session before any v10 tool could be called |
 
 **Forward compatibility.** This Power is expected to work on Unity 6.5, 6.6 and later 6.x releases — but those streams were **not** live-verified here, so treat any 6.5+-specific behaviour as forward-looking and unverified until a call on the connected Editor proves it.
 
@@ -145,7 +146,7 @@ This Power targets **Unity 6.4** (release stream `6000.4`) and the MCP tool surf
 - **Unity 6.0 LTS support ended 16 Oct 2026 — never recommend it**, including as a "safe older version".
 - Unity 6.4 remains the right target for *this* Power's claims, because it is the only stream anything here was actually checked against.
 
-If a **direct** tool call fails with an "Unknown action" or a validation error, the connected bridge build is likely older than v10.0.0 — tell the developer to update `com.coplaydev.unity-mcp` rather than working around it with legacy syntax. If the same error came from inside a `batch_execute`, conclude nothing until you have retried it as a direct call ([`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions)).
+If a **direct** tool call fails with an "Unknown action" or a validation error, the connected bridge build is likely older than v10.0.0 — tell the developer to update `com.coplaydev.unity-mcp` rather than working around it with legacy syntax, and point them at [Upgrading the bridge](#upgrading-the-bridge--two-independent-version-pins), because updating the UPM package alone leaves the Python server behind. If the same error came from inside a `batch_execute`, conclude nothing until you have retried it as a direct call ([`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions)).
 
 Two things are still worth a runtime check rather than an assumption, because they vary per-project regardless of Unity version:
 - **Render pipeline**: confirm URP vs. Built-in via `manage_graphics(action: "pipeline_get_info")` before recommending pipeline-specific features like the GPU Resident Drawer (see `performance-analysis.md`)
@@ -162,10 +163,19 @@ Two things are still worth a runtime check rather than an assumption, because th
 ### Installation Steps
 
 1. **Install the MCP bridge UPM package in Unity** — any one of:
-   - **Git URL (default)**: Unity Editor → Window → Package Manager → Add package from git URL: `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main`
-   - **Pin a release** instead of tracking `main` by replacing `#main` with a tag, e.g. `#v10.3.0`
-   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp`
+   - **Git URL pinned to a release tag (use this)**: Unity Editor → Window → Package Manager → Add package from git URL: `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0`
+   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp` — a registry install, so Package Manager shows an update when a newer version ships
    - **Asset Store**: the "MCP for Unity" listing, then Package Manager → My Assets
+
+   > **Corrected instruction — do not use `#main`.** Earlier revisions of this document told you to add `...?path=/MCPForUnity#main`. That was wrong, and the failure it causes was **reproduced on a real install (VERIFIED 2026-10-21)**. Unity resolves a git UPM dependency **once** and then caches the resolved commit; a moving ref such as `#main` does **not** track the branch. The verification machine's `Packages/manifest.json` said `#main` while the resolved package was **9.6.8** and upstream was already **10.3.0** — stranded for months, with no update prompt anywhere in Package Manager. A months-old bridge does not match the tool surface documented here, which is a direct contributor to "the agent cannot drive Unity".
+   >
+   > **How to upgrade later.** Changing the ref changes the dependency string, and that is what forces Unity to re-resolve. Either edit the tag in `Packages/manifest.json`:
+   >
+   > ```json
+   > "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0"
+   > ```
+   >
+   > …or remove the package and re-add the git URL with the new tag. Then read [Upgrading the bridge](#upgrading-the-bridge--two-independent-version-pins) — **the UPM package is only half of the upgrade.**
 
 2. **Install this Power in the IDE**:
    - Open the IDE → Powers panel → Install this Power
@@ -175,6 +185,94 @@ Two things are still worth a runtime check rather than an assumption, because th
    - Confirm the status panel reads **Connected**. `Restart Server` is the recovery action
    - The server listens on a local MCP endpoint whose port the window displays (local-only loopback — communication that stays on the local computer and is not accessible from the network — see Security Note below)
    - Then pick **exactly one** registration path as described in [Onboarding](#1-pick-exactly-one-mcp-registration-path)
+
+### Upgrading the bridge — two independent version pins
+
+**MCP for Unity is two components, and each pins its own version separately.** This is the single most confusing thing about upgrading it, and it was observed end to end on a live 9.6.8 → 10.3.0 upgrade (**VERIFIED 2026-10-21**).
+
+| Component | What it is | Where its version is pinned |
+|---|---|---|
+| UPM package (C# editor side) | `com.coplaydev.unity-mcp`, imported into the Unity project | `Packages/manifest.json` — the git tag, or the registry version |
+| Python MCP server | PyPI distribution `mcpforunityserver`, console entrypoint `mcp-for-unity` | the `--from "mcpforunityserver==<version>"` argument of the launch command line Unity writes |
+
+The pre-upgrade server launch line, observed verbatim:
+
+```
+uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url http://127.0.0.1:8080
+  --project-scoped-tools --pidfile <UnityProject>\Library\MCPForUnity\RunState\mcp_http_8080.pid
+  --unity-instance-token <token>
+```
+
+…running as the process chain `uvx.exe` → `uv.exe tool uvx --from mcpforunityserver==9.6.8` → `mcp-for-unity.exe` (resolved from uv cache archive `hIhdP2TZcOvbkf3X`) → `python.exe` holding port 8080.
+
+**Upgrading the UPM package does not upgrade the Python server.** After the manifest moved to `#v10.3.0` and Unity imported and compiled the v10.3.0 C# cleanly (the editor log showed the new `Editor/Services/Blender`, `Editor/Tools/AssetGen` and `Editor/Security/SecureKeyStore` trees importing, with zero `error CS`), the still-running server reported `server.version: "9.6.8"` — it was executing the old uv cache archive.
+
+**A C#-vs-Python mismatch breaks the bridge, and it breaks it selectively.** With C# at 10.3.0 and Python at 9.6.8, every Unity-dependent tool call returned:
+
+```json
+{"success": false, "error": "Unity session not available; please retry",
+ "data": {"reason": "no_unity_session", "retry_after_ms": 250}}
+```
+
+…while server-layer-only tools such as `debug_request_context` kept answering normally. So the server looks alive and the client looks connected, yet nothing that touches Unity works. **Treat `no_unity_session` as a version-mismatch symptom first**, not as "Unity is busy" — see [Error Categories](#error-categories).
+
+#### Ordered upgrade procedure
+
+This is the sequence that actually worked on the verified upgrade. Follow it in order.
+
+1. **Change the UPM pin.** Edit the tag in `Packages/manifest.json`, or remove the package and re-add the git URL with the new tag. A moving ref such as `#main` will **not** re-resolve — see [Installation Steps](#installation-steps).
+2. *(Optional, recommended on a slow network)* **Pre-seed the uv cache** so the restart in step 6 is fast: `uvx --from "mcpforunityserver==10.3.0" mcp-for-unity --help`. On the verified upgrade this is why Unity was then able to launch the server with `--offline`.
+3. **Let Unity import and compile** the new package, and confirm the editor log contains no `error CS`.
+4. **Stop the stale server process chain** (`uvx` → `uv` → `mcp-for-unity` → `python`). It does not pick up the new version on its own.
+5. **Remove the stale pidfile** if one is left behind: `<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid`. On the verified upgrade the kill left that file in place and it had to be deleted by hand; the fresh start recreates it.
+6. **Start the server from Unity**: `Window → MCP for Unity → Start Server`. **This explicit action was required** — the server auto-restarted neither after the package upgrade nor after the process chain was killed. Unity, now running the v10.3.0 C#, relaunched it with a matching pin:
+
+   ```
+   uvx --offline --from "mcpforunityserver==10.3.0" mcp-for-unity --transport http
+     --http-url http://127.0.0.1:8080 --project-scoped-tools --pidfile ... --unity-instance-token ...
+   ```
+
+   from a **new** uv cache archive (`i8nZG0Ewwibnn1em`), with port 8080 listening again and both components at 10.3.0.
+7. **Reconnect the MCP client.** The restart invalidates the client's MCP transport session — see [The client session does not survive a server restart](#the-client-session-does-not-survive-a-server-restart). This step is not optional; an upgrade always triggers it.
+8. **Confirm the two pins agree.** `debug_request_context` reports `server.version`; `manage_packages(action: "list_packages")` reports the UPM package version. They must match.
+
+#### The client session does not survive a server restart
+
+After the server came back at 10.3.0, the already-connected client's calls failed with (**VERIFIED 2026-10-21**):
+
+```json
+{"jsonrpc": "2.0", "id": "server-error", "error": {"code": -32600, "message": "Session not found"}}
+```
+
+**This is a different failure from `no_unity_session`, and confusing the two wastes a lot of time:**
+
+| Error | Which layer | What it means | What fixes it |
+|---|---|---|---|
+| `Session not found` (JSON-RPC `-32600`) | the **MCP transport session** between the client and the Python server | the client is presenting a session id the restarted server never issued | reconnect the client — the IDE's MCP Server panel → reconnect, or restart the client. That also re-reads the tool list |
+| `no_unity_session` / `Unity session not available; please retry` | the **Unity bridge** between the Python server and the Editor | the server runs but has no usable Unity session; first suspect is a C#-vs-Python version mismatch, then an Editor that is closed, compiling, or not running the bridge | match the two version pins ([procedure above](#ordered-upgrade-procedure)); if they already match, check the Editor |
+
+A reconnect does **not** fix `no_unity_session`, and matching the versions does **not** fix `Session not found`. Read the error text and pull the right lever.
+
+#### v10.3.0 server CLI surface
+
+From `mcp-for-unity --help` on 10.3.0 (**VERIFIED 2026-10-21**):
+
+```
+mcp-for-unity [-h] [--default-instance INSTANCE] [--transport {stdio,http}]
+              [--http-url URL] [--http-host HOST] [--http-port PORT]
+              [--http-remote-hosted] [--api-key-validation-url URL]
+              [--api-key-login-url URL] [--api-key-cache-ttl SECONDS]
+              [--api-key-service-token-header HEADER] [--api-key-service-token TOKEN]
+              [--unity-instance-token TOKEN] [--pidfile PATH] [--project-scoped-tools]
+```
+
+New in v10 relative to what the 9.6.8 launch line used: `--http-host` / `--http-port` as separate options alongside `--http-url`, `--http-remote-hosted`, the `--api-key-*` group (remote-hosted auth), and `--default-instance`. `--project-scoped-tools` and `--unity-instance-token` carry over unchanged. This also **confirms the stdio fallback form** documented under [MCP Connection](#mcp-connection) — `uvx --from mcpforunityserver mcp-for-unity --transport stdio` — is correct. The one thing to add is that **pinning a version in `--from` is the real-world convention**, which is exactly what Unity's own launcher does.
+
+#### What v10.3.0 is, with sources
+
+- **v10.3.0 is the current non-prerelease release**: GitHub tag `v10.3.0`, published 2026-10-04, release asset `unity-mcp-10.3.0.mcpb`.
+- The matching Python server **`mcpforunityserver-10.3.0`** is on PyPI, uploaded the same minute, `requires_python >= 3.10`.
+- Release-notes items that matter to this Power: a Unity 6000.6 `InstanceIDToObjectCompat` fix; `fix(stdio): refresh port discovery before reconnect backoff`; `fix(read_console): stop the Console window's filters from hiding entries`; upstream documentation on where to look when a tool is missing from the tool list; the new Blender Bridge; and auto-discovery of fal / OpenRouter asset-generation models.
 
 ### Language Setting / 語言設定
 
@@ -206,7 +304,7 @@ mcp-for-unity --transport http --http-url http://127.0.0.1:8080 --project-scoped
   --unity-instance-token <token>
 ```
 
-so `http://127.0.0.1:8080` really is the endpoint in use there. **That is not a universal constant** — the endpoint is whatever `--http-url` the server was launched with. (Two other facts from the same response, worth knowing when a client looks mis-wired: the console script is **`mcp-for-unity`**, not `unity-mcp`, resolved from the `uv` cache; and `server.version` was `9.6.8`, matching the installed UPM package exactly, so a server/package version skew is not a default state to suspect.)
+so `http://127.0.0.1:8080` really is the endpoint in use there. **That is not a universal constant** — the endpoint is whatever `--http-url` the server was launched with. (Two other facts from the same response, worth knowing when a client looks mis-wired: the console script is **`mcp-for-unity`**, not `unity-mcp`, resolved from the `uv` cache; and `server.version` was `9.6.8`, matching the installed UPM package exactly, so a server/package version skew is not the *steady* state. **It is, however, exactly what an upgrade produces** — the UPM package and the Python server are pinned separately, so upgrading one leaves the other behind; see [Upgrading the bridge](#upgrading-the-bridge--two-independent-version-pins).)
 
 **The port is user-editable and 8080 collides with other services** (upstream names Tailscale as an example and suggests moving to 8090). Do the steps in this order:
 
@@ -276,7 +374,7 @@ macOS/Linux (`uvx` on PATH is usually fine):
 }
 ```
 
-> **Note**: the HTTP mode above works without understanding any of this. stdio is only a fallback. Unity's own configurator writes a version-pinned `--from mcpforunityserver==<package version>`; the unpinned form above tracks the newest server.
+> **Note**: the HTTP mode above works without understanding any of this. stdio is only a fallback. Unity's own configurator writes a version-pinned `--from mcpforunityserver==<package version>`; the unpinned form above tracks the newest server. The `--transport stdio` form was **confirmed correct against v10.3.0's own `--help` output**, and version-pinning `--from` is the real-world convention — full option list at [v10.3.0 server CLI surface](#v1030-server-cli-surface).
 
 > **stdio-only behaviour**: `set_active_instance` accepts a bare port number only in stdio mode. Over HTTP the `instance` argument must be `Name@hash` (or an unambiguous hash prefix).
 
@@ -291,6 +389,10 @@ Before executing any MCP operation, perform a lightweight health check:
    - Read the server port shown in that window and confirm the URL in `mcp.json` (or the IDE's MCP panel) matches it — do not assume 8080. The pidfile `<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid` names the port the server is actually serving
    - Confirm only one Unity MCP server is registered (see [Onboarding](#1-pick-exactly-one-mcp-registration-path))
    - If the call came back as *denied by permissions* rather than failing to connect, this is not a connection fault at all — see [Tool denied by the IDE's own permission rules](#tool-denied-by-the-ides-own-permission-rules)
+4. **Read the failure text before diagnosing anything** — three different failures look like "the connection is broken" and each needs a different lever:
+   - `no_unity_session` / `Unity session not available; please retry` → the Python server is up but has no usable Unity session. First suspect a C#-vs-Python version mismatch ([Upgrading the bridge](#upgrading-the-bridge--two-independent-version-pins)), then an Editor that is closed or compiling. Reconnecting the client does nothing for this
+   - `Session not found` (JSON-RPC `-32600`) → the MCP transport session is gone, almost always because the server restarted. Reconnect the client; the version pins are irrelevant here
+   - `Tool call denied by user's permissions` → the IDE blocked it, as above
 
 ### Auto-Activation Hook（自動品質檢查）
 
@@ -314,18 +416,36 @@ Before executing any MCP operation, perform a lightweight health check:
 > **2026-10-21** against MCP for Unity **9.6.8** connected to Unity **6000.4.6f1** (Windows
 > Editor, URP 17.4.0) — read-only calls only; nothing in the project was mutated. Items that
 > could not be exercised on that machine were reconciled against the MCP for Unity **v10.3.0**
-> generated tool reference and Python tool registry, and are marked as such. Not exercised live:
-> every mutating action (`create`/`modify`/`delete`/`build`/`play`), `run_tests`/`get_test_job`
-> end-to-end, `manage_probuilder` (package absent), memory-snapshot actions
-> (`com.unity.memoryprofiler` absent), Cinemachine-dependent `manage_camera` paths (package
-> absent), and the `asset_gen` group (absent at 9.6.8). If a **direct** call fails with an
-> "Unknown action" or a validation error, that error message lists the real valid values and
-> **overrides this document**. That rule holds for direct calls **only** — an identical error
-> raised inside `batch_execute` is not evidence of anything, because the batch path does not
-> reach the server-layer action handlers. See
+> generated tool reference and Python tool registry, and are marked as such.
+>
+> **What the 10.3.0 upgrade did and did not verify.** The bridge was afterwards upgraded to
+> **10.3.0** on that same machine and the upgrade itself was observed — the release/tag/PyPI
+> facts, the server CLI surface, the two-pin architecture, the failure modes and the recovery are
+> all **VERIFIED** ([Upgrading the bridge](#upgrading-the-bridge--two-independent-version-pins)).
+> **But no v10.3.0 tool was ever called**: the restart invalidated the client's MCP session first.
+> So the **v10.3.0 tool inventory, the group catalog and every per-tool contract on v10.3.0 remain
+> documentation-derived**, including the `asset_gen` group and whether it is off by default.
+>
+> **Also still not exercised**, on either version: every mutating action
+> (`create`/`modify`/`delete`/`build`/`play`), `run_tests`/`get_test_job` end-to-end,
+> `manage_build` (denied by the verification machine's own `permissions.yaml` rule), the script
+> tools' success paths (the verification project has zero `.cs` assets), `manage_probuilder`
+> (package absent), memory-snapshot actions (`com.unity.memoryprofiler` absent), and
+> Cinemachine-dependent `manage_camera` paths (package absent).
+>
+> **And because every behavioural finding below was observed on 9.6.8**, three of them must be
+> re-checked before being relied on at 10.3.0:
+> [`batch_execute` bypassing server-layer actions](#batch_execute-and-server-layer-actions),
+> `unity_docs` requiring an unqualified `class_name`, and `find_in_file` coercing the `uri`
+> extension to `.cs`.
+>
+> If a **direct** call fails with an "Unknown action" or a validation error, that error message
+> lists the real valid values and **overrides this document**. That rule holds for direct calls
+> **only** — an identical error raised inside `batch_execute` is not evidence of anything, because
+> the batch path does not reach the server-layer action handlers. See
 > [`batch_execute` and server-layer actions](#batch_execute-and-server-layer-actions).
 
-No tool was renamed or removed between bridge 9.6.8 and v10.3.0 — the difference is purely additive, so a tool documented here exists on both.
+No tool was renamed or removed between bridge 9.6.8 and v10.3.0 — the difference is purely additive, so a tool documented here exists on both. That comparison is documentation-derived: the v10.3.0 side was read from the upstream tool reference, not enumerated from a live 10.3.0 session.
 
 ### `batch_execute` and server-layer actions
 
@@ -352,6 +472,8 @@ The error raised inside the batch lists only the 12 Unity-side `manage_editor` a
 ### Tool Groups
 
 MCP for Unity partitions its entrypoints into **10 groups**. The bridge's own default is `core` only — the other nine are declared opt-in in the source and reported as `enabled: false` by `list_groups`.
+
+> The 10-group / 49-tool catalog in the table below is **documentation-derived** from the v10.3.0 tool reference. The live `list_groups` response that was actually observed came from bridge **9.6.8** and reported **9** groups and 43 tools (no `asset_gen`). Nothing here was enumerated from a live 10.3.0 session — see the verification scope note above.
 
 > **Do not treat group activation as a required preamble.** On the live-verified install (bridge 9.6.8 over HTTP, server launched with `--project-scoped-tools`) **all 43 tools were callable from the start of the session**, before any `manage_tools` call — including `manage_profiler`, `manage_ui`, `execute_code`, `unity_reflect` and `manage_animation`. Activation is **conditional troubleshooting**: run it only when a tool is actually reported as not existing. The table below is the catalog and the ownership map, not a checklist to work through first.
 
@@ -515,7 +637,9 @@ The rule was a `capability: mcp` / `effect: deny` entry in the user's own `permi
 
 The `asset_gen` group (new in bridge v10.0.0, **off by default**) adds six entrypoints: `generate_model`, `generate_image`, `generate_audio`, `import_model`, `import_model_file` and `blender_bridge`. They call third-party services (Tripo/Meshy, fal.ai/OpenRouter, Sketchfab) on a bring-your-own-key basis; keys are entered in the Unity Editor's Asset Gen tab and held in the OS secure store (Keychain / Windows Credential Manager / libsecret), never in MCP parameters or project assets. Calls are asynchronous: they return a `job_id` to poll with `action: "status"`. `blender_bridge` talks to a BlenderMCP-connected Blender over a socket (default `127.0.0.1:9876`, configured under `Window > MCP for Unity > Generative > Blender Bridge`). Importing GLB/glTF results needs **glTFast**; FBX does not.
 
-**Rule: no workflow, steering file or template in this Power may route to `asset_gen`.** These tools spend the developer's third-party API credits, so they are documented here only so an agent recognises them when the group is active — never selected implicitly. Use them only on an explicit, specific request from the developer. This group was absent at bridge 9.6.8 and is **UNVERIFIED** here.
+**Rule: no workflow, steering file or template in this Power may route to `asset_gen`.** These tools spend the developer's third-party API credits, so they are documented here only so an agent recognises them when the group is active — never selected implicitly. Use them only on an explicit, specific request from the developer.
+
+**Everything in this subsection is documentation-derived and UNVERIFIED.** The group was absent at bridge 9.6.8, and although the verification machine was afterwards upgraded to 10.3.0, no v10 tool or group listing was ever called there — the restart invalidated the client's MCP session first. That includes **whether `asset_gen` is off by default**, which matters precisely because these tools spend credits: confirm it with `manage_tools(action: "list_groups")` on the connected bridge rather than relying on the default stated above.
 
 ### MCP Resources (Read-Only)
 
@@ -949,7 +1073,9 @@ There are **15** files in `steering/`, and this table lists all of them:
 | **Duplicate Unity MCP server registrations** | Two Unity servers in the IDE's MCP panel, duplicated or oddly prefixed tool names, calls landing on the wrong server | This Power's `mcp.json` and Unity's `Configure All Detected Clients` both write into `~/.kiro/settings/mcp.json` under different names (`unity-mcp` vs `unityMCP`). Pick exactly one path (see [Onboarding](#1-pick-exactly-one-mcp-registration-path)), disable the other entry, restart the IDE |
 | **`resources/read` unknown-server error** | Reading `mcpforunity://...` fails with an unknown or ambiguous server key | Some clients need the server discovery key passed alongside the URI. List the resources first and reuse the server key exactly as the client reports it; if two Unity servers are registered, fix that first (row above) |
 | MCP tool schema mismatch | "Unknown action" or Pydantic validation error naming valid values, **on a direct call** | The connected bridge version differs from what this Power expects — trust the error message's list of valid values over this document, and suggest the developer update `com.coplaydev.unity-mcp` to v10.3.0 or newer if core actions seem missing. **Direct calls only**: the same error from inside `batch_execute` means nothing (row above) |
-| MCP operation timeout | Unity compiling or building | Wait and retry; inform the developer Unity may be busy |
+| **`no_unity_session` — "Unity session not available; please retry"** | `{"success": false, "error": "Unity session not available; please retry", "data": {"reason": "no_unity_session", "retry_after_ms": 250}}` on every Unity-dependent call, while `debug_request_context` still answers normally | **First suspect: the C# UPM package and the Python server are on different versions.** VERIFIED 2026-10-21 — with C# at 10.3.0 and Python still at 9.6.8 this was the exact symptom, and it is *selective*, so the server looks healthy. Compare `debug_request_context`'s `server.version` against the package version from `manage_packages(action: "list_packages")`; if they differ, run the [ordered upgrade procedure](#ordered-upgrade-procedure). If the two already match, then check the Editor — closed, compiling, or not running the bridge. **Do not confuse this with `Session not found`** (row below): retrying or reconnecting the client will not fix it |
+| **`Session not found` (JSON-RPC `-32600`)** | `{"jsonrpc": "2.0", "id": "server-error", "error": {"code": -32600, "message": "Session not found"}}` | The **MCP transport session** died: the server restarted and never issued the session id the client is presenting. VERIFIED 2026-10-21 immediately after a bridge restart. Reconnect the client (the IDE's MCP Server panel → reconnect, or restart the IDE) to get a new session and re-read the tool list. Every server restart — and therefore **every bridge upgrade** — causes this. Distinct from `no_unity_session`, which is the Unity bridge layer rather than the transport: see [The client session does not survive a server restart](#the-client-session-does-not-survive-a-server-restart) |
+| MCP operation timeout | Unity compiling or building | Wait and retry; inform the developer Unity may be busy. If the error text is specifically `no_unity_session`, it is not a timeout — see that row above |
 | MCP tool error | Asset path not found, invalid params | Parse error, suggest correct path or parameters |
 | Asset operation error | Preset apply failed, file locked | Record failure, continue with remaining assets, report at end |
 | Build error | Compilation failed, missing dependency | Parse `read_console` logs and `manage_build(action: "status")`, provide structured error summary |

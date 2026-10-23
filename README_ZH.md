@@ -4,7 +4,7 @@
 
 Unity 開發自動化加速器。透過 MCP（Model Context Protocol — 一種讓 AI 助手與開發工具互動的標準化協定，讓你可以用自然語言描述想做的事，而不需要手動操作選單或撰寫樣板腳本）以自然語言指揮 Unity Editor，涵蓋資產管理、場景建構、建置自動化、效能分析、程式碼品質檢查等功能 — 內建 40+ TypeScript 工具模組與 15 個領域知識檔案。
 
-> **Unity 6.4 基準版本**：本 Power 以 **Unity 6.4**（發布串流 `6000.4`，最新修補版 `6000.4.12f1`，2026-06-17 發布）與 **MCP for Unity v10.3.0 或更新版本（最低 v10.0.0）** 的工具介面為目標。本 Power 支援的最低 Editor 版本是 **Unity 6.0（`6000.0`）**；橋接套件本身的下限更低（Unity 2021.3 LTS）。所有指引是在 **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8、Windows Editor、2026-10-21** 這組環境上實機查核的 — Unity 6.5、6.6 及之後的 6.x 預期可用，但**並未**在此驗證。Unity 6.4 屬於 Update 版本，其修補串流已於 2026-06-17 結束，因此要鎖定版本進入正式生產的專案，應改用 **Unity 6.3 LTS**（支援至 2027 年 12 月）或前進到目前的 Update 版本。**Unity 6.0 LTS 已於 2026-10-16 結束支援 — 任何情況下都不建議使用，包含當作「比較保險的舊版」。** 來源：[unity.com/releases](https://unity.com/releases/) 與 [endoflife.date/unity](https://endoflife.date/unity)，皆於 2026-10-21 取得。
+> **Unity 6.4 基準版本**：本 Power 以 **Unity 6.4**（發布串流 `6000.4`，最新修補版 `6000.4.12f1`，2026-06-17 發布）與 **MCP for Unity v10.3.0 或更新版本（最低 v10.0.0）** 的工具介面為目標。本 Power 支援的最低 Editor 版本是 **Unity 6.0（`6000.0`）**；橋接套件本身的下限更低（Unity 2021.3 LTS）。所有指引是在 **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8、Windows Editor、2026-10-21** 這組環境上實機查核的 — Unity 6.5、6.6 及之後的 6.x 預期可用，但**並未**在此驗證。該機器上的橋接之後**實際升級到 10.3.0，升級過程本身也已觀察記錄**（見[升級橋接：兩個必須同步的版本鎖定](#升級橋接兩個必須同步的版本鎖定)），但**在 10.3.0 上一個工具都還沒呼叫過** — 重啟先讓 client 的 MCP session 失效了，因此 v10.3.0 的工具清單與各工具行為仍屬文件推導，而非實機觀察。Unity 6.4 屬於 Update 版本，其修補串流已於 2026-06-17 結束，因此要鎖定版本進入正式生產的專案，應改用 **Unity 6.3 LTS**（支援至 2027 年 12 月）或前進到目前的 Update 版本。**Unity 6.0 LTS 已於 2026-10-16 結束支援 — 任何情況下都不建議使用，包含當作「比較保險的舊版」。** 來源：[unity.com/releases](https://unity.com/releases/) 與 [endoflife.date/unity](https://endoflife.date/unity)，皆於 2026-10-21 取得。
 >
 > **6.4 專屬指引涵蓋的內容**：URP **只剩 Render Graph 一條路** — URP Compatibility Mode 與 `URP_COMPATIBILITY_MODE` 腳本定義在 6.4 已完全移除，不再是舊版自訂 render pass 的退路；GPU Resident Drawer（Forward+/Deferred+ 的 GPU Instancing，2D Renderer 不支援）搭配改版後的 Rendering Statistics 視窗，該視窗會分別列出各批次路徑各自吸收了多少 draw call，而不是只給一個數字；`InstanceID` 已被 `EntityId` 取代，因此橋接回傳的 instance id 要視為不透明的 token — 原樣傳回給橋接即可，切勿對它做運算、排序或解析；iOS 的 PVRTC 已移除（只能用 ASTC 或 ETC）；Web 建置現在會把 `[BurstCompile]` job 放到背景工作執行緒執行，但多執行緒*渲染*仍然不支援；6.4 起可以把自訂 render pass 注入 URP 2D 的 frame loop；OculusXR 套件已不建議使用，請改用 OpenXR plug-in，而 HoloLens 2 支援與其 plug-in 在 6.4 已標記為 deprecated（OculusXR 的實際移除版本未經驗證）。Scripting Backend：`manage_build` 只接受 **`mono` 或 `il2cpp`** — 無法透過本 Power 選用 CoreCLR。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) 與 [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64)，皆於 2026-10-21 取得。
 >
@@ -66,7 +66,7 @@ Unity Accelerator (Intelligence Layer)
 
 - 已安裝 [Unity Editor](https://unity.com/) 並開啟專案 — 目標版本是 Unity 6.4，本 Power 支援的最低版本是 Unity 6.0
 - 已安裝 [Kiro IDE](https://kiro.dev/docs/getting-started/installation)
-- **MCP for Unity v10.3.0 或更新版本（最低 v10.0.0）** — 若專案目前安裝的 `com.coplaydev.unity-mcp` 是 9.6.8 或更舊，請升級；9.6.8 → 10.3.0 的差異純粹是新增工具，沒有遷移成本
+- **MCP for Unity v10.3.0 或更新版本（最低 v10.0.0）** — 若專案目前安裝的 `com.coplaydev.unity-mcp` 是 9.6.8 或更舊，請升級；9.6.8 → 10.3.0 的差異純粹是新增工具，沒有遷移成本。動手前請先讀[升級橋接：兩個必須同步的版本鎖定](#升級橋接兩個必須同步的版本鎖定)：C# 套件與 Python 伺服器是分開鎖定版本的，只升級其中一邊會讓橋接壞掉
 - **Python 3.10 以上並搭配 [`uv`](https://docs.astral.sh/uv/)** — 橋接的伺服器是一個 Python 套件（PyPI 上的 `mcpforunityserver`），由 `uv`/`uvx` 啟動。MCP for Unity 的安裝精靈可以幫你裝 `uv`；在 Windows 上，如果 PATH 裡有多份 `uv.exe`，請把「Choose UV Install Location」指到 WinGet 的 shim（`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`）
 - Node.js 18+（僅開發/型別檢查需要，基本使用不需要。若尚未安裝，請參閱 [Node.js 官方安裝指南](https://nodejs.org/)）
 
@@ -84,19 +84,28 @@ Kiro → 左側面板點擊 Powers 圖示 → 點擊「+」按鈕 → 選擇「A
 
    ![步驟 1：開啟 Package Manager](image/Enable-Unity-MCP-Server-1.png)
 
-2. 點擊「+」→「Add package from git URL...」→ 貼上以下網址並點擊 Add：
+2. 點擊「+」→「Add package from git URL...」→ 貼上以下網址並點擊 Add。**請注意結尾鎖定的 `#v10.3.0` tag，不要改成 `#main`：**
 
    ```
-   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0
    ```
 
    ![步驟 2：從 git URL 新增套件](image/Enable-Unity-MCP-Server-2.png)
 
-   如果不想追著 `main` 跑，git URL 還有這些替代方式：
+   > **這是一條更正後的指示。** 本 README 先前版本叫你填 `...?path=/MCPForUnity#main`，那是錯的，而且**這個失敗已在實機安裝上重現並確認（2026-10-21 實測）**。Unity 對 git UPM 依賴只會解析**一次**，之後就把解析到的 commit 快取起來；像 `#main` 這種會移動的 ref **不會**跟著分支更新。驗證機器的 `Packages/manifest.json` 寫的是 `#main`，但實際安裝的套件還停在 **9.6.8**，上游卻早已是 **10.3.0** — 就這樣被困在舊版好幾個月，Package Manager 也完全不會提示有更新。數個月前的橋接版本已經對不上本 Power 文件記載的工具介面，這正是「AI 無法驅動 Unity」的直接原因之一。
 
-   - **鎖定某個 release**：把 `#main` 換成 tag，例如 `#v10.3.0`
-   - **OpenUPM**：`openupm add com.coplaydev.unity-mcp`
+   除了鎖定 tag 的 git URL，也可以用：
+
+   - **OpenUPM**：`openupm add com.coplaydev.unity-mcp` — 這是 registry 安裝，有新版時 Package Manager 會主動顯示更新
    - **Asset Store**：「MCP for Unity」商品頁，再到 Package Manager → My Assets
+
+   **之後要升級時，請改掉 tag** — 改動依賴字串才會讓 Unity 重新解析。可以直接編輯 `Packages/manifest.json`：
+
+   ```json
+   "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0"
+   ```
+
+   …或是移除套件後，用新的 tag 重新加入 git URL。接著請照[升級橋接：兩個必須同步的版本鎖定](#升級橋接兩個必須同步的版本鎖定)操作 — UPM 套件只是升級的一半。
 
 3. 套件第一次匯入時會開啟**安裝精靈（setup wizard）**。之後常駐的 UI 是 **Window → MCP for Unity**，可在此啟動/停止伺服器、切換 transport、重新設定 client。
 
@@ -191,6 +200,53 @@ macOS/Linux（PATH 上的 `uvx` 通常就可以）：
   }
 }
 ```
+
+### 升級橋接：兩個必須同步的版本鎖定
+
+MCP for Unity 其實是**兩個元件，而且各自獨立鎖定版本**。這是升級它最容易搞混的地方；以下全部是 **2026-10-21** 在實機上完成並觀察到的 9.6.8 → 10.3.0 升級過程。
+
+| 元件 | 是什麼 | 版本鎖在哪裡 |
+|---|---|---|
+| UPM 套件（C# Editor 端） | 匯入 Unity 專案的 `com.coplaydev.unity-mcp` | `Packages/manifest.json` — git tag 或 registry 版本號 |
+| Python MCP 伺服器 | PyPI 上的 `mcpforunityserver`，執行檔入口是 `mcp-for-unity` | Unity 啟動伺服器時命令列上的 `--from "mcpforunityserver==<版本>"` 參數 |
+
+升級前觀察到的伺服器啟動命令列（原文照錄）：
+
+```
+uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url http://127.0.0.1:8080
+  --project-scoped-tools --pidfile <UnityProject>\Library\MCPForUnity\RunState\mcp_http_8080.pid
+  --unity-instance-token <token>
+```
+
+**只升級 UPM 套件不會升級 Python 伺服器。** manifest 改成 `#v10.3.0`、Unity 也把 v10.3.0 的 C# 乾淨匯入並編譯完成之後，還在執行中的伺服器仍回報版本 `9.6.8` — 它跑的是舊的快取副本。
+
+**版本不一致會讓橋接壞掉，而且是「選擇性」地壞，因此極難判斷。** C# 在 10.3.0、Python 還在 9.6.8 的狀態下，所有需要 Unity 的工具呼叫都回傳 `{"success":false,"error":"Unity session not available; please retry","data":{"reason":"no_unity_session",...}}`，但純伺服器層的工具（例如 `debug_request_context`）卻照樣正常回應。看起來伺服器活得好好的，實際上任何碰到 Unity 的事都做不了。
+
+#### 升級步驟
+
+1. **改掉 UPM 的版本鎖定** — 編輯 `Packages/manifest.json` 裡的 tag，或移除套件後用新 tag 重新加入 git URL。像 `#main` 這種會移動的 ref 不會重新解析。
+2. *選用，網路慢時建議做：* 先用 `uvx --from "mcpforunityserver==10.3.0" mcp-for-unity --help` **把 uv 快取預熱**。實機升級時正是因為做了這步，Unity 之後才能用 `--offline` 啟動伺服器。
+3. **讓 Unity 匯入並編譯**新套件，確認 editor log 沒有 `error CS`。
+4. **結束舊的伺服器行程鏈**（`uvx` → `uv` → `mcp-for-unity` → `python`）。它不會自己換到新版本。
+5. **刪除殘留的 pidfile**（如果有）：`<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid`。實機升級時殺掉行程後這個檔案留在原地，必須手動刪除。
+6. **從 Unity 啟動伺服器**：`Window → MCP for Unity → Start Server`。**這個動作是必要的** — 套件升級後伺服器沒有自行重啟，行程鏈被殺掉之後也沒有。手動啟動後，已經在跑 v10.3.0 C# 的 Unity 會用相符的版本鎖定重新啟動它（`uvx --offline --from "mcpforunityserver==10.3.0" ...`），用的是全新的 uv 快取 archive，連接埠恢復監聽，兩個元件都在 10.3.0。
+7. **重新連線 Kiro 的 MCP 伺服器**（MCP Server 面板 → reconnect，或重啟 Kiro）。升級一定會讓 client 的 MCP session 失效 — 見下一段。
+8. **確認兩邊版本一致**：`debug_request_context` 會回報伺服器版本，`manage_packages(action: "list_packages")` 會回報套件版本。
+
+#### 兩個長得很像、但完全不同的錯誤
+
+伺服器以 10.3.0 重啟後，原本已連上的 client 呼叫會失敗並回傳 `{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Session not found"}}`。那是 **MCP 傳輸層的 session**，不是 Unity 橋接：
+
+| 錯誤 | 屬於哪一層 | 怎麼修 |
+|---|---|---|
+| `Session not found`（`-32600`） | Kiro 與 Python 伺服器之間的 MCP 傳輸 session | 重新連線 Kiro 的 MCP 伺服器，或重啟 Kiro。與版本鎖定無關 |
+| `no_unity_session` /「Unity session not available」 | Python 伺服器與 Editor 之間的 Unity 橋接 | 先讓兩個版本鎖定一致；如果本來就一致，再檢查 Editor 是否開著、是否正在編譯。重新連線對這個錯誤完全沒用 |
+
+#### v10.3.0 是什麼
+
+v10.3.0 是目前的正式（非 prerelease）版本（GitHub tag `v10.3.0`，2026-10-04 發布，附件 `unity-mcp-10.3.0.mcpb`），對應的 `mcpforunityserver-10.3.0` 也在 PyPI 上（同一分鐘上傳，需要 Python 3.10 以上）。與本 Power 有關的 release note 項目：Unity 6000.6 的 `InstanceIDToObjectCompat` 修正、stdio 在重連退避前重新探測連接埠、修正 `read_console` 會被 Console 視窗的篩選條件隱藏項目的問題、上游新增「工具沒出現在工具清單時該去哪裡看」的文件、新的 Blender Bridge，以及自動探測 fal / OpenRouter 的素材生成模型。
+
+v10.3.0 的伺服器 CLI（在 10.3.0 上執行 `mcp-for-unity --help`）接受 `--default-instance`、`--transport {stdio,http}`、`--http-url`、`--http-host`、`--http-port`、`--http-remote-hosted`、`--api-key-*` 這組參數（遠端託管的驗證用）、`--unity-instance-token`、`--pidfile` 與 `--project-scoped-tools`。這也確認了上面的 stdio 備援寫法是正確的；唯一要補充的是：在 `--from` 裡鎖定版本才是實務慣例，Unity 自己的啟動器就是這樣做的。
 
 ### 安裝自動導引 Hook（建議）
 
@@ -329,6 +385,9 @@ kiro-unity-accelerator/
 | 問題 | 解決方案 |
 |------|----------|
 | Kiro 無法連線到 Unity | 確認 Unity Editor 已開啟並載入專案 → `Window → MCP for Unity` → 確認狀態面板顯示 **Connected**（若否，按 `Restart Server`） |
+| 所有 Unity 相關呼叫都回 `Unity session not available; please retry` /「`"reason":"no_unity_session"`」，但 `debug_request_context` 還是正常回應 | **第一個該懷疑的是：C# 套件與 Python 伺服器的版本不一致。** 2026-10-21 實測確認 — C# 在 10.3.0、Python 還在 9.6.8 時，症狀就是這個，而且是選擇性失敗，所以伺服器看起來很健康。用 `debug_request_context` 看伺服器版本，再用 `manage_packages(action: "list_packages")` 看套件版本；兩者不同就照[升級步驟](#升級步驟)處理。若本來就一致，再檢查 Editor 是否開著、是否正在編譯。這與 `Session not found` **不是**同一件事，重新連線 Kiro 不會解決 |
+| `Session not found`（JSON-RPC `-32600`） | 是 **MCP 傳輸層的 session** 不見了，幾乎都是因為伺服器重啟過。請在 Kiro 的 MCP Server 面板重新連線，或重啟 Kiro，以取得新的 session 並重新讀取工具清單。每次升級橋接都一定會遇到。與 `no_unity_session` 不同 — 後者是 Unity 橋接層，不是傳輸層 |
+| 一直停在舊版橋接，而且沒有任何更新提示 | 檢查 `Packages/manifest.json`：如果那一行結尾是 `#main`，Unity 只解析過一次就把結果快取起來，永遠不會跟著分支更新。請改成明確的 tag（`#v10.3.0`）強迫重新解析，再照[升級步驟](#升級步驟)操作 |
 | Port 8080 被佔用 | 在 MCP for Unity 設定中改掉連接埠（上游建議 8090），重新執行 **Configure All Detected Clients**，重啟 Kiro，並把 `mcp.json` 的 `url` 改成 Unity 視窗顯示的連接埠 |
 | 文件寫的某個工具被回報為不存在 | 有可能是該工具的群組沒有啟用 — bridge 宣告的預設值只有 `core`，但在實機驗證的那台機器上，所有工具不做任何啟用就能呼叫。依序執行 `manage_tools(action: "list_groups")`、`manage_tools(action: "sync")`、`manage_tools(action: "activate", group: "<名稱>")`，之後請重新整理或重新連線 MCP 伺服器（Kiro 可能會快取工具清單）。注意 `list_groups` 可能對能正常運作的群組回報 `enabled: false`，所以要以重試是否成功來判斷，不要只看那個欄位 |
 | `Tool call denied by user's permissions` | 是 Kiro 的權限規則在 Unity 看到這次呼叫之前就擋下來了，不是 bridge 的問題。Kiro 會把本 Power 的伺服器命名為 `power-kiro-unity-accelerator-unity-mcp`；請檢查 `~/.kiro/settings/permissions.yaml`（以及工作區層級的同名檔案）裡有沒有 `capability: mcp` 且 `effect: deny`、match 到 `power-<powerName>-<serverName>/<tool>` 的規則，若希望開放該工具就放寬規則。本 Power 驗證的那台機器上，就是這種規則擋掉了 `manage_build`，讓整個建置流程無法執行 |

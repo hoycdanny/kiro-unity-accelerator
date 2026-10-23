@@ -6,7 +6,7 @@
 
 Kiro를 Unity 개발 AI 어시스턴트로 전환하세요. MCP(Model Context Protocol — AI 어시스턴트가 개발 도구와 상호작용하기 위한 표준화된 프로토콜로, 메뉴를 직접 탐색하거나 반복적인 기본 코드(boilerplate)를 작성하는 대신 자연어로 원하는 작업을 설명할 수 있게 해줍니다)를 통해 자연어로 Unity Editor를 제어하며, 에셋 관리, 씬 구축, 빌드 자동화, 성능 분석, 코드 품질 검사 등을 지원합니다 — 40개 이상의 TypeScript 도구 모듈과 15개의 도메인 지식 파일을 내장하고 있습니다.
 
-> **Unity 6.4 기준 버전**: 이 Power는 **Unity 6.4**(릴리스 스트림 `6000.4`, 최신 패치 `6000.4.12f1`, 2026-06-17 릴리스)와 **MCP for Unity v10.3.0 이상(최소 v10.0.0)** 의 도구 집합을 대상으로 합니다. 이 Power가 지원하는 최소 Editor 버전은 **Unity 6.0(`6000.0`)** 이며, 브리지 자체의 하한선은 더 낮습니다(Unity 2021.3 LTS). 모든 가이드는 **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21** 조합에서 실제로 확인했습니다 — Unity 6.5, 6.6 및 이후 6.x에서도 동작할 것으로 예상되지만 여기서 검증하지는 **않았습니다**. Unity 6.4는 Update 릴리스이며 패치 스트림이 2026-06-17에 종료되었으므로, 버전을 고정해 프로덕션에 들어가는 프로젝트는 **Unity 6.3 LTS**(2027년 12월까지 지원) 또는 현재의 Update 릴리스로 이동해야 합니다. **Unity 6.0 LTS는 2026-10-16에 지원이 종료되었습니다 — "안전한 구버전"으로도 권장하지 않습니다.** 출처: [unity.com/releases](https://unity.com/releases/), [endoflife.date/unity](https://endoflife.date/unity) (모두 2026-10-21 조회).
+> **Unity 6.4 기준 버전**: 이 Power는 **Unity 6.4**(릴리스 스트림 `6000.4`, 최신 패치 `6000.4.12f1`, 2026-06-17 릴리스)와 **MCP for Unity v10.3.0 이상(최소 v10.0.0)** 의 도구 집합을 대상으로 합니다. 이 Power가 지원하는 최소 Editor 버전은 **Unity 6.0(`6000.0`)** 이며, 브리지 자체의 하한선은 더 낮습니다(Unity 2021.3 LTS). 모든 가이드는 **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21** 조합에서 실제로 확인했습니다 — Unity 6.5, 6.6 및 이후 6.x에서도 동작할 것으로 예상되지만 여기서 검증하지는 **않았습니다**. 그 머신의 브리지는 이후 **실제로 10.3.0으로 업그레이드했고 업그레이드 과정 자체도 관찰해 기록했습니다**([브리지 업그레이드: 반드시 함께 맞춰야 하는 두 개의 버전 고정](#브리지-업그레이드-반드시-함께-맞춰야-하는-두-개의-버전-고정) 참조). 다만 **10.3.0에서는 도구를 하나도 호출하지 못했습니다** — 재시작이 클라이언트의 MCP 세션을 먼저 무효화했기 때문이며, 따라서 v10.3.0의 도구 목록과 도구별 동작은 여전히 문서에서 도출한 것이고 실측이 아닙니다. Unity 6.4는 Update 릴리스이며 패치 스트림이 2026-06-17에 종료되었으므로, 버전을 고정해 프로덕션에 들어가는 프로젝트는 **Unity 6.3 LTS**(2027년 12월까지 지원) 또는 현재의 Update 릴리스로 이동해야 합니다. **Unity 6.0 LTS는 2026-10-16에 지원이 종료되었습니다 — "안전한 구버전"으로도 권장하지 않습니다.** 출처: [unity.com/releases](https://unity.com/releases/), [endoflife.date/unity](https://endoflife.date/unity) (모두 2026-10-21 조회).
 >
 > **6.4 전용 가이드가 다루는 내용**: URP는 **Render Graph 단일 경로**가 되었습니다 — URP Compatibility Mode와 `URP_COMPATIBILITY_MODE` 스크립팅 정의는 6.4에서 완전히 제거되어, 더 이상 레거시 커스텀 render pass의 우회로가 아닙니다. GPU Resident Drawer(Forward+/Deferred+ GPU 인스턴싱, 2D Renderer에서는 사용 불가)와 개편된 Rendering Statistics 창 — 이 창은 드로우 콜을 하나의 숫자로 보고하는 대신 어떤 배칭 경로가 흡수했는지 항목별로 나눠 보여줍니다. `InstanceID`는 `EntityId`로 대체되었으므로 브리지가 반환한 instance id는 불투명한 토큰으로 취급하세요 — 그대로 브리지에 되돌려 주기만 하고, 산술 연산·정렬·파싱은 하지 마세요. iOS에서 PVRTC가 제거되었습니다(ASTC 또는 ETC만 사용). Web 빌드는 `[BurstCompile]` 잡을 백그라운드 워커에서 실행하지만 멀티스레드 *렌더링*은 여전히 지원되지 않습니다. 6.4부터 URP 2D 프레임 루프에 커스텀 render pass를 주입할 수 있습니다. OculusXR 패키지는 권장되지 않으며 OpenXR 플러그인으로 이전해야 하고, HoloLens 2 지원과 해당 플러그인은 6.4에서 deprecated 되었습니다(OculusXR이 실제로 제거되는 버전은 미검증). 스크립팅 백엔드: `manage_build`는 **`mono` 또는 `il2cpp`만** 허용하므로 이 Power로는 CoreCLR을 선택할 수 없습니다. 출처: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64), [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64) (모두 2026-10-21 조회).
 >
@@ -68,7 +68,7 @@ Kiro Unity Accelerator (Intelligence Layer)
 
 - [Unity Editor](https://unity.com/) 설치 및 프로젝트 열기 (개인 및 소규모 팀을 위한 무료 Personal 라이선스 제공) — 대상은 Unity 6.4이며 이 Power의 최소 지원은 Unity 6.0입니다
 - [Kiro IDE](https://kiro.dev/docs/getting-started/installation) 설치
-- **MCP for Unity v10.3.0 이상(최소 v10.0.0)** — 프로젝트에 설치된 `com.coplaydev.unity-mcp`가 9.6.8 이하라면 업그레이드하세요. 9.6.8 → 10.3.0 변경은 도구 추가뿐이므로 마이그레이션 비용이 없습니다
+- **MCP for Unity v10.3.0 이상(최소 v10.0.0)** — 프로젝트에 설치된 `com.coplaydev.unity-mcp`가 9.6.8 이하라면 업그레이드하세요. 9.6.8 → 10.3.0 변경은 도구 추가뿐이므로 마이그레이션 비용이 없습니다. 시작하기 전에 [브리지 업그레이드: 반드시 함께 맞춰야 하는 두 개의 버전 고정](#브리지-업그레이드-반드시-함께-맞춰야-하는-두-개의-버전-고정)을 읽으세요. C# 패키지와 Python 서버는 각각 따로 버전이 고정되며, 한쪽만 올리면 브리지가 망가집니다
 - **Python 3.10 이상과 [`uv`](https://docs.astral.sh/uv/)** — 브리지의 서버는 `uv`/`uvx`로 실행되는 Python 패키지(PyPI의 `mcpforunityserver`)입니다. MCP for Unity 설치 마법사가 `uv`를 설치해 줄 수 있습니다. Windows에서 PATH에 여러 `uv.exe`가 있으면 "Choose UV Install Location"을 WinGet 심(`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`)으로 지정하세요
 - Node.js 18+ (개발/타입 검사 전용 — 기본 사용에는 필요하지 않음. 설치가 필요한 경우 [Node.js 공식 사이트](https://nodejs.org/) 참조)
 
@@ -86,19 +86,28 @@ Kiro → 왼쪽 패널에서 Powers 아이콘 클릭 → 「+」 버튼 클릭 �
 
    ![단계 1: Package Manager 열기](image/Enable-Unity-MCP-Server-1.png)
 
-2. 「+」 클릭 → 「Add package from git URL...」 → 아래 URL을 붙여넣고 Add 클릭:
+2. 「+」 클릭 → 「Add package from git URL...」 → 아래 URL을 붙여넣고 Add 클릭. **끝의 `#v10.3.0` 태그는 고정입니다. `#main`으로 바꾸지 마세요:**
 
    ```
-   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0
    ```
 
    ![단계 2: git URL에서 패키지 추가](image/Enable-Unity-MCP-Server-2.png)
 
-   `main`을 계속 따라가고 싶지 않다면 git URL 대신 다음 방법도 있습니다:
+   > **이것은 바로잡은 지시입니다.** 이전 README는 `...?path=/MCPForUnity#main`을 사용하라고 안내했지만 그것은 틀렸고, **실제 설치 환경에서 이 실패를 재현해 확인했습니다(2026-10-21 실측)**. Unity는 git UPM 의존성을 **한 번만** 해석하고 그 결과 커밋을 캐시합니다. `#main`처럼 움직이는 ref는 브랜치를 **추적하지 않습니다**. 검증 머신의 `Packages/manifest.json`에는 `#main`이 적혀 있었지만 실제로 설치된 패키지는 여전히 **9.6.8**이었고 업스트림은 이미 **10.3.0**이었습니다 — 몇 달 동안 구버전에 갇혀 있었고 Package Manager에도 업데이트 알림이 전혀 뜨지 않았습니다. 몇 달 지난 브리지는 이 Power가 기록한 도구 집합과 맞지 않으므로, 이는 "AI가 Unity를 조작하지 못한다"의 직접적인 원인 중 하나입니다.
 
-   - **릴리스 고정**: `#main`을 태그로 교체 (예: `#v10.3.0`)
-   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp`
+   태그를 고정한 git URL 외의 방법:
+
+   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp` — 레지스트리 설치이므로 새 버전이 나오면 Package Manager가 업데이트를 안내합니다
    - **Asset Store**: "MCP for Unity" 등록 항목 → Package Manager → My Assets
+
+   **나중에 업그레이드할 때는 태그를 바꾸세요** — 의존성 문자열이 바뀌어야 Unity가 다시 해석합니다. `Packages/manifest.json`을 직접 편집하거나:
+
+   ```json
+   "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0"
+   ```
+
+   …패키지를 제거한 뒤 새 태그로 git URL을 다시 추가하세요. 그다음 [브리지 업그레이드: 반드시 함께 맞춰야 하는 두 개의 버전 고정](#브리지-업그레이드-반드시-함께-맞춰야-하는-두-개의-버전-고정)을 따르세요 — UPM 패키지는 업그레이드의 절반일 뿐입니다.
 
 3. 처음 임포트하면 패키지가 **설치 마법사(setup wizard)** 를 엽니다. 이후 상시 UI는 **Window → MCP for Unity** 이며, 여기서 서버 시작/중지, transport 전환, 클라이언트 재설정을 할 수 있습니다.
 
@@ -193,6 +202,53 @@ macOS/Linux (PATH의 `uvx`로 보통 충분합니다):
   }
 }
 ```
+
+### 브리지 업그레이드: 반드시 함께 맞춰야 하는 두 개의 버전 고정
+
+MCP for Unity는 **두 개의 구성 요소이며, 각각 별도로 버전을 고정합니다.** 업그레이드할 때 가장 혼란스러운 지점이 바로 이것입니다. 아래 내용은 모두 **2026-10-21**에 실제 머신에서 수행하고 관찰한 9.6.8 → 10.3.0 업그레이드 기록입니다.
+
+| 구성 요소 | 무엇인지 | 버전이 고정되는 위치 |
+|---|---|---|
+| UPM 패키지(C# Editor 측) | Unity 프로젝트에 임포트되는 `com.coplaydev.unity-mcp` | `Packages/manifest.json` — git 태그 또는 레지스트리 버전 |
+| Python MCP 서버 | PyPI의 `mcpforunityserver`, 실행 엔트리는 `mcp-for-unity` | Unity가 작성하는 실행 명령줄의 `--from "mcpforunityserver==<버전>"` 인자 |
+
+업그레이드 전에 관측한 서버 실행 명령줄(그대로 기록):
+
+```
+uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url http://127.0.0.1:8080
+  --project-scoped-tools --pidfile <UnityProject>\Library\MCPForUnity\RunState\mcp_http_8080.pid
+  --unity-instance-token <token>
+```
+
+**UPM 패키지만 올려도 Python 서버는 올라가지 않습니다.** manifest를 `#v10.3.0`으로 바꾸고 Unity가 v10.3.0의 C#을 깔끔하게 임포트·컴파일한 뒤에도, 실행 중인 서버는 여전히 버전 `9.6.8`을 보고했습니다 — 오래된 캐시 사본을 실행하고 있었기 때문입니다.
+
+**버전 불일치는 브리지를 망가뜨리며, 그 방식이 "선택적"이라 판단하기가 매우 어렵습니다.** C#이 10.3.0, Python이 9.6.8인 상태에서 Unity가 필요한 모든 도구 호출은 `{"success":false,"error":"Unity session not available; please retry","data":{"reason":"no_unity_session",...}}`를 반환했지만, 서버 계층만으로 처리되는 도구(`debug_request_context` 등)는 계속 정상 응답했습니다. 서버는 멀쩡해 보이는데 Unity에 닿는 작업은 하나도 되지 않습니다.
+
+#### 업그레이드 절차
+
+1. **UPM 버전 고정을 변경** — `Packages/manifest.json`의 태그를 편집하거나, 패키지를 제거한 뒤 새 태그로 git URL을 다시 추가하세요. `#main`처럼 움직이는 ref는 다시 해석되지 않습니다.
+2. *선택 사항, 네트워크가 느릴 때 권장:* `uvx --from "mcpforunityserver==10.3.0" mcp-for-unity --help`로 **uv 캐시를 미리 준비**하세요. 실제 업그레이드에서 이 작업을 했기 때문에 Unity가 이후 `--offline`으로 서버를 띄울 수 있었습니다.
+3. **Unity가 임포트·컴파일하도록** 두고, editor log에 `error CS`가 없는지 확인하세요.
+4. **오래된 서버 프로세스 체인을 종료**(`uvx` → `uv` → `mcp-for-unity` → `python`). 스스로 새 버전으로 바뀌지 않습니다.
+5. **남아 있는 pidfile을 삭제**(있는 경우): `<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid`. 실제 업그레이드에서는 프로세스를 종료한 뒤에도 이 파일이 남아 있어 직접 지워야 했습니다.
+6. **Unity에서 서버를 시작**: `Window → MCP for Unity → Start Server`. **이 명시적인 동작이 반드시 필요했습니다** — 패키지 업그레이드 후에도, 프로세스 체인을 종료한 뒤에도 서버는 스스로 재시작하지 않았습니다. 수동으로 시작하면, 이제 v10.3.0 C#을 실행 중인 Unity가 일치하는 버전 고정으로 서버를 다시 띄웁니다(`uvx --offline --from "mcpforunityserver==10.3.0" ...`). 새로운 uv 캐시 archive가 사용되고, 포트가 다시 수신 대기 상태가 되며, 두 구성 요소가 모두 10.3.0이 됩니다.
+7. **Kiro의 MCP 서버를 재연결**(MCP Server 패널 → reconnect, 또는 Kiro 재시작). 업그레이드는 항상 클라이언트의 MCP 세션을 무효화합니다 — 다음 항목 참조.
+8. **두 버전이 일치하는지 확인**: `debug_request_context`는 서버 버전을, `manage_packages(action: "list_packages")`는 패키지 버전을 보고합니다.
+
+#### 비슷해 보이지만 전혀 다른 두 가지 오류
+
+서버가 10.3.0으로 재시작한 뒤, 이미 연결되어 있던 클라이언트의 호출은 `{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Session not found"}}`로 실패했습니다. 이것은 **MCP 전송 계층의 세션**이며 Unity 브리지가 아닙니다:
+
+| 오류 | 어느 계층인가 | 해결 방법 |
+|---|---|---|
+| `Session not found`(`-32600`) | Kiro와 Python 서버 사이의 MCP 전송 세션 | Kiro의 MCP 서버를 재연결하거나 Kiro를 재시작하세요. 버전 고정과는 무관합니다 |
+| `no_unity_session` / "Unity session not available" | Python 서버와 Editor 사이의 Unity 브리지 | 먼저 두 버전 고정을 일치시키세요. 이미 일치한다면 Editor가 열려 있는지, 컴파일 중이 아닌지 확인하세요. 재연결은 이 오류에 아무 도움이 되지 않습니다 |
+
+#### v10.3.0은 무엇인가
+
+v10.3.0은 현재의 정식(prerelease 아님) 릴리스입니다(GitHub 태그 `v10.3.0`, 2026-10-04 공개, 에셋 `unity-mcp-10.3.0.mcpb`). 대응하는 `mcpforunityserver-10.3.0`도 PyPI에 있습니다(같은 분에 업로드, Python 3.10 이상 필요). 이 Power와 관련된 릴리스 노트 항목: Unity 6000.6의 `InstanceIDToObjectCompat` 수정, stdio가 재연결 백오프 전에 포트 탐색을 갱신하도록 한 수정, `read_console`이 Console 창의 필터 때문에 항목이 가려지지 않게 한 수정, 도구가 도구 목록에 없을 때 어디를 봐야 하는지에 대한 업스트림 문서 추가, 새로운 Blender Bridge, 그리고 fal / OpenRouter 에셋 생성 모델의 자동 탐색.
+
+v10.3.0의 서버 CLI(10.3.0에서 `mcp-for-unity --help`)는 `--default-instance`, `--transport {stdio,http}`, `--http-url`, `--http-host`, `--http-port`, `--http-remote-hosted`, `--api-key-*` 계열(원격 호스팅 인증용), `--unity-instance-token`, `--pidfile`, `--project-scoped-tools`를 받습니다. 이로써 위의 stdio 대체 설정 형식이 맞다는 것도 확인되었습니다. 덧붙일 점은 하나뿐입니다: `--from`에 버전을 고정하는 것이 실제 관행이며, Unity 자체 런처도 그렇게 합니다.
 
 ### 자동 가이드 Hook 설치 (권장)
 
@@ -331,6 +387,9 @@ kiro-unity-accelerator/
 | 문제 | 해결 방법 |
 |------|-----------|
 | Kiro가 Unity에 연결할 수 없음 | Unity Editor가 프로젝트를 열어 둔 상태인지 확인 → `Window → MCP for Unity` → 상태 패널이 **Connected**인지 확인(아니면 `Restart Server`) |
+| Unity 관련 호출이 모두 `Unity session not available; please retry` / "`"reason":"no_unity_session"`"을 반환하는데 `debug_request_context`는 정상 응답함 | **가장 먼저 의심할 것은 C# 패키지와 Python 서버의 버전 불일치입니다.** 2026-10-21 실측 확인 — C#이 10.3.0이고 Python이 9.6.8일 때의 증상이 바로 이것이며, 선택적으로 실패하므로 서버가 멀쩡해 보입니다. `debug_request_context`로 서버 버전을, `manage_packages(action: "list_packages")`로 패키지 버전을 확인하고 다르면 [업그레이드 절차](#업그레이드-절차)를 따르세요. 이미 일치한다면 Editor가 열려 있는지, 컴파일 중이 아닌지 확인하세요. `Session not found`와는 **다른** 문제이며, Kiro를 재연결해도 해결되지 않습니다 |
+| `Session not found`(JSON-RPC `-32600`) | **MCP 전송 계층의 세션**이 사라진 것이며, 거의 항상 서버가 재시작되었기 때문입니다. Kiro의 MCP Server 패널에서 재연결하거나 Kiro를 재시작해 새 세션을 받고 도구 목록을 다시 읽으세요. 브리지를 업그레이드할 때마다 반드시 발생합니다. `no_unity_session`(Unity 브리지 계층)과는 다릅니다 |
+| 구버전 브리지에 머물러 있고 업데이트 안내도 없음 | `Packages/manifest.json`을 확인하세요. 해당 줄이 `#main`으로 끝난다면 Unity는 한 번 해석한 결과를 캐시해 둔 것이며 브랜치를 추적하지 않습니다. 명시적인 태그(`#v10.3.0`)로 바꿔 재해석을 강제한 뒤 [업그레이드 절차](#업그레이드-절차)를 따르세요 |
 | 포트 8080이 사용 중 | MCP for Unity 설정에서 포트를 변경(업스트림은 8090 제안)하고 **Configure All Detected Clients**를 다시 실행, Kiro 재시작, `mcp.json`의 `url`을 Unity 창에 표시된 포트와 일치시키기 |
 | 문서에 있는 도구가 존재하지 않는다고 보고됨 | 해당 도구의 그룹이 비활성일 수 있습니다 — bridge가 선언한 기본값은 `core` 하나지만, 실제로 검증한 머신에서는 아무 활성화 없이 모든 도구가 호출되었습니다. `manage_tools(action: "list_groups")` → `manage_tools(action: "sync")` → `manage_tools(action: "activate", group: "<이름>")` 순서로 실행한 뒤 MCP 서버를 새로고침하거나 재연결하세요(Kiro가 도구 목록을 캐시할 수 있습니다). `list_groups`는 정상 동작하는 그룹에도 `enabled: false`를 보고할 수 있으므로, 그 필드가 아니라 재시도 성공 여부로 판단하세요 |
 | `Tool call denied by user's permissions` | Unity에 도달하기 전에 Kiro의 권한 규칙이 호출을 거부한 것이며 bridge 문제가 아닙니다. Kiro는 이 Power의 서버를 `power-kiro-unity-accelerator-unity-mcp`로 노출하므로, `~/.kiro/settings/permissions.yaml`(및 워크스페이스 수준의 같은 파일)에서 `capability: mcp` + `effect: deny`로 `power-<powerName>-<serverName>/<tool>`에 일치하는 규칙이 있는지 확인하고, 해당 도구를 쓰려면 규칙을 완화하세요. 이 Power를 검증한 머신에서는 그 규칙이 `manage_build`를 거부해 빌드 워크플로 전체를 실행할 수 없었습니다 |

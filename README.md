@@ -6,7 +6,7 @@
 
 Transform your IDE into a Unity development AI assistant. Use natural language to command Unity Editor via MCP (Model Context Protocol — a standardized way for AI assistants to interact with development tools, allowing developers to describe what they want in plain language instead of manually navigating menus or writing boilerplate scripts). This Power covers asset management, scene building, build automation, performance analysis, code quality checks, and more — with 40+ TypeScript tool modules and 15 domain knowledge files.
 
-> **Unity 6.4 baseline**: This Power targets **Unity 6.4** (release stream `6000.4`, newest patch `6000.4.12f1`, released 17 Jun 2026) and the tool surface of **MCP for Unity v10.3.0 or newer (minimum v10.0.0)**. The minimum Editor for this Power is **Unity 6.0 (`6000.0`)**; the bridge's own floor is lower (Unity 2021.3 LTS). The guidance was live-checked against **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21** — Unity 6.5, 6.6 and later 6.x are expected to work but were **not** verified here. Unity 6.4 is an Update release and its patch stream ended 17 Jun 2026, so a project locking down for production should move to **Unity 6.3 LTS** (supported through Dec 2027) or forward onto the current Update release. **Unity 6.0 LTS support ended 16 Oct 2026 — it is never recommended, not even as a "safe older version".** Sources: [unity.com/releases](https://unity.com/releases/) and [endoflife.date/unity](https://endoflife.date/unity), both retrieved 2026-10-21.
+> **Unity 6.4 baseline**: This Power targets **Unity 6.4** (release stream `6000.4`, newest patch `6000.4.12f1`, released 17 Jun 2026) and the tool surface of **MCP for Unity v10.3.0 or newer (minimum v10.0.0)**. The minimum Editor for this Power is **Unity 6.0 (`6000.0`)**; the bridge's own floor is lower (Unity 2021.3 LTS). The guidance was live-checked against **Unity `6000.4.6f1` + URP 17.4.0 + MCP for Unity 9.6.8, Windows Editor, 2026-10-21** — Unity 6.5, 6.6 and later 6.x are expected to work but were **not** verified here. The bridge on that machine was afterwards **upgraded 9.6.8 → 10.3.0 and the upgrade itself was observed** (see [Upgrading the bridge](#upgrading-the-bridge-two-version-pins-you-must-keep-in-sync)), but **no v10.3.0 tool was ever called** — the restart invalidated the client's MCP session first, so v10.3.0's tool inventory and per-tool behaviour remain documentation-derived. Unity 6.4 is an Update release and its patch stream ended 17 Jun 2026, so a project locking down for production should move to **Unity 6.3 LTS** (supported through Dec 2027) or forward onto the current Update release. **Unity 6.0 LTS support ended 16 Oct 2026 — it is never recommended, not even as a "safe older version".** Sources: [unity.com/releases](https://unity.com/releases/) and [endoflife.date/unity](https://endoflife.date/unity), both retrieved 2026-10-21.
 >
 > **What the 6.4-specific guidance covers**: URP **Render Graph is the only path** — URP Compatibility Mode and the `URP_COMPATIBILITY_MODE` scripting define were removed in 6.4, so it is no longer an escape hatch for legacy custom render passes; the GPU Resident Drawer (Forward+/Deferred+ GPU instancing, unavailable on the 2D Renderer) together with the redesigned Rendering Statistics window, which itemises which batching path absorbed each draw call instead of reporting one number; `InstanceID` deprecated in favour of `EntityId`, so an instance id returned by the bridge is an opaque token — pass it straight back, never do arithmetic on it, sort by it, or parse it; PVRTC removed on iOS (ASTC or ETC only); Web builds running `[BurstCompile]` jobs on background workers even though multithreaded *rendering* is still unavailable; a custom render pass can now be injected into the URP 2D frame loop; and the OculusXR package is deprecated in favour of the OpenXR plug-in, with HoloLens 2 support and its plug-in deprecated in 6.4 (the OculusXR removal release is unverified). Scripting backend: `manage_build` accepts **`mono` or `il2cpp` only** — CoreCLR cannot be selected through this Power. Sources: [New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64) and [Upgrade to Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/upgrade-guides/upgrade-guide-unity64), both retrieved 2026-10-21.
 >
@@ -68,7 +68,7 @@ Three unrelated projects are called some variant of "Unity MCP". This Power targ
 
 - [Unity Editor](https://unity.com/) installed with a project open (see Setup alternatives below if you have restricted installation access) — Unity 6.4 is the target, Unity 6.0 the minimum for this Power
 - [Kiro IDE](https://kiro.dev/docs/getting-started/installation) installed
-- **MCP for Unity v10.3.0 or newer (minimum v10.0.0)** — if the project has `com.coplaydev.unity-mcp` 9.6.8 or older installed, upgrade it; the 9.6.8 → 10.3.0 change is purely additive, so there is no migration cost
+- **MCP for Unity v10.3.0 or newer (minimum v10.0.0)** — if the project has `com.coplaydev.unity-mcp` 9.6.8 or older installed, upgrade it; the 9.6.8 → 10.3.0 change is purely additive, so there is no migration cost. Read [Upgrading the bridge](#upgrading-the-bridge-two-version-pins-you-must-keep-in-sync) before you start: the C# package and the Python server are pinned separately, and upgrading only one breaks the bridge
 - **Python 3.10 or newer plus [`uv`](https://docs.astral.sh/uv/)** — the bridge's server is a Python package (`mcpforunityserver` on PyPI) launched through `uv`/`uvx`. The MCP for Unity setup wizard can install `uv` for you; on Windows, point "Choose UV Install Location" at the WinGet shim (`%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`) if several `uv.exe` copies are on PATH
 - Node.js 18+ (for development/typechecking only — not required for basic usage with the Power)
 
@@ -95,19 +95,28 @@ Open Kiro → Left panel click Powers icon → Click "+" button → Select "Add 
 
    ![Step 1: Open Package Manager](image/Enable-Unity-MCP-Server-1.png)
 
-2. Click "+" → "Add package from git URL..." → Paste the following URL and click Add:
+2. Click "+" → "Add package from git URL..." → Paste the following URL and click Add. **Note the pinned `#v10.3.0` tag — do not replace it with `#main`:**
 
    ```
-   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0
    ```
 
    ![Step 2: Add package from git URL](image/Enable-Unity-MCP-Server-2.png)
 
-   Alternatives to the git URL, if you prefer not to track `main`:
+   > **Corrected instruction.** Earlier versions of this README told you to use `...?path=/MCPForUnity#main`. That was wrong, and the failure it causes was **reproduced on a real install (verified 2026-10-21)**. Unity resolves a git UPM dependency **once** and then caches the resolved commit — a moving ref like `#main` does **not** track the branch. The verification machine's `Packages/manifest.json` said `#main` while the installed package was still **9.6.8** and upstream was already **10.3.0**: stranded for months with no update prompt anywhere in Package Manager. A months-old bridge no longer matches the tool surface this Power documents, which is a direct cause of "the AI can't drive Unity".
 
-   - **Pin a release**: replace `#main` with a tag, e.g. `#v10.3.0`
-   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp`
+   Alternatives to the pinned git URL:
+
+   - **OpenUPM**: `openupm add com.coplaydev.unity-mcp` — a registry install, so Package Manager offers an update when a newer version ships
    - **Asset Store**: the "MCP for Unity" listing, then Package Manager → My Assets
+
+   **To upgrade later**, change the tag — that is what forces Unity to re-resolve. Either edit `Packages/manifest.json`:
+
+   ```json
+   "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0"
+   ```
+
+   …or remove the package and re-add the git URL with the new tag. Then follow [Upgrading the bridge](#upgrading-the-bridge-two-version-pins-you-must-keep-in-sync) — the UPM package is only half of the upgrade.
 
 3. On first import the package opens a **setup wizard**. The persistent UI afterwards is **Window → MCP for Unity**, which starts/stops the server, switches transport, and reconfigures clients.
 
@@ -204,6 +213,53 @@ macOS/Linux (`uvx` on PATH is usually fine):
   }
 }
 ```
+
+### Upgrading the bridge: two version pins you must keep in sync
+
+MCP for Unity is **two components, each with its own separately pinned version**. This is the most confusing part of upgrading it, and all of the following was observed on a live 9.6.8 → 10.3.0 upgrade on **2026-10-21**.
+
+| Component | What it is | Where its version is pinned |
+|---|---|---|
+| UPM package (C# editor side) | `com.coplaydev.unity-mcp` in your Unity project | `Packages/manifest.json` — the git tag, or the registry version |
+| Python MCP server | PyPI distribution `mcpforunityserver`, entrypoint `mcp-for-unity` | the `--from "mcpforunityserver==<version>"` argument of the command line Unity launches |
+
+The pre-upgrade launch line, observed verbatim:
+
+```
+uvx --from "mcpforunityserver==9.6.8" mcp-for-unity --transport http --http-url http://127.0.0.1:8080
+  --project-scoped-tools --pidfile <UnityProject>\Library\MCPForUnity\RunState\mcp_http_8080.pid
+  --unity-instance-token <token>
+```
+
+**Upgrading the UPM package does not upgrade the Python server.** After the manifest moved to `#v10.3.0` and Unity imported and compiled the v10.3.0 C# cleanly, the running server still reported version `9.6.8` — it was executing an older cached copy.
+
+**The mismatch breaks the bridge selectively, which makes it very confusing.** With C# at 10.3.0 and Python at 9.6.8, every Unity-dependent tool call returned `{"success":false,"error":"Unity session not available; please retry","data":{"reason":"no_unity_session",...}}`, while server-only tools such as `debug_request_context` kept answering normally. The server looks alive; nothing that touches Unity works.
+
+#### Upgrade procedure
+
+1. **Change the UPM pin** — edit the tag in `Packages/manifest.json`, or remove and re-add the git URL with the new tag. A moving ref like `#main` will not re-resolve.
+2. *Optional but recommended on a slow network:* **pre-seed the uv cache** with `uvx --from "mcpforunityserver==10.3.0" mcp-for-unity --help`. On the verified upgrade this is why Unity could then start the server with `--offline`.
+3. **Let Unity import and compile** the package; confirm the editor log shows no `error CS`.
+4. **Stop the stale server process chain** (`uvx` → `uv` → `mcp-for-unity` → `python`). It will not pick up the new version by itself.
+5. **Delete the stale pidfile** if one is left behind at `<UnityProject>\Library\MCPForUnity\RunState\mcp_http_<port>.pid`. On the verified upgrade it was left there after the kill and had to be removed by hand.
+6. **Start the server from Unity**: `Window → MCP for Unity → Start Server`. **This explicit step was required** — the server restarted neither after the package upgrade nor after the process chain was killed. Unity then relaunched it with a matching pin (`uvx --offline --from "mcpforunityserver==10.3.0" ...`), from a new cache archive, with the port listening and both components at 10.3.0.
+7. **Reconnect Kiro's MCP server** (MCP Server panel → reconnect, or restart Kiro). An upgrade always invalidates the client's MCP session — see the next paragraph.
+8. **Check both pins agree**: `debug_request_context` reports the server version, `manage_packages(action: "list_packages")` reports the package version.
+
+#### Two errors that look alike and are not
+
+After the restart, the already-connected client's calls failed with `{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Session not found"}}`. That is the **MCP transport session**, not the Unity bridge:
+
+| Error | Layer | Fix |
+|---|---|---|
+| `Session not found` (`-32600`) | the MCP transport session between Kiro and the Python server | reconnect Kiro's MCP server, or restart Kiro. Version pins are irrelevant |
+| `no_unity_session` / "Unity session not available" | the Unity bridge between the Python server and the Editor | match the two version pins first; if they already match, check that the Editor is open and not compiling. Reconnecting does nothing |
+
+#### What v10.3.0 is
+
+v10.3.0 is the current non-prerelease release (GitHub tag `v10.3.0`, published 2026-10-04, asset `unity-mcp-10.3.0.mcpb`), and the matching `mcpforunityserver-10.3.0` is on PyPI (uploaded the same minute, Python >= 3.10). Release-notes items relevant here: a Unity 6000.6 `InstanceIDToObjectCompat` fix, stdio port-discovery refreshed before reconnect backoff, a `read_console` fix so the Console window's filters no longer hide entries, upstream docs on where to look when a tool is missing from the tool list, the new Blender Bridge, and auto-discovery of fal / OpenRouter asset-generation models.
+
+Its server CLI (`mcp-for-unity --help` on 10.3.0) accepts `--default-instance`, `--transport {stdio,http}`, `--http-url`, `--http-host`, `--http-port`, `--http-remote-hosted`, the `--api-key-*` group (for remote-hosted auth), `--unity-instance-token`, `--pidfile` and `--project-scoped-tools`. This confirms the stdio fallback form above is correct; the only refinement is that pinning a version in `--from` is what Unity's own launcher does.
 
 ### Install Auto-Guidance Hook (Recommended)
 
@@ -348,6 +404,9 @@ kiro-unity-accelerator/
 | Problem | Solution |
 |---------|----------|
 | Kiro cannot connect to Unity | Ensure Unity Editor is open with a project loaded → `Window → MCP for Unity` → confirm the status panel reads **Connected** (use `Restart Server` if not) |
+| `Unity session not available; please retry` / `"reason":"no_unity_session"` on every Unity call, while `debug_request_context` still answers | **First suspect: the C# package and the Python server are on different versions.** Verified 2026-10-21 — C# at 10.3.0 with Python still at 9.6.8 produced exactly this, and it is selective, so the server looks healthy. Compare `debug_request_context`'s server version with the package version from `manage_packages(action: "list_packages")`; if they differ, follow [Upgrade procedure](#upgrade-procedure). If they already match, check that the Editor is open and not compiling. This is **not** the same as `Session not found` — reconnecting Kiro will not fix it |
+| `Session not found` (JSON-RPC `-32600`) | The **MCP transport session** is gone, almost always because the server restarted. Reconnect in Kiro's MCP Server panel, or restart Kiro, to get a new session and re-read the tool list. Every bridge upgrade causes this. Distinct from `no_unity_session`, which is the Unity bridge layer |
+| Stuck on an old bridge version with no update offered | Check `Packages/manifest.json`: if the entry ends in `#main`, Unity resolved it once and cached it, so it never tracks the branch. Replace it with an explicit tag (`#v10.3.0`) to force a re-resolve, then follow [Upgrade procedure](#upgrade-procedure) |
 | Port 8080 is occupied | Change the port in MCP for Unity settings (upstream suggests 8090), re-run **Configure All Detected Clients**, restart Kiro, and make the `url` in `mcp.json` match the port shown in the Unity window |
 | A documented tool is reported as not existing | Possibly its tool group is inactive — the bridge's declared default is `core` only, though on the verified install every tool was callable with no activation. Run `manage_tools(action: "list_groups")`, then `manage_tools(action: "sync")`, then `manage_tools(action: "activate", group: "<name>")`, and refresh or reconnect the MCP server afterwards (Kiro may cache the tool list). `list_groups` can report `enabled: false` for a group whose tools work, so judge by whether the retry succeeds |
 | `Tool call denied by user's permissions` | A Kiro permission rule blocked the call before Unity saw it — not a bridge fault. Kiro exposes this Power's server as `power-kiro-unity-accelerator-unity-mcp`; check `~/.kiro/settings/permissions.yaml` (and the workspace-level file) for `capability: mcp` entries with `effect: deny` matching `power-<powerName>-<serverName>/<tool>`, and relax the rule if you want that tool available. On the machine this Power was verified against, such a rule denied `manage_build` and made the whole build workflow unrunnable |
