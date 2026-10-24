@@ -1004,3 +1004,123 @@ script. Only instance IDs differ, per G-1.
   and bake actions, `manage_prefabs` stage actions.
 - `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
 - The `mcpforunity://` resource URIs — no resource-reading tool on this client.
+
+---
+
+# ROUND 8 — `run_tests` with REAL tests: pass/fail reporting verified (2026-10-21)
+
+Closed the last big Workflow-4 gap. A throwaway EditMode test assembly was written to
+`Assets/_MCPVerify/Tests/` with **one deliberately passing and one deliberately failing test**,
+imported via `refresh_unity`, run, then deleted. Unity 6000.4.6f1, bridge 10.3.0.
+
+Setup: `MCPVerify.Tests.asmdef` (references `UnityEngine.TestRunner` + `UnityEditor.TestRunner`,
+`includePlatforms: ["Editor"]`, `precompiledReferences: ["nunit.framework.dll"]`,
+`defineConstraints: ["UNITY_INCLUDE_TESTS"]`) plus `MCPVerifyTests.cs` with
+`MCPVerify_PassingTest` (`Assert.AreEqual(4, 2+2)`) and `MCPVerify_FailingTest`
+(`Assert.AreEqual(5, 2+2, "intentional failure for MCP verification")`).
+
+Files were written to disk with ordinary file I/O and imported with
+`refresh_unity(mode:"force", compile:"request")` — which is precisely the tool's documented
+purpose (changes made outside Unity's import pipeline). That path is now VERIFIED: afterwards
+`execute_code` confirmed `System.Type.GetType("MCPVerifyTests, MCPVerify.Tests")` →
+`loaded: MCPVerifyTests asm=MCPVerify.Tests`.
+
+## I-1 — pass/fail reporting: VERIFIED, with the exact response shape
+
+`run_tests(mode:"EditMode", assembly_names:["MCPVerify.Tests"], include_failed_tests:true)` →
+`{job_id, status:"running", mode:"EditMode"}`. Polling `get_test_job` returned, stably across
+repeated calls:
+
+```
+status: "failed"
+progress: { completed: 2, total: 2,
+            last_finished_test_full_name: "MCPVerifyTests.MCPVerify_PassingTest",
+            failures_so_far: [ { full_name: "MCPVerifyTests.MCPVerify_FailingTest",
+                                 message: "intentional failure for MCP verification
+                                           Expected: 5  But was: 4" } ],
+            failures_capped: false, stuck_suspected: false }
+result:   { mode: "EditMode",
+            summary: { total: 2, passed: 1, failed: 1, skipped: 0,
+                       durationSeconds: 0.33, resultState: "Failed(Child)" },
+            results: null }
+```
+
+So `assembly_names` filtering works, the summary counts are correct, and NUnit's assertion
+message (including the custom message and the Expected/But-was detail) is surfaced.
+
+## I-2 — `status: "failed"` means TESTS failed, not that the run errored
+
+This is the important semantic. The job's top-level `status` became **`"failed"`** purely because
+one test assertion failed; execution itself was fine (`error: null`, both tests ran,
+`completed: 2 / total: 2`).
+
+POWER.md's Workflow 4 currently says to poll "until `status` is no longer `running`", which is
+correct, but an agent reading `status: "failed"` can easily conclude the test *run* broke and
+start debugging the harness instead of reporting a legitimate test failure. Document explicitly:
+`status` reflects the **test outcome** — `succeeded` when all tests pass, `failed` when any test
+fails — and the way to tell a real harness error apart is the `error` field plus whether
+`progress.completed`/`total` advanced. (Round 6's zero-test run returned
+`status:"succeeded"` with `completed:0, total:0`, which is the other end of the same scale.)
+
+## I-3 — `result.results` is ALWAYS null; failures arrive via `progress.failures_so_far`
+
+Two runs were compared:
+
+| Run | `include_failed_tests` | `include_details` | `result.results` | `progress.failures_so_far` |
+|---|---|---|---|---|
+| 1 | **true** | false | **null** | populated |
+| 2 | false | **true** | **null** | **populated anyway** |
+
+**VERIFIED:** `result.results` stayed `null` in both runs, and `progress.failures_so_far` was
+populated **even with `include_failed_tests: false`**.
+
+POWER.md currently advises using `include_failed_tests: true` "to get failure details without a
+huge payload". That is misleading on 10.3.0: failure details come through
+`progress.failures_so_far` regardless of the flag, and `result.results` never filled in. Correct
+the guidance to read failures from `progress.failures_so_far`, and describe
+`include_failed_tests` / `include_details` as flags whose effect on `result.results` was **not
+observed** here rather than asserting what they do.
+
+## I-4 — `get_test_job`'s `wait_timeout` IS accepted
+
+`get_test_job(job_id, wait_timeout: 30)` was accepted with no validation error, so the parameter
+is real and POWER.md is right to mention it. Note the server **does** reject unknown kwargs
+elsewhere (`manage_packages`' `identifier` and `unity_reflect`' `type_name` both produced
+"Unexpected keyword argument"), which is why acceptance is meaningful evidence here.
+
+**UNVERIFIED:** whether `wait_timeout` actually blocks. Both polls happened after the job had
+already finished, so no blocking behaviour could be observed. Do not claim it long-polls.
+
+## I-5 — timings, for expectation-setting
+
+Two EditMode runs of 2 trivial tests: wall-clock job duration ~4.2 s and ~4.2 s
+(`started`→`finished`), of which the tests themselves were `durationSeconds` 0.33 and 0.21. So
+roughly 4 seconds of fixed overhead per EditMode run on this machine, independent of test count.
+Useful for the docs: do not treat a few seconds of apparent idleness as a stuck run, and note
+that `stuck_suspected` is the field to watch instead.
+
+## I-6 — cleanup verified
+
+`manage_asset(action:"delete", path:"Assets/_MCPVerify")` plus a `refresh_unity` removed the
+assembly. Confirmed afterwards: `Assets/_MCPVerify` is gone from disk; `Assets/` top level
+contains only the original template content (`Scenes`, `Settings`, `TutorialInfo`,
+`InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta` files); `SampleScene` has its
+original **3** roots; and `manage_asset(search, "t:MonoScript")` returns exactly the **2** original
+TutorialInfo scripts. No scene save was needed this round because the scene was never modified.
+
+## Still NOT verified
+
+- The six `asset_gen` tools — intentionally never called; they spend real money.
+- `manage_build` — still blocked by the user's `permissions.yaml` MCP deny rule (C-5); C-6 stays
+  UNVERIFIED.
+- **PlayMode** tests — only EditMode was exercised. PlayMode involves a domain reload and
+  upstream recommends `init_timeout: 120000`; none of that was tested.
+- `run_tests`' `test_names`, `group_names`, `category_names` filters and `clear_stuck`.
+- Whether `wait_timeout` blocks (I-4).
+- `t:Model` / `t:GameObject` search filters — no model assets in the project.
+- `execute_menu_item`, `execute_custom_tool`, `set_active_instance`, `manage_editor`'s
+  play/pause/stop/deploy_package/restore_package, `manage_scriptable_object`, `manage_animation`,
+  `manage_vfx`, `manage_texture`, `manage_shader`, `manage_ui` writes, `manage_graphics` setters
+  and bake actions, `manage_prefabs` stage actions.
+- `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
+- The `mcpforunity://` resource URIs — no resource-reading tool on this client.

@@ -1,11 +1,12 @@
 {
   "id": "wf-test-execution",
   "name": "Test Execution",
-  "description": "Runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report. Tool-group activation is NOT part of the flow -- it is a conditional recovery step, kept in `conditionalRecoverySteps` below.",
+  "description": "Runs EditMode tests, then PlayMode tests, and aggregates the results into a structured report. Each run_tests call returns a job_id immediately; poll each one with get_test_job and read the results from that response -- see `resultInterpretationNotes`. Tool-group activation is NOT part of the flow -- it is a conditional recovery step, kept in `conditionalRecoverySteps` below.",
   "isBuiltIn": true,
   "requiresToolGroups": [],
   "optionalToolGroups": ["testing"],
   "toolGroupNotes": "`run_tests` and `get_test_job` are declared in the `testing` tool group, which the bridge reports as OFF by default -- but on the live-verified install (2026-10-21, bridge 9.6.8 over HTTP with --project-scoped-tools) every non-core tool was callable with no manage_tools call at all, and `list_groups` reported `enabled: false` for groups whose tools worked. So do NOT open this workflow with an activation step: call `run_tests` and only run the activation in `conditionalRecoverySteps` if the tool is reported as not existing. If instead the call is refused with `Tool call denied by user's permissions`, that is an IDE-side `capability: mcp` deny rule in ~/.kiro/settings/permissions.yaml and no activation will help. `read_console` is `core`.",
+  "resultInterpretationNotes": "VERIFIED on bridge 10.3.0 / Unity 6000.4.6f1, 2026-10-21, against a real EditMode test assembly with one deliberately passing and one deliberately failing test. (1) get_test_job's top-level `status` is the TEST OUTCOME, not the run's health: `succeeded` = every test that ran passed, `failed` = at least one assertion failed while the run itself was fine (the observed failing job had `error: null` and `progress.completed: 2` of `total: 2`). Do NOT debug the harness on a `failed` status -- a real harness error is a populated `error` field plus `progress.completed`/`total` that never advanced. And `succeeded` can also mean NOTHING RAN: a project with no test assemblies returned `succeeded` with `completed: 0, total: 0`. Always report the status WITH the counts. (2) Failure detail comes from `progress.failures_so_far` -- a list of {full_name, message} where `message` carries NUnit's assertion text (custom message plus Expected/But-was). It was populated in both observed runs REGARDLESS of `include_failed_tests`, and `result.results` was `null` in both; the effect of `include_failed_tests`/`include_details` on `result.results` is NOT OBSERVED, so do not set a flag expecting it to produce failure detail. (3) `result.summary` is {total, passed, failed, skipped, durationSeconds, resultState} -- observed {total:2, passed:1, failed:1, skipped:0, durationSeconds:0.33, resultState:\"Failed(Child)\"}. (4) Expect roughly 4 s of fixed overhead per EditMode run even for 2 trivial tests (two runs: ~4.2 s wall clock each, tests themselves 0.33 s and 0.21 s), so a few seconds of silence is not a stuck run -- watch `progress.stuck_suspected` and `progress.blocked_reason` instead. (5) `wait_timeout` (seconds) is accepted by the server with no validation error, but whether it actually blocks/long-polls is UNVERIFIED -- both observed polls happened after the job had finished. (6) UNVERIFIED on this setup: PlayMode runs entirely (only EditMode was exercised; PlayMode starts with a domain reload and upstream recommends `init_timeout: 120000`), the test_names/group_names/category_names filters, and clear_stuck. The `assembly_names` filter IS verified.",
   "conditionalRecoverySteps": [
     {
       "id": "activate-testing",
@@ -20,7 +21,7 @@
   "steps": [
     {
       "id": "run-editmode",
-      "name": "Start EditMode tests (returns job_id; poll separately with get_test_job)",
+      "name": "Start EditMode tests (returns job_id; poll separately with get_test_job -- EditMode pass/fail reporting is VERIFIED on 10.3.0)",
       "mcpTool": "run_tests",
       "mcpAction": "n/a",
       "mcpArgs": { "mode": "EditMode" },
@@ -29,7 +30,7 @@
     },
     {
       "id": "run-playmode",
-      "name": "Start PlayMode tests (returns job_id; poll separately with get_test_job)",
+      "name": "Start PlayMode tests (returns job_id; poll separately with get_test_job -- PlayMode is UNVERIFIED: it starts with a domain reload and upstream recommends init_timeout 120000)",
       "mcpTool": "run_tests",
       "mcpAction": "n/a",
       "mcpArgs": { "mode": "PlayMode" },
@@ -38,7 +39,7 @@
     },
     {
       "id": "aggregate-results",
-      "name": "Aggregate test results from console output",
+      "name": "Aggregate test results -- the authoritative source is each job's get_test_job response (result.summary plus progress.failures_so_far); this console read is supplementary context only",
       "mcpTool": "read_console",
       "mcpAction": "get",
       "mcpArgs": { "filter_text": "TestRunner" },

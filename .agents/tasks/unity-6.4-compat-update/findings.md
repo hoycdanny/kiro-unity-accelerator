@@ -2554,3 +2554,159 @@ taking `name` + `path` not `uri`; the `refresh_unity` `mode`/`compile` enums; `d
 stays in its own language, with all new Round-7 text written in that language. No `src/*.ts`, hook or
 `mcp.json` file was touched by this pass; the only template touched is
 `templates/workflows/asset-import-setup.json` (glob warning added, `"*"` pattern unchanged).
+
+## 19. Round 8 applied (2026-10-21, eighth pass — `run_tests` with REAL tests on v10.3.0)
+
+Round 8 closed the last big Workflow-4 gap. A throwaway EditMode test assembly with **one
+deliberately passing and one deliberately failing test** was written to `Assets/_MCPVerify/Tests/`,
+imported with `refresh_unity`, run twice, and deleted. Unity 6000.4.6f1, bridge 10.3.0. Source of
+truth: `live-verification.md`, ROUND 8 (findings I-1..I-6).
+
+### I-1 — `run_tests` pass/fail reporting, the `assembly_names` filter and the `refresh_unity` import path — VERIFIED on 10.3.0
+- **Observed:** `run_tests(mode:"EditMode", assembly_names:["MCPVerify.Tests"], include_failed_tests:true)`
+  -> `{job_id, status:"running", mode:"EditMode"}`; polling `get_test_job` returned
+  `progress: {completed: 2, total: 2, last_finished_test_full_name: "MCPVerifyTests.MCPVerify_PassingTest",
+  failures_so_far: [...], failures_capped: false, stuck_suspected: false}` and
+  `result.summary: {total: 2, passed: 1, failed: 1, skipped: 0, durationSeconds: 0.33,
+  resultState: "Failed(Child)"}`.
+- **Promoted from unverified:** `run_tests` pass/fail reporting end to end; the **`assembly_names`**
+  filter; and the **`refresh_unity`-imports-external-files** path — the `.asmdef` and `.cs` were
+  written with ordinary file I/O and imported with `refresh_unity(mode:"force", compile:"request")`,
+  which is exactly that tool's documented purpose. `execute_code` then confirmed
+  `System.Type.GetType("MCPVerifyTests, MCPVerify.Tests")` -> `loaded: MCPVerifyTests asm=MCPVerify.Tests`.
+- **The nuance that must be preserved:** the single "pass/fail and PlayMode are unverified" label has
+  **split**. Pass/fail is now VERIFIED (EditMode); **PlayMode is still NOT verified**. Every file was
+  edited to say exactly that, with no over-promotion.
+- **Documented in:** POWER.md (Baseline table gains a "Live-verified **test pass/fail reporting**"
+  row; the Available-MCP-Tools verification-scope blockquote; the `run_tests` and `get_test_job`
+  rows), `steering/cross-platform-testing.md` ("Verification status" block), `steering/unity-general.md`
+  (write-path bullet), and all five READMEs — each in its own language.
+- **Label:** VERIFIED on 10.3.0 for EditMode; PlayMode UNVERIFIED.
+
+### I-2 — `status: "failed"` means TESTS failed, not that the run errored — VERIFIED on 10.3.0
+- **Observed:** the job's top-level `status` became **`"failed"`** purely because one assertion
+  failed. Execution itself was fine — `error: null`, both tests ran, `progress.completed: 2` of
+  `total: 2`.
+- **Why it matters:** POWER.md's Workflow 4 says to poll "until `status` is no longer `running`",
+  which is correct, but an agent that reads `status: "failed"` can conclude the test RUN broke and go
+  debugging the harness instead of reporting a legitimate test failure.
+- **What is now documented:** `status` reflects the **TEST OUTCOME** — `succeeded` when all tests
+  pass, `failed` when any test fails. The way to tell a real harness error apart is the **`error`**
+  field plus whether `progress.completed`/`total` advanced. Cross-referenced with the other end of the
+  scale: Round 6's zero-test run returned `status: "succeeded"` with `completed: 0, total: 0`, so
+  "succeeded" can also mean *nothing ran* — **neither status value is a quality signal on its own**,
+  and the counts must always be reported with the status.
+- **Documented in:** a new POWER.md section "Test job `status` means the test outcome" (linked from
+  the Baseline table, both tool rows, Workflow 4 and the "Async job stuck/failed" error row),
+  POWER.md Workflow 4 step 4, a new `steering/cross-platform-testing.md` section "A Test Job's
+  `status` Is the Test Outcome, Not the Run's Health" plus its flow step 3, its troubleshooting list
+  and its result-presentation format (which now prints status **and** counts), and
+  `templates/workflows/test-execution.json`'s new `resultInterpretationNotes`.
+- **Label:** VERIFIED on 10.3.0.
+
+### I-3 — CORRECTED MISLEADING GUIDANCE: `result.results` is always null; failures come via `progress.failures_so_far` — VERIFIED
+- **Observed, two runs compared:** run 1 (`include_failed_tests:true`, `include_details:false`) ->
+  `result.results` **null**, `progress.failures_so_far` populated. Run 2 (`include_failed_tests:false`,
+  `include_details:true`) -> `result.results` **null**, `progress.failures_so_far` **populated anyway**.
+- **What was wrong:** POWER.md advised `include_failed_tests: true` "to get failure details without a
+  huge payload", and `steering/cross-platform-testing.md` repeated it in its flow step 4 and its
+  failure-log handling step 1. That is misleading on 10.3.0 — no flag is needed to get failures, and
+  `result.results` did not populate in either run.
+- **Corrected to:** read failure detail from **`progress.failures_so_far`** regardless of the flags,
+  and describe `include_failed_tests` / `include_details` as flags whose effect on `result.results`
+  was **NOT OBSERVED** here rather than asserting what they do.
+- **Verified response shape now documented so a reader can parse it without guessing:**
+  `progress.failures_so_far` is a list of `{full_name, message}` where `message` carries NUnit's
+  assertion text including any custom message plus the Expected/But-was detail (observed
+  `full_name: "MCPVerifyTests.MCPVerify_FailingTest"`, message containing
+  `intentional failure for MCP verification`, `Expected: 5`, `But was: 4`); `result.summary` is
+  `{total, passed, failed, skipped, durationSeconds, resultState}` (observed
+  `{total:2, passed:1, failed:1, skipped:0, durationSeconds:0.33, resultState:"Failed(Child)"}`).
+- **Documented in:** the new POWER.md section, the `run_tests` / `get_test_job` rows, Workflow 4
+  steps 4-5, `steering/cross-platform-testing.md` ("Poll for Results" — its example call no longer
+  passes `include_failed_tests` — plus flow step 4 and failure-log steps 1-2), and
+  `templates/workflows/test-execution.json`.
+- **Label:** VERIFIED on 10.3.0 (both runs).
+
+### I-4 — `get_test_job`'s `wait_timeout` is real, its blocking behaviour is not — VERIFIED accepted / UNVERIFIED blocking
+- **Observed:** `get_test_job(job_id, wait_timeout: 30)` was accepted with no validation error, so the
+  parameter exists and POWER.md is right to mention it — **kept**. Acceptance is meaningful evidence
+  because the server **does** reject unknown kwargs elsewhere (`manage_packages`' `identifier` and
+  `unity_reflect`'s `type_name` both produced "Unexpected keyword argument").
+- **Marked UNVERIFIED:** whether it actually blocks or long-polls. Both polls happened after the job
+  had already finished, so no blocking could be observed.
+- **Softened text:** POWER.md's `get_test_job` row no longer says `wait_timeout` reduces polling
+  round-trips as a fact; `steering/cross-platform-testing.md` flow step 3 no longer claims the server
+  holds the response open. Both now say: pass it, but keep the polling loop as if it returns
+  immediately.
+- **Label:** acceptance VERIFIED on 10.3.0; blocking UNVERIFIED.
+
+### I-5 — the EditMode test-assembly recipe and the timing expectation — VERIFIED on 10.3.0
+- **The recipe** (previously the testing workflow had no way to tell a user how to get testable code
+  in place): an `.asmdef` referencing `UnityEngine.TestRunner` + `UnityEditor.TestRunner`, with
+  `includePlatforms: ["Editor"]`, `precompiledReferences: ["nunit.framework.dll"]`,
+  `overrideReferences: true`, `autoReferenced: false` and
+  `defineConstraints: ["UNITY_INCLUDE_TESTS"]`. Recorded as a new
+  `steering/cross-platform-testing.md` section "Getting a Testable EditMode Assembly in Place", with
+  the `refresh_unity(mode:"force", compile:"request")` import step and the reminder that
+  `wait_for_ready: true` does **not** block (H-4), so the type must be confirmed loaded before
+  `run_tests` is called.
+- **The timing expectation:** two EditMode runs of 2 trivial tests each took **~4.2 s** wall clock
+  (`started_unix_ms` -> `finished_unix_ms`) of which the tests themselves were **0.33 s** and
+  **0.21 s** — roughly **4 seconds of fixed overhead per EditMode run** on that machine, independent
+  of test count. Readers are told not to treat a few seconds of apparent idleness as a stuck run, and
+  that **`progress.stuck_suspected`** (with `progress.blocked_reason`) is the field to watch instead.
+  Recorded in the new POWER.md section, Workflow 4 step 4, the new
+  `steering/cross-platform-testing.md` status section, and the template's
+  `resultInterpretationNotes`.
+- **Label:** VERIFIED on 10.3.0.
+
+### I-6 — isolation and cleanup verified — VERIFIED on 10.3.0
+- **Method:** everything lived under `Assets/_MCPVerify/Tests/`, was deleted with
+  `manage_asset(action:"delete")` plus a `refresh_unity`, and the project was confirmed restored —
+  `Assets/_MCPVerify` gone from disk; `Assets/` top level back to only `Scenes`, `Settings`,
+  `TutorialInfo`, `InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta` files;
+  `SampleScene` with its original **3** roots; and `manage_asset(search, "t:MonoScript")` returning
+  exactly the **2** original TutorialInfo scripts.
+- **No scene save was needed** this round because the scene was never modified — consistent with H-5
+  rather than an exception to it.
+- **Label:** VERIFIED on 10.3.0.
+
+### Still UNVERIFIED after Round 8 — stated plainly
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`** — blocked by the user's `permissions.yaml` MCP deny rule (C-5), so **C-6** stays
+  UNVERIFIED.
+- **PlayMode tests** — only EditMode was exercised. PlayMode involves a domain reload and upstream
+  recommends `init_timeout: 120000`; none of that was tested.
+- **`run_tests`' `test_names`, `group_names`, `category_names` filters and `clear_stuck`.**
+- **Whether `get_test_job`'s `wait_timeout` blocks** (I-4), and what `include_failed_tests` /
+  `include_details` actually change in `result.results` (I-3).
+- **`t:Model` / `t:GameObject` search filters** — no model assets in the project.
+- **`execute_menu_item`, `execute_custom_tool`, `set_active_instance`**, `manage_editor`'s
+  `play`/`pause`/`stop`/`deploy_package`/`restore_package`, `manage_scriptable_object`,
+  `manage_animation`, `manage_vfx`, `manage_texture`, `manage_shader`, `manage_ui` writes,
+  `manage_graphics` setters and bake actions, `manage_prefabs`' prefab-stage actions.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The `mcpforunity://` resource URIs** — no resource-reading tool on this client.
+
+### Preserved unchanged by Round 8
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`" blocks in
+POWER.md and all five READMEs; the two-pin upgrade mechanism; the DISTINCT `no_unity_session` vs
+`Session not found` entries; the `manage_editor` telemetry rows; the `batch_execute` server-layer
+divergence caveat; tool-group activation as conditional troubleshooting only; the `asset_gen` cost
+warning and default-off state with no invented parameter table; the 43 -> 49 additive delta and the
+"use the live count, not upstream's 48" note; the `permissions.yaml` deny-rule root cause and the
+`power-<powerName>-<serverName>` namespace; the pidfile port-discovery guidance; `class_name` never
+`type_name` and the `unity_docs` unqualified-name trap; `find_in_file` being C#-script-only; the
+prefixed `by_name`-style `search_method` values; the instance-ID volatility warning and the three
+per-tool `target` conventions; `script_apply_edits` taking `name` + `path` not `uri`; the
+`refresh_unity` `mode`/`compile` enums AND its non-blocking `wait_for_ready`; `duplicate` ignoring
+`name`; the save-to-persist scene semantics; the AssetDatabase filter fix (`t:MonoScript` /
+`t:Texture2D` verified, `t:Model` unverified, NO `*.ext` globs); the built-in-vs-user-script
+`component_type` rule (`TypeName, Assembly-CSharp`); the obsolete-physics mapping with the 2D-only
+`isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid); and the PASSED workshop
+acceptance test. Each localized README stays in its own language, with all new Round-8 text written in
+that language. No `src/*.ts`, hook or `mcp.json` file was touched by this pass; the only template
+touched is `templates/workflows/test-execution.json` (result-interpretation notes added, step names
+clarified — no `mcpArgs` changed).
