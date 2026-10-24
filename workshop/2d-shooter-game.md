@@ -22,6 +22,8 @@
 
 **預期結果**：Kiro 會回報 Unity 版本、Render Pipeline、目前場景名稱、以及 Input 系統設定，並在後續所有腳本中套用正確的輸入 API。
 
+5. **確認 Unity 目前不在 Play Mode（播放模式）**，而且後面每次請 Kiro 建立或修改場景之前都要再確認一次。這一點不能省：**在 Play Mode 中建立物件，橋接會回報成功**（會給你看起來正常的 `instanceID`、完整的 transform、真實的場景路徑），但 Unity 其實只改了播放模式的暫存場景副本，一離開 Play Mode 就**整批丟掉**，場景連「未儲存」的標記都不會留下（bridge 10.3.0 實機驗證，2026-10-21）。也就是說**沒有任何事後線索**能告訴你剛才的工作消失了。Editor 右上角的播放按鈕沒有亮起才算安全；如果不確定，請 Kiro 先用 `manage_editor(action: "stop")` 離開 Play Mode。
+
 > **Unity 6.4 的 Input 補充**：6.4 的 Input System 套件新增了 `OnMouse*` 事件支援，作為從舊 Input Manager 遷移的過渡路徑 —— 如果專案還留著依賴 `OnMouseDown` 這類訊息的舊腳本，切到 New Input System 之後它們仍可運作。本 Workshop 的腳本仍以上面查到的 Active Input Handling 設定為準。來源：[New in Unity 6.4](https://docs.unity.com/en-us/engine/6000.6/manual/whats-new/unity64)（2026-10-21 取得）。
 
 > **Unity 6.4 的物理 API 名稱（只要用 Rigidbody2D 驅動移動就會用到）**

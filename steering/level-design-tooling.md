@@ -49,6 +49,7 @@ Describe field structure → Create template definition → Generate SO script +
 Describe batch rules → Parse rules → Filter objects → Show preview → Confirm execution → Batch apply → Generate report
 ```
 
+0. **PRECONDITION — confirm the Editor is NOT in Play Mode**: check `UnityEditor.EditorApplication.isPlaying` before step 6. A batch applied during Play Mode **returns success for every command** and Unity then **silently discards all of it** on exit, with the scene left unchanged and not even marked dirty — there is no error and no after-the-fact signal (**VERIFIED on bridge 10.3.0, 2026-10-21**). If `isPlaying` is `True`, stop Play Mode (`manage_editor(action: "stop")`) and say so in the report, or ask the developer. Full detail and the check snippet: "Play Mode Discards Scaffolding Silently" in `scene-scaffolding.md`
 1. **Describe batch rules**: Developer describes filter conditions and configuration operations in natural language
 2. **Parse rules**: Call `parseBatchRules` to convert the description into a `BatchRule` object
 3. **Filter objects**: Use `find_gameobjects` to search for matching GameObjects

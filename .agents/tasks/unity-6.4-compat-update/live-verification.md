@@ -1250,3 +1250,107 @@ original **3** roots (Main Camera, Directional Light, Global Volume) with origin
 - `t:Model` / `t:GameObject` search filters — no model assets in the project.
 - `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
 - The `mcpforunity://` resource URIs — no resource-reading tool on this client.
+
+---
+
+# ROUND 10 — repo reliability audit, and Play Mode (2026-10-21)
+
+Two parts: a full mechanical audit of the repo after nine rounds of edits by multiple agents,
+and live verification of Play Mode. Unity 6000.4.6f1, bridge 10.3.0.
+
+## Part A — RELIABILITY AUDIT: clean, zero real defects
+
+Audited 23 markdown files (POWER.md, 5 READMEs, 15 steering, 2 workshops) plus 25 JSON templates,
+`mcp.json`, `package.json` and the hook.
+
+| Check | Method | Result |
+|---|---|---|
+| Tool names | every `manage_*`/`execute_*`/etc. token in the corpus cross-checked against the live 49-tool v10.3.0 inventory | **51 referenced, all valid.** Two apparent misses were false positives: `generate_preview` is a `manage_asset` **parameter**, and `manage_animations` is the GitHub anchor slug for the heading `manage_animation`'s `properties` keys are camelCase (apostrophe stripped) |
+| Action names | `manage_asset(action:...)` and `manage_editor(action:...)` occurrences cross-checked against the authoritative lists captured from live validation errors | **all valid.** `manage_editor(action:"refresh")` appears twice in `steering/level-design-tooling.md` but only inside explicit negative statements ("not `manage_editor(action: "refresh")`, which doesn't exist") — the repo's established pattern |
+| `search_method` values | all occurrences | **all valid** — only `by_name`, `by_component`, `by_id` used; no unprefixed values |
+| Internal anchors | 33 `](#...)` links vs 76 headings | **all 33 resolve.** Four initially flagged were false negatives from a naive slug algorithm; the target headings exist and slugify correctly (em-dash and `&` handling) |
+| Referenced `.md` files | all references in POWER.md, steering and the hook | **all resolve.** Three apparent misses explained: `d-platformer-game.md` (regex artifact of `2d-platformer-game.md`), `language-override.md` (a file the docs tell the user to create), `tests.md` (part of an upstream URL, `.../run_tests.md`) |
+| Hook steering list | the 15 files named in the hook prompt | **15/15 exist** |
+| Template inventory | documented counts vs actual, plus all 17 named templates | scaffolds **5/5**, workflows **3/3**, presets 5, build-configs 4; every named template file exists |
+| JSON validity | all 25 templates + mcp.json + package.json + hook, parsed with UTF-8 | **28/28 parse** |
+| Hook v2 schema | field by field | `version: "v1"` ✓, `hooks` is an array ✓, 1 entry, `trigger: "UserPromptSubmit"` (valid) ✓, `action.type: "agent"` with a 1044-char `prompt` ✓ |
+| Cross-round contradictions | six claims that REVERSED during the effort, swept across all 23 files | **zero real contradictions** |
+
+The contradiction sweep specifically confirmed: no text claims the `manage_editor` telemetry
+actions don't exist; nothing sells `include_failed_tests: true` as the way to get failure details;
+no bare `#main` install instruction survives outside the corrected-instruction warnings; no
+`compile: true` shown as valid; no advice to replace 3D `isKinematic` with `bodyType`; no
+mandatory tool-group preamble; no `*.ext` search-pattern prescriptions; no `6000.7`/`Unity 6.7`.
+
+Two sweep hits needed human reading and were both false positives: the "telemetry does not exist"
+matches were the troubleshooting row correctly explaining that a **batched** `telemetry_status`
+fails while the direct call succeeds; and the `compile: true` matches were README_JP and README_KR
+correctly stating it is **rejected** ("拒否されます" / "거부됩니다") — my exclusion filter only
+covered English and Chinese.
+
+## Part B — K-1: `manage_editor` play / pause / stop all VERIFIED
+
+| Call | Response |
+|---|---|
+| `manage_editor(action:"play")` | `"Entered play mode."` |
+| `manage_editor(action:"pause")` | `"Game paused."` |
+| `manage_editor(action:"stop")` | `"Exited play mode."` |
+
+State confirmed by `execute_code` at each stage: before `isPlaying=False`; during
+`isPlaying=True, isPaused=False`, `SceneManager.GetActiveScene().name == "SampleScene"`; after
+`isPlaying=False`. The MCP session survived Play Mode entry and exit intact.
+
+## K-2 — PLAY MODE IS A SILENT WORK-LOSS TRAP (the important finding)
+
+While `isPlaying=True`, `manage_gameobject(action:"create", name:"MCPVerify_PlayModeObj",
+position:[5,5,5])` returned **full success**: an `instanceID` (-20212), a complete transform
+block, and `scenePath: "Assets/Scenes/SampleScene.unity"` — i.e. it looked exactly like a normal
+edit-mode creation pointing at the real scene asset.
+
+After `manage_editor(action:"stop")`, `execute_code` reported:
+`isPlaying=False roots=3 dirty=False playModeObjStillThere=False`
+
+So the object was created only in Unity's temporary play-mode scene copy and was **destroyed on
+exit**, leaving the scene at its original 3 roots and not even marked dirty.
+
+**VERIFIED: the bridge neither refuses nor warns.** An agent that scaffolds a scene while Play
+Mode happens to be on will report complete success, with plausible instance IDs and scene paths,
+and leave absolutely nothing behind. This is the most severe member of the silent-failure class
+found in this whole effort.
+
+POWER.md's existing one-line rule ("Never make permanent scene changes while in Play Mode.
+Verify editor state before modifying and saving scenes.") is correct but far too weak: it gives
+no reason, does not say the bridge won't stop you, and does not tell the agent to actually check.
+Strengthen it into an actionable precondition.
+
+## K-3 — how to check Play Mode state (verified)
+
+`execute_code` with `UnityEditor.EditorApplication.isPlaying` / `.isPaused` /
+`.isCompiling`, and `EditorSceneManager.GetActiveScene().isDirty` / `.rootCount`, worked in both
+edit mode and Play Mode. Note `execute_code` lives in the default-off-by-declaration
+`scripting_ext` group, so a core-only client needs another route — no non-`execute_code` way to
+read `isPlaying` was found on this client, which is worth stating as a gap rather than inventing
+one.
+
+## Still NOT verified
+
+- **PlayMode TESTS** — `run_tests(mode:"PlayMode")` was not run; only `manage_editor`'s Play Mode
+  control was. PlayMode test runs involve a domain reload and upstream recommends
+  `init_timeout: 120000`.
+- `manage_graphics` setters and bake actions — deliberately skipped (project-wide render
+  settings, not safely restorable).
+- The six `asset_gen` tools — intentionally never called; they spend real money.
+- `manage_build` — blocked by the user's `permissions.yaml` MCP deny rule (C-5); C-6 stays
+  UNVERIFIED.
+- `manage_editor`'s `deploy_package` / `restore_package`, `add_tag`/`remove_tag`,
+  `add_layer`/`remove_layer`, `set_active_tool`, `undo`/`redo`.
+- `run_tests`' `test_names` / `group_names` / `category_names` filters and `clear_stuck`;
+  whether `get_test_job`'s `wait_timeout` blocks.
+- `execute_custom_tool`, `set_active_instance`.
+- Modify/delete paths of the tools whose create paths were verified in Round 9.
+- `t:Model` / `t:GameObject` search filters — no model assets in the project.
+- `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
+- The `mcpforunity://` resource URIs — no resource-reading tool on this client.
+
+No cleanup was required this round: Play Mode discarded the only object created, and the scene
+ended at its original 3 roots with `isDirty=False`.

@@ -13,11 +13,12 @@ This document provides Unity scene architecture expertise. When the developer re
 ### Standard Scene Generation Process
 
 ```
-Confirm type → Load Scaffold → Create scene → Build hierarchy → Check conflicts → Generate summary
+Check Play Mode → Confirm type → Load Scaffold → Create scene → Build hierarchy → Check conflicts → Save → Generate summary
 ```
 
 > **Tool group note**: `manage_scene`, `manage_gameobject`, `manage_components`, `manage_camera`, `find_gameobjects` and `batch_execute` are all in the default-on `core` group. `manage_ui` is declared in the `ui` group, reported off by default — but it was callable with no activation on the live-verified install. So activate nothing up front: if a scaffold asks for UI Toolkit elements, call `manage_ui`, and run `manage_tools(action: "activate", group: "ui")` **only if it is reported as not existing** (then the MCP client may need a refresh or reconnect). Each scaffold in `templates/scaffolds/` records which groups its tools belong to in `requiresToolGroups` / `optionalToolGroups` — that metadata is an ownership map for diagnosis, not a list of steps to run first. Canonical procedure: "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
 
+0. **PRECONDITION — confirm the Editor is NOT in Play Mode**: check `UnityEditor.EditorApplication.isPlaying` before step 3. While Play Mode is on, every call in steps 3–6 **returns success** and Unity then **silently discards the entire scaffold** when Play Mode exits — the scene is left unchanged and not even marked dirty, so no later step can detect it. If `isPlaying` is `True`, stop Play Mode (`manage_editor(action: "stop")`) and say so in the summary, or ask the developer; if `execute_code` is unavailable, ask them to confirm rather than assuming. See "Play Mode Discards Scaffolding Silently" below
 1. **Confirm Scene Type**: Confirm the required scene type with the developer (2D platformer, 3D first-person, UI menu, open world, multiplayer lobby, architectural visualization, training simulation, data visualization, educational tool)
 2. **Load Scaffold**: Load the corresponding Scene_Scaffold JSON from `templates/scaffolds/` (custom location takes priority; falls back to built-in templates). Read its `requiresToolGroups` array and activate each named group before building the hierarchy
 3. **Create Scene**: Use `manage_scene(action: "create")` to create a new scene or open the target scene
@@ -121,6 +122,28 @@ batch_execute(commands: [
 **It is not a race with compilation.** In the same Editor, `execute_code` confirmed `System.Type.GetType("PlayerController, Assembly-CSharp")` returned `loaded: PlayerController base=MonoBehaviour` *before* the plain-name call was retried — and it failed again. The type was loaded; the short name simply does not resolve for user assemblies.
 
 **Compilation is a separate problem, and `wait_for_ready` does not solve it.** `refresh_unity(mode: "force", compile: "request", wait_for_ready: true)` returned **immediately** with `resulting_state: "compiling"`, and the next `manage_components(action: "add")` failed because the assembly had not reloaded yet (**VERIFIED on 10.3.0**). `wait_for_ready` is **not** a synchronous barrier. After requesting a compile, poll `mcpforunity://editor/state` until `data.advice.ready_for_tools` is true — the `refresh_unity` response's own `hint` says exactly that — or retry the dependent call instead of assuming the refresh finished. A scaffold that writes a script and attaches it in the next breath must handle both failure modes.
+
+## Play Mode Discards Scaffolding Silently — Check It First
+
+**VERIFIED on bridge 10.3.0, 2026-10-21.** With the Editor in Play Mode, `manage_gameobject(action: "create", name: "MCPVerify_PlayModeObj", position: [5, 5, 5])` returned **full success** — `instanceID: -20212`, a complete transform block, and `scenePath: "Assets/Scenes/SampleScene.unity"`, i.e. exactly what a normal edit-mode create returns, pointing at the real scene asset. After `manage_editor(action: "stop")` the object was gone, the scene was back at its original **3** roots, and `isDirty` was **False**.
+
+**The bridge will not stop you and will not warn you.** A scaffolding run started while Play Mode happens to be on reports every object created, every component attached and the scene saved — and leaves nothing behind at all. Because the scene is not even left dirty, there is **no after-the-fact signal**: no error to catch, no unsaved-changes hint, nothing to retry.
+
+**So treat Play Mode as a precondition of the scaffolding flow, checked before step 3:**
+
+```csharp
+// execute_code — C# 6 compatible (default codedom compiler); verified in both edit mode and Play Mode
+var s = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene();
+return "isPlaying=" + UnityEditor.EditorApplication.isPlaying +
+  " isPaused=" + UnityEditor.EditorApplication.isPaused +
+  " isCompiling=" + UnityEditor.EditorApplication.isCompiling +
+  " dirty=" + s.isDirty + " roots=" + s.rootCount;
+```
+
+- If `isPlaying` is `True`: stop Play Mode with `manage_editor(action: "stop")` and record it in the summary, or ask the developer first — ending someone's Play session is their call.
+- Never read a successful `create` as evidence the Editor was in edit mode.
+- **Known gap**: `execute_code` is declared in the `scripting_ext` group (reported off by default), and **no non-`execute_code` way to read `isPlaying` was found on the verified client**. Do not substitute an invented resource field — if the snippet cannot run, ask the developer to confirm the Editor is not playing.
+- Entering Play Mode is also a domain reload, so any instance ID held across it is stale — see the instance-ID note under "Conflict Detection Flow".
 
 ## Scene Mutations Are Not Persisted Until You Save
 

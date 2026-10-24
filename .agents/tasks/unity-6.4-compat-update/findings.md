@@ -2891,3 +2891,182 @@ workshop acceptance test. Each localized README stays in its own language and no
 Round-9 edit — they carry no per-tool unverified labels for the tools promoted here. No `src/*.ts`,
 hook, template or `mcp.json` file was touched by this pass; the files changed are POWER.md,
 `steering/unity-general.md`, `steering/scene-scaffolding.md` and this record.
+
+## 21. Round 10 applied (2026-10-21, tenth pass — repo reliability audit, and Play Mode)
+
+Ground truth: ROUND 10 of `.agents/tasks/unity-6.4-compat-update/live-verification.md`. Two parts —
+Part A is a mechanical reliability audit of the repo after nine rounds of edits by multiple agents,
+Part B is live Play Mode verification (K-1 .. K-3) on Unity `6000.4.6f1` with bridge 10.3.0. No
+Unity MCP connection was available while applying this round, so nothing here was re-probed; every
+label comes from the ground-truth file.
+
+### Part A — RELIABILITY AUDIT: CLEAN, zero real defects
+
+Scope: 23 markdown files (POWER.md, 5 READMEs, 15 steering files, 2 workshops) plus 25 JSON
+templates, `mcp.json`, `package.json` and the hook.
+
+| Check | Result |
+|---|---|
+| Tool names referenced across the corpus vs the live 49-tool v10.3.0 inventory | **51 referenced, all exist** |
+| `manage_asset(action:...)` / `manage_editor(action:...)` names | all valid |
+| `search_method` values | all valid — only `by_name`, `by_component`, `by_id`; no unprefixed values |
+| Internal anchors | **all 33** `](#...)` links resolve against the 76 headings |
+| Referenced `.md` files | all resolve |
+| Hook steering list | names **15** files, **15/15** exist |
+| Template inventory | scaffolds **5/5**, workflows **3/3**, presets 5, build-configs 4; all **17** named templates exist; documented counts match actual |
+| JSON validity | **28/28** parse (25 templates + `mcp.json` + `package.json` + hook) |
+| Hook v2 schema | validates field-by-field — `version: "v1"`, `hooks` array with 1 entry, `trigger: "UserPromptSubmit"`, `action.type: "agent"` with a 1044-char prompt |
+| Cross-round contradiction sweep | the **six** claims that REVERSED during this effort, swept across all 23 files — **zero real contradictions** |
+
+- **Label:** audit result recorded, no corrective edit needed.
+- **Recorded in:** a `Repo reliability audit` row in POWER.md's Unity 6.4 Baseline table (the
+  verification-status area) and a matching bullet in `steering/unity-general.md`'s version-baseline
+  block, both pointing here for the false positives below.
+
+#### The audit's own FALSE POSITIVES — read these before re-running it
+
+Each of the following looked like a defect and is not. Re-running the audit will surface them
+again; do not "fix" them.
+
+- **`generate_preview`** is a `manage_asset` **parameter**, not a tool name.
+- **`manage_animations`** is the GitHub **anchor slug** for the heading "`manage_animation`'s
+  `properties` keys are camelCase" — GitHub strips the apostrophe, producing `manage_animations`.
+- **`manage_editor(action: "refresh")`** appears twice in `steering/level-design-tooling.md`, but
+  only inside explicit negative statements ("not `manage_editor(action: "refresh")`, which doesn't
+  exist"). That is the repo's established pattern for recording a corrected instruction.
+- **`d-platformer-game.md`** is a regex artifact of `2d-platformer-game.md`;
+  **`language-override.md`** is a file the docs tell the *user* to create; **`tests.md`** is the tail
+  of an upstream URL (`.../run_tests.md`).
+- **`compile: true`** matches in README_JP and README_KR are those READMEs correctly stating, in
+  their own languages, that it is **rejected** ("拒否されます" / "거부됩니다"). The sweep's exclusion
+  filter only covered English and Chinese.
+- Four of the anchor "misses" were a naive slug algorithm mishandling em-dashes and `&`; the target
+  headings exist and slugify correctly.
+
+### K-1 — `manage_editor` play / pause / stop are VERIFIED on 10.3.0
+
+| Call | Observed response |
+|---|---|
+| `manage_editor(action: "play")` | `"Entered play mode."` |
+| `manage_editor(action: "pause")` | `"Game paused."` |
+| `manage_editor(action: "stop")` | `"Exited play mode."` |
+
+State was confirmed independently by `execute_code` at each stage: before `isPlaying=False`; during
+`isPlaying=True, isPaused=False` with `SceneManager.GetActiveScene().name == "SampleScene"`; after
+`isPlaying=False`. **The MCP session survived Play Mode entry and exit intact** — worth stating
+because a domain reload was a plausible way to lose the connection.
+
+- **Label:** VERIFIED on 10.3.0. Promoted from UNVERIFIED (it was listed as unverified after Round 9).
+- **Applied to:** POWER.md's `manage_editor` row and a new `Live-verified Play Mode control` row in
+  the baseline table; `steering/unity-general.md`'s version-baseline block (and removed from its
+  still-unverified list).
+
+### K-2 — THE BIG ONE: Play Mode is a silent work-loss trap
+
+While `isPlaying=True`, `manage_gameobject(action: "create", name: "MCPVerify_PlayModeObj",
+position: [5,5,5])` returned **full success** — `instanceID: -20212`, a complete transform block and
+`scenePath: "Assets/Scenes/SampleScene.unity"`, indistinguishable from a normal edit-mode creation
+pointing at the real scene asset. After `manage_editor(action: "stop")`, `execute_code` reported
+`isPlaying=False roots=3 dirty=False playModeObjStillThere=False`: the object existed only in
+Unity's temporary play-mode scene copy, was destroyed on exit, and the scene was left at its
+original 3 roots **not even marked dirty**.
+
+**The bridge neither refuses nor warns.** An agent that scaffolds a scene while Play Mode happens to
+be on reports complete success with plausible instance IDs and scene paths, and leaves nothing
+behind. This is the most severe member of the silent-failure class found across the whole effort,
+because unlike the others there is **no after-the-fact signal at all** — no error, no unsaved-changes
+hint, no save to retry.
+
+- **Label:** VERIFIED on 10.3.0.
+- **Doc change:** POWER.md's single weak line ("Never make permanent scene changes while in Play
+  Mode. Verify editor state before modifying and saving scenes.") was rewritten into an actionable
+  **precondition** stating (a) the bridge does not stop you and returns success, (b) the work is
+  silently discarded on exit with the scene not even left dirty, (c) the agent must CHECK Play Mode
+  state **before** any scene mutation or scaffolding sequence, and (d) how to check (K-3).
+- **Propagated to:** a new canonical POWER.md subsection "Play Mode silently discards scene work";
+  POWER.md Workflow 2 as an explicit **step 0 precondition** (using the repo's existing `0.`
+  convention, so no step renumbering); `steering/scene-scaffolding.md` as a new section "Play Mode
+  Discards Scaffolding Silently — Check It First" plus a step 0 in its workflow and its flow
+  diagram; `steering/level-design-tooling.md`'s Scene Object Batch Configuration flow as a step 0;
+  `steering/unity-general.md`'s version-baseline block; and both workshops' prerequisites as a new
+  item 5, **each written in that workshop's own language (Traditional Chinese)**.
+
+### K-3 — the Play Mode state-check recipe, and the honest gap
+
+Verified working in **both** edit mode and Play Mode: `execute_code` reading
+`UnityEditor.EditorApplication.isPlaying` / `.isPaused` / `.isCompiling`, plus
+`EditorSceneManager.GetActiveScene().isDirty` / `.rootCount`.
+
+- **Label:** VERIFIED on 10.3.0.
+- **Recorded in:** POWER.md's new Play Mode subsection, `steering/scene-scaffolding.md`'s new
+  section, and `steering/unity-general.md`'s "Live Verification Recipes" (as a new snippet).
+- **KNOWN GAP, stated and not papered over:** `execute_code` belongs to the `scripting_ext` group,
+  which `manage_tools(action: "list_groups")` reports as **off by default**, so a strictly
+  `core`-only client may not have it. **No non-`execute_code` way to read `isPlaying` was found on
+  this client.** No alternative was invented — in particular nothing claims an
+  `mcpforunity://editor/state` field answers it, because the resource URIs remain unenumerated here.
+  Where `execute_code` is unavailable the documented fallback is to **ask the developer to confirm**
+  the Editor is not in Play Mode, not to proceed on the assumption that it isn't.
+
+### The Play Mode split — a distinction the docs must not blur
+
+**`manage_editor`'s Play Mode CONTROL (`play`/`pause`/`stop`) is VERIFIED. `run_tests(mode:
+"PlayMode")` is NOT.** No PlayMode test run was performed. A PlayMode test run is a different code
+path — it starts with a domain reload and upstream recommends `init_timeout: 120000` — and none of
+that was tested. `steering/cross-platform-testing.md` now states the distinction explicitly next to
+its existing "PlayMode is still NOT verified" bullet, and both POWER.md's `manage_editor` row and the
+new baseline row say the promotion does not extend to PlayMode tests.
+
+### Still UNVERIFIED after Round 10 — stated plainly, with reasons
+- **PlayMode tests** (`run_tests(mode: "PlayMode")`) — never run; its domain reload and the
+  `init_timeout: 120000` recommendation stay untested.
+- **`manage_graphics` setters and bake actions — DELIBERATELY SKIPPED, not missed.** They mutate
+  project-wide render settings on the developer's own project and could not be safely restored.
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`** — blocked by the user's `permissions.yaml` MCP deny rule (C-5), so **C-6**
+  stays UNVERIFIED.
+- **`manage_editor`'s `deploy_package`/`restore_package`, `add_tag`/`remove_tag`,
+  `add_layer`/`remove_layer`, `set_active_tool`, `undo`/`redo`.**
+- **`run_tests`' `test_names`/`group_names`/`category_names` filters and `clear_stuck`**; whether
+  `get_test_job`'s `wait_timeout` blocks.
+- **`execute_custom_tool`, `set_active_instance`.**
+- **The MODIFY/DELETE paths of the Round-9 create-verified tools** — `manage_texture(modify)`,
+  `manage_shader(update)`, `manage_scriptable_object(modify)` patches,
+  `manage_ui(update)`/`modify_visual_element`/`render_ui`, the rest of `manage_animation`'s
+  `clip_*`/`animator_*`, `manage_vfx`'s `vfx_*`/`line_*`/`trail_*`, and
+  `manage_prefabs(save_prefab_stage)`.
+- **`t:Model` / `t:GameObject` search filters** — no model assets in the project.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The `mcpforunity://` resource URIs** — no resource-reading tool on this client.
+
+**No cleanup was required this round.** Play Mode discarded the only object created, and the scene
+ended at its original 3 roots with `isDirty=False`.
+
+### Preserved unchanged by Round 10
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`" blocks
+in POWER.md and all five READMEs; the two-pin upgrade mechanism; the DISTINCT `no_unity_session` vs
+`Session not found` entries; the `manage_editor` `telemetry_status`/`telemetry_ping` rows; the
+`batch_execute` server-layer divergence caveat; tool-group activation as conditional troubleshooting
+only; the `asset_gen` cost warning and default-off state with no invented parameter table; the
+43 -> 49 additive delta and the "use the live count, not upstream's 48" note; the `permissions.yaml`
+deny-rule root cause and the `power-<powerName>-<serverName>` namespace; the pidfile port-discovery
+guidance; `class_name` never `type_name` and the `unity_docs` unqualified-name trap; `find_in_file`
+being C#-script-only; the prefixed `by_name`-style `search_method` values; the instance-ID volatility
+warning and the three per-tool `target` conventions; `script_apply_edits` taking `name` + `path` not
+`uri`; the `refresh_unity` `mode`/`compile` enums, its non-blocking `wait_for_ready` on the compile
+path and its SYNCHRONOUS `compile: "none"` path; `duplicate` ignoring `name`; the save-to-persist
+scene semantics AND the mutation-then-save ordering rule; the dangling-GUID `create_folder` bug and
+its mkdir+refresh workaround; the AssetDatabase filter fix (`t:MonoScript` / `t:Texture2D` verified,
+`t:Model` unverified, NO `*.ext` globs); the built-in-vs-user-script `component_type` rule
+(`TypeName, Assembly-CSharp`); the test-run `status`-is-test-outcome semantics and
+`progress.failures_so_far`; the EditMode asmdef recipe; `manage_animation`'s camelCase `properties`
+keys; `execute_menu_item` being fire-and-forget; the obsolete-physics mapping with the 2D-only
+`isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid); and the PASSED workshop
+acceptance test. Each localized README stays in its OWN language (README_CN Simplified, README_ZH
+Traditional, README_JP Japanese, README_KR Korean) and none needed a Round-10 edit — they carry no
+Play Mode claim and no per-tool label that this round changed. No `src/*.ts`, hook, template or
+`mcp.json` file was touched; the files changed are POWER.md, `steering/unity-general.md`,
+`steering/scene-scaffolding.md`, `steering/level-design-tooling.md`,
+`steering/cross-platform-testing.md`, `workshop/2d-platformer-game.md`,
+`workshop/2d-shooter-game.md` and this record.
