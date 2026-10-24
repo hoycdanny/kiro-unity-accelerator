@@ -1124,3 +1124,129 @@ TutorialInfo scripts. No scene save was needed this round because the scene was 
   and bake actions, `manage_prefabs` stage actions.
 - `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
 - The `mcpforunity://` resource URIs — no resource-reading tool on this client.
+
+---
+
+# ROUND 9 — remaining asset-creation write tools (2026-10-21)
+
+Swept the write actions still unexercised after Round 8. All work was isolated under
+`Assets/_MCPVerify/` with `MCPVerify_*` names and then deleted; project confirmed restored.
+Unity 6000.4.6f1, bridge 10.3.0. **`manage_graphics` setters and bake actions were deliberately
+skipped** — they mutate project-wide render settings and could not be restored with confidence.
+
+## J-1 — BUG: a deleted folder leaves a dangling GUID that blocks recreating the path
+
+`manage_asset(action:"create_folder", path:"Assets/_MCPVerify")` failed with:
+`An asset (not a folder) already exists at path: Assets/_MCPVerify`
+— for a path that **did not exist on disk at all** (`Test-Path` false, no `.meta`, no recursive
+match anywhere under `Assets/`). A `refresh_unity(mode:"force")` did not clear it, and the retry
+failed identically.
+
+Diagnosed via `execute_code`:
+```
+AssetPathToGUID("Assets/_MCPVerify") -> "9417d3273afa9244bba95d21b0e8a911"
+AssetDatabase.IsValidFolder(...)     -> False
+LoadAssetAtPath<Object>(...)         -> null
+Directory.Exists(...)                -> False
+```
+That GUID is **the same one returned when the folder was first created back in Round 6**. So the
+AssetDatabase keeps a **dangling path→GUID mapping** after the folder is deleted: the path still
+resolves to a GUID while being neither a valid folder nor a loadable asset, and
+`create_folder` evidently treats "path maps to a GUID" as "an asset exists" and refuses.
+
+**VERIFIED workaround:** create the directory with ordinary file I/O and then
+`refresh_unity(mode:"force", compile:"none")`. Afterwards `IsValidFolder` returned **True** and
+the path reused the very same GUID. Using a different path also avoids it.
+
+Document this: re-creating a previously-deleted asset folder at the same path can fail with a
+misleading "already exists" error; the fix is a disk-level mkdir plus a refresh, not another
+`create_folder` call.
+
+## J-2 — `refresh_unity` is SYNCHRONOUS when `compile: "none"`
+
+| Call | Response |
+|---|---|
+| `refresh_unity(mode:"force", compile:"request")` | `compile_started: true`, `resulting_state: "compiling"`, hint to poll `mcpforunity://editor/state` |
+| `refresh_unity(mode:"force", compile:"none")` | `compile_requested: false`, `compile_started: null`, **`resulting_state: "idle"`**, hint "Unity refresh completed; editor should be ready." |
+
+So an asset-only refresh completes before returning, while requesting a compile returns mid-flight.
+This refines H-4 (`wait_for_ready` is not a barrier): the blocking problem is specific to the
+compile path. Document both shapes — if you only need the AssetDatabase to notice new files and
+no C# changed, `compile: "none"` is both faster and synchronous.
+
+## J-3 — asset-creation write actions: all VERIFIED
+
+| Call | Result |
+|---|---|
+| `manage_material(action:"create", material_path:"Assets/_MCPVerify/MCPVerify_Mat.mat", shader:"Universal Render Pipeline/Lit")` | ok — created with the URP Lit shader |
+| `manage_texture(action:"create", path:"...MCPVerify_Tex.png", width:64, height:64, fill_color:[0.2,0.6,0.9,1])` | ok — 64×64. Response `_debug_params` shows the float colour was converted to bytes `[51,153,230,255]`, so `fill_color` accepts 0–1 floats |
+| `manage_shader(action:"create", name:"MCPVerifyShader", path:"Assets/_MCPVerify")` | ok — `contents` is optional; a default shader was generated. Params are `name` + `path`, not a single file path |
+| `manage_scriptable_object(action:"create", type_name:"Readme", folder_path:"Assets/_MCPVerify", asset_name:"MCPVerify_SO")` | ok — `typeNameResolved: "Readme"`, guid returned. An **unqualified** type name resolved fine for a type in the global namespace (the schema calls the param "namespace-qualified", so qualify it only when the type actually has a namespace) |
+| `manage_ui(action:"create", path:"...MCPVerify_UI.uxml", contents:"<ui:UXML …>")` | ok — **`contents` is REQUIRED**; the first attempt without it failed with `'contents' parameter is required for create.` |
+| `manage_animation(action:"controller_create", properties:{controllerPath:"...MCPVerify_Controller.controller"})` | ok — `layerCount: 1`, `parameterCount: 0` |
+| `manage_vfx(action:"particle_create", target:"MCPVerify_FX")` | ok — `createdGameObject: false`, `addedParticleSystem: true`, `assignedMaterial: "Auto_Default_ParticleSystem_Universal"` (auto-assigns a URP particle material) |
+| `manage_prefabs(action:"create_from_gameobject")` | ok — `componentCount: 3`, `materialsPersisted: 1` |
+| `manage_prefabs(action:"open_prefab_stage")` | ok — `enteredPrefabStage: true`, `rootName` returned |
+| `manage_prefabs(action:"get_hierarchy")` | ok — per-item `prefab` metadata: `isRoot`, `isNestedRoot`, `nestingDepth`, `assetPath`, `parentPath` |
+| `manage_prefabs(action:"close_prefab_stage")` | ok — takes no target; exits the stage |
+| `manage_scene(action:"save")` | ok (again) |
+
+## J-4 — `manage_animation` mixes naming conventions
+
+Top-level params are snake_case (`action`, `properties`), but the key **inside** `properties` is
+**camelCase**: `properties:{path:...}` failed with `'controllerPath' is required (e.g.
+'Assets/Animations/Player.controller')`, and `properties:{controllerPath:...}` succeeded. So the
+`properties` dict for `manage_animation` uses camelCase keys. Document this, because every other
+tool in the surface uses snake_case and an agent will guess `path`.
+
+## J-5 — `execute_menu_item` does not confirm success
+
+`execute_menu_item(menu_path:"Window/General/Console")` returned:
+`"Attempted to execute menu item: 'Window/General/Console'. Check Unity logs for confirmation or
+errors."` with `data: null`.
+
+So it is **fire-and-forget**: a `success: true` means the call was dispatched, NOT that the menu
+item existed or ran. Document that its result is not a verification signal and that any effect
+must be confirmed separately (console, or a follow-up read).
+
+## J-6 — I repeated the H-5 mistake, which confirms how easy it is
+
+I issued `manage_scene(save)` and `manage_gameobject(delete)` as parallel calls; the save landed
+**first**, so the scene was persisted *with* the test object and the delete then existed only in
+memory. Re-running delete-then-save in the correct order fixed it.
+
+This is worth adding to the guidance as a concrete ordering rule: scene mutation and
+`manage_scene(save)` must be **sequenced deliberately**, never issued concurrently, and the save
+must come after the mutation. Note this applies to `batch_execute` ordering too.
+
+## J-7 — cleanup verified
+
+After `manage_gameobject(delete)` → `manage_scene(save)` → `manage_asset(delete,
+"Assets/_MCPVerify")`, and a reload of `SampleScene` from disk: the scene has exactly its
+original **3** roots (Main Camera, Directional Light, Global Volume) with original components;
+`Assets/_MCPVerify` is absent from disk; and `Assets/` top level holds only `Scenes`, `Settings`,
+`TutorialInfo`, `InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta` files.
+
+## Still NOT verified
+
+- **`manage_graphics` setters and bake actions** — deliberately skipped (project-wide render
+  settings, not safely restorable). `pipeline_set_settings`, `pipeline_set_quality`,
+  `feature_add`/`remove`/`configure`/`toggle`, `skybox_set_*`, `volume_*`, `bake_*` all remain
+  documentation-derived.
+- The six `asset_gen` tools — intentionally never called; they spend real money.
+- `manage_build` — blocked by the user's `permissions.yaml` MCP deny rule (C-5); C-6 stays
+  UNVERIFIED.
+- **PlayMode** tests, and `manage_editor`'s `play`/`pause`/`stop` — entering Play Mode was not
+  exercised.
+- `manage_editor`'s `deploy_package` / `restore_package`, `add_tag`/`remove_tag`,
+  `add_layer`/`remove_layer`, `set_active_tool`, `undo`/`redo`.
+- `run_tests`' `test_names` / `group_names` / `category_names` filters and `clear_stuck`;
+  whether `get_test_job`'s `wait_timeout` blocks.
+- `execute_custom_tool`, `set_active_instance`.
+- Modify/delete paths for the tools whose create paths were verified here (e.g.
+  `manage_texture(modify)`, `manage_shader(update)`, `manage_scriptable_object(modify)` patches,
+  `manage_ui(update)`/`modify_visual_element`/`render_ui`, the rest of `manage_animation`'s
+  `clip_*`/`animator_*` actions, `manage_vfx`'s `vfx_*`/`line_*`/`trail_*`).
+- `t:Model` / `t:GameObject` search filters — no model assets in the project.
+- `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
+- The `mcpforunity://` resource URIs — no resource-reading tool on this client.

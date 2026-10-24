@@ -23,7 +23,7 @@ Confirm type → Load Scaffold → Create scene → Build hierarchy → Check co
 3. **Create Scene**: Use `manage_scene(action: "create")` to create a new scene or open the target scene
 4. **Build Hierarchy**: Following the Scaffold hierarchy definition, recursively create objects and components using `manage_gameobject`, `manage_components`, `manage_camera`, `manage_ui`. **Address each object by its scaffold name in every follow-up call — do not reuse the `instanceID` a `create` returned** (it is transient and negative, and a recompile renumbers everything; see the instance-ID note under "Conflict Detection Flow" below). If a step needs an id, re-resolve it with `find_gameobjects` right before that call
 5. **Check Conflicts**: Use `find_gameobjects` to check if objects with the same name already exist in the target scene
-6. **Save the Scene**: Call `manage_scene(action: "save")`. **Nothing built in step 4 is on disk until this call** — see "Scene Mutations Are Not Persisted Until You Save" below. If the developer asked for a throwaway preview, skip the save *deliberately* and say so in the summary
+6. **Save the Scene**: Call `manage_scene(action: "save")` **after every mutation has returned — as its own sequenced call, never alongside one**. Nothing built in step 4 is on disk until this call, and a save that races ahead of a mutation persists the scene without it — see "Scene Mutations Are Not Persisted Until You Save" and "The Save Must Be Sequenced After the Mutation" below. If the developer asked for a throwaway preview, skip the save *deliberately* and say so in the summary
 7. **Generate Summary**: Calculate the number of created objects and component list, state whether the scene was saved, display a structured summary in Console
 
 ## Built-in Scene Scaffold Types
@@ -48,6 +48,7 @@ Confirm type → Load Scaffold → Create scene → Build hierarchy → Check co
 > - `manage_gameobject`'s `target` **must be a string** and is resolved as a **name** by default (an int is rejected with `Input should be a valid string`); `manage_prefabs` requires a **name**; `manage_components` additionally accepts an **int** instance ID. Passing the name satisfies all three — **VERIFIED on bridge 10.3.0, 2026-10-21**
 > - `manage_components(action: "add")` takes a **built-in** type's short name (`Rigidbody2D`, `SpriteRenderer`, `BoxCollider2D` — all verified working) but needs an **assembly-qualified** name for a script from the project: `component_type: "PlayerController"` failed with `Component type 'PlayerController' not found. Use a fully-qualified name if needed.` while `"PlayerController, Assembly-CSharp"` succeeded — **VERIFIED on 10.3.0, 2026-10-21**. See "Attaching a User Script Needs an Assembly-Qualified Type Name" below
 > - `manage_scene` `create`, `save` and `load` are **VERIFIED on 10.3.0, 2026-10-21**, and `create` with `name` + `path` **auto-creates its target folder**. `manage_gameobject`'s `components_to_add` is verified too: `SpriteRenderer` + `Rigidbody2D` + `BoxCollider2D` attached in one `create` call, with `tag` applied in the same call. `manage_components(action: "set_property")` also resolves `target` by **name**
+> - `manage_ui(action: "create")` **requires `contents`** — **VERIFIED on 10.3.0, 2026-10-21**: omitting it fails with `'contents' parameter is required for create.` So author the UXML/USS text before the call; there is no "create the document empty, fill it later" path. The UI-menu sequence below already passes `contents` for exactly this reason
 > - `manage_gameobject(action: "duplicate")` **ignores `name`** — **VERIFIED on 10.3.0**: duplicating `MCPVerify_Cube` with `name: "MCPVerify_Cube_Dup"` produced Unity's auto-name `MCPVerify_Cube_Copy`. To name a duplicate, follow it with `manage_gameobject(action: "modify", target: "<auto-name>", name: "<wanted>")`. The duplicate does correctly inherit the original's added components
 
 ### 3D First-Person Scene Generation (legacy uGUI HUD)
@@ -130,6 +131,17 @@ Observed: an object deleted from `SampleScene` without saving came **back**. Aft
 - **A scaffolding run must save**, and the summary must say whether it did. Silence leaves the developer unable to tell whether the hierarchy survived.
 - **Switching or reloading a scene discards unsaved changes.** Never treat a scene load as a way to refresh what you just built.
 - **Cleanup has the same hazard**: deleting temporary objects without saving leaves them in the project on the next load.
+
+### The Save Must Be Sequenced After the Mutation — Never Concurrent
+
+**VERIFIED on bridge 10.3.0, 2026-10-21, and this mistake has now been made twice during this Power's own verification work.** `manage_scene(action: "save")` and a `manage_gameobject(action: "delete")` were issued as **parallel** calls. The save landed **first**, so the scene was written to disk *with* the object still in it and the delete survived only in memory. Re-running delete → save in that order fixed it.
+
+**The ordering rule for every scaffolding run:**
+
+- **Never issue a scene mutation and `manage_scene(action: "save")` concurrently.** Two calls sent together can land in either order, and the save captures whatever the in-memory scene holds at that moment.
+- **Mutate first, then save — as a deliberately separate, later call.** The save is the last step of the group (step 6 of the flow above), not one of several calls fired at once.
+- **The same rule governs `batch_execute` command order**: the `commands` array *is* the execution order, so every `manage_gameobject` / `manage_components` / `manage_ui` command must come before the `manage_scene(action: "save")` command — and do not set `parallel: true` on a batch that contains a save.
+- **A scene that looks un-scaffolded after a successful save is usually this**, not a failed `create`. Re-read the hierarchy with `manage_scene(action: "get_hierarchy")`, re-apply what is missing, then save again.
 
 ## Conflict Handling Guide
 

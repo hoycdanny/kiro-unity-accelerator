@@ -2710,3 +2710,184 @@ acceptance test. Each localized README stays in its own language, with all new R
 that language. No `src/*.ts`, hook or `mcp.json` file was touched by this pass; the only template
 touched is `templates/workflows/test-execution.json` (result-interpretation notes added, step names
 clarified — no `mcpArgs` changed).
+
+## 20. Round 9 applied (2026-10-21, ninth pass — remaining asset-creation write tools on v10.3.0)
+
+Round 9 swept the asset-creation write actions still unexercised after Round 8. All work was
+isolated under `Assets/_MCPVerify/` with `MCPVerify_*` names and then deleted; the project was
+confirmed restored. Unity 6000.4.6f1, bridge 10.3.0. Source of truth: `live-verification.md`,
+ROUND 9 (findings J-1..J-7). **`manage_graphics` setters and bake actions were deliberately
+skipped** — they mutate project-wide render settings and could not be restored with confidence.
+
+### J-1 — BUG: a deleted folder leaves a dangling GUID that blocks re-creating the path — VERIFIED
+- **Observed:** `manage_asset(action:"create_folder", path:"Assets/_MCPVerify")` failed with
+  `An asset (not a folder) already exists at path: Assets/_MCPVerify` for a path that did **not**
+  exist on disk (`Test-Path` false, no `.meta`, no recursive match under `Assets/`). A
+  `refresh_unity(mode:"force")` did not clear it; the retry failed identically.
+- **Diagnosis via `execute_code`:** `AssetPathToGUID` returned
+  `9417d3273afa9244bba95d21b0e8a911` — **the same GUID the folder had when it was first created in
+  Round 6** — while `AssetDatabase.IsValidFolder` was `False`, `LoadAssetAtPath<Object>` was `null`
+  and `Directory.Exists` was `False`. So the AssetDatabase keeps a dangling path->GUID mapping
+  after a folder is deleted, and `create_folder` treats "path maps to a GUID" as "an asset exists".
+- **VERIFIED workaround:** create the directory with ordinary file I/O, then
+  `refresh_unity(mode:"force", compile:"none")` — afterwards `IsValidFolder` was `True` and the
+  path reused the same GUID. Using a different path also avoids it.
+- **Documented in:** a new POWER.md section "Re-creating a deleted folder can fail with
+  'already exists'" (with the four `execute_code` probes and both workarounds), the POWER.md
+  `manage_asset` row, and a new Error-Categories row that says plainly that retrying
+  `create_folder` or a bare `refresh_unity(mode:"force")` will not work and that the developer must
+  not be told the folder exists.
+- **Label:** VERIFIED on 10.3.0 (both the failure and the workaround).
+
+### J-2 — `refresh_unity` is SYNCHRONOUS when `compile: "none"` — VERIFIED
+- **Observed:** `compile:"request"` -> `compile_started: true`, `resulting_state: "compiling"`,
+  with the hint to poll `mcpforunity://editor/state`. `compile:"none"` -> `compile_requested: false`,
+  `compile_started: null`, `resulting_state: "idle"`, hint
+  `Unity refresh completed; editor should be ready.`
+- **What this refines:** H-4 (`wait_for_ready` is not a barrier) stays true but is now **scoped to
+  the compile path**. An asset-only refresh completes before it returns.
+- **Documented in:** the POWER.md `refresh_unity` row (both response shapes, and the advice to use
+  `compile:"none"` when no C# changed), the "`wait_for_ready` does not wait" section — which now
+  opens with "on the compile path" and carries a two-row table contrasting the shapes — the
+  Script-tool parameters list, and `steering/unity-general.md`'s write-path bullet. The H-4
+  non-blocking warning was **not** weakened; it was narrowed to `compile: "request"`, where it was
+  actually observed.
+- **Label:** VERIFIED on 10.3.0.
+
+### J-3 — asset-creation write actions promoted to VERIFIED, with their real signatures
+- **Promoted from unverified/not-exercised:** `manage_material(create)`, `manage_texture(create)`,
+  `manage_shader(create)`, `manage_scriptable_object(create)`, `manage_ui(create)`,
+  `manage_animation(controller_create)`, `manage_vfx(particle_create)`, and `manage_prefabs`
+  `create_from_gameobject` / `open_prefab_stage` / `get_hierarchy` / `close_prefab_stage`.
+- **Signature details the docs lacked or got wrong, now recorded:**
+  - `manage_material(create)` takes `material_path` + `shader` (verified with
+    `"Universal Render Pipeline/Lit"`).
+  - `manage_texture(create)` takes `path`, `width`, `height`, `fill_color`; `fill_color` accepts
+    **0-1 floats** — the response's `_debug_params` showed `[0.2,0.6,0.9,1]` converted to bytes
+    `[51,153,230,255]`.
+  - `manage_shader(create)` takes **`name` + `path`** (a name plus its containing folder, not one
+    combined file path) and **`contents` is OPTIONAL** — a default shader is generated when omitted.
+  - `manage_scriptable_object(create)` takes `type_name`, `folder_path`, `asset_name`; an
+    **unqualified** `type_name` resolved fine for a global-namespace type
+    (`type_name:"Readme"` -> `typeNameResolved:"Readme"`). The schema calls the param
+    "namespace-qualified", so the docs now say: qualify it only when the type actually has a
+    namespace.
+  - `manage_ui(create)` **requires `contents`** — omitting it fails with
+    `'contents' parameter is required for create.`
+  - `manage_vfx(particle_create)` on an existing object returns `createdGameObject: false`,
+    `addedParticleSystem: true`, and auto-assigns a URP particle material
+    (`assignedMaterial: "Auto_Default_ParticleSystem_Universal"`).
+  - `manage_prefabs(get_hierarchy)` returns per-item `prefab` metadata — `isRoot`, `isNestedRoot`,
+    `nestingDepth`, `assetPath`, `parentPath`; `close_prefab_stage` takes **no target**.
+- **Documented in:** the POWER.md Baseline table (a new "Live-verified **asset-creation write
+  path**" row), the Available-MCP-Tools verification-scope blockquote (a new Round-9 paragraph, and
+  the "Still not exercised" list rewritten so these tools no longer appear in it), the per-tool
+  rows for `manage_material`, `manage_texture`, `manage_shader`, `manage_scriptable_object`,
+  `manage_ui`, `manage_animation`, `manage_vfx` and `manage_prefabs`, and
+  `steering/unity-general.md`'s write-path bullet. `steering/scene-scaffolding.md` gained the
+  `manage_ui(create)`-requires-`contents` rule, which its UI-menu sequence already satisfied.
+- **No over-promotion:** each row now names what is still unexercised for that tool — the
+  modify/update/delete paths, `manage_prefabs(save_prefab_stage)`, `manage_animation`'s
+  `clip_*`/`animator_*`, `manage_vfx`'s `vfx_*`/`line_*`/`trail_*`.
+- **Label:** VERIFIED on 10.3.0 for the `create` paths only.
+
+### J-4 — `manage_animation`'s `properties` dict uses camelCase keys — VERIFIED
+- **Observed:** `properties:{path:...}` failed with
+  `'controllerPath' is required (e.g. 'Assets/Animations/Player.controller')`, while
+  `properties:{controllerPath:...}` succeeded (`layerCount: 1`, `parameterCount: 0`).
+- **Why it matters:** top-level params are snake_case (`action`, `properties`) like every other
+  tool in the surface, so an agent will guess `path` and read the resulting error as a missing
+  parameter rather than a naming-convention difference.
+- **Documented in:** a new POWER.md section "`manage_animation`'s `properties` keys are camelCase"
+  (with the failing and succeeding calls side by side), the `manage_animation` row, and
+  `steering/unity-general.md`'s write-path bullet. The section also notes that the `clip_*` /
+  `animator_*` `properties` keys were not individually exercised and that the live error text is
+  authoritative.
+- **Label:** VERIFIED on 10.3.0.
+
+### J-5 — `execute_menu_item` is fire-and-forget — VERIFIED
+- **Observed:** `execute_menu_item(menu_path:"Window/General/Console")` returned
+  `"Attempted to execute menu item: 'Window/General/Console'. Check Unity logs for confirmation or
+  errors."` with `data: null`.
+- **The semantic:** `success: true` means the call was **DISPATCHED**, not that the menu item
+  existed or ran. A wrong `menu_path` does not raise an error either.
+- **Why it matters:** an agent could otherwise report a menu action as done when nothing happened.
+- **Documented in:** a new POWER.md section "`execute_menu_item` is fire-and-forget", the
+  `execute_menu_item` row, a new Error-Categories row ("A menu item reported as executed, with no
+  effect"), and `steering/unity-general.md`'s write-path bullet. All of them say the result is
+  **not a verification signal** and that the effect must be confirmed separately via `read_console`
+  or a follow-up read, with real paths taken from the `mcpforunity://menu-items` resource.
+- **Label:** VERIFIED on 10.3.0 (dispatch semantics).
+
+### J-6 — ORDERING RULE: scene mutation then save, never concurrent — VERIFIED the hard way
+- **Observed:** `manage_scene(save)` and `manage_gameobject(delete)` were issued as **parallel**
+  calls; the save landed first, so the scene was persisted **with** the test object and the delete
+  existed only in memory. Re-running delete-then-save in order fixed it.
+- **Second occurrence of the same class of mistake** (see H-5), which is the argument for writing
+  it down as a rule rather than a caution.
+- **Documented in:** a new POWER.md section "Sequence a scene mutation before the save" (never
+  concurrent; save last; `batch_execute` command order counts and no `parallel: true` on a batch
+  containing a save; a scene that looks un-mutated after a successful save is usually this), a
+  pointer from "Scene edits live in memory until you save", the `manage_scene` row, **Workflow 2
+  step 7** ("not optional, and it goes LAST"), a new Error-Categories row, a new
+  `steering/scene-scaffolding.md` section "The Save Must Be Sequenced After the Mutation — Never
+  Concurrent" plus its flow step 6, and a bullet in `steering/unity-general.md`'s "Tool Call Best
+  Practices".
+- **Label:** VERIFIED on 10.3.0.
+
+### J-7 — cleanup verified — VERIFIED
+- **Method recorded:** `manage_gameobject(delete)` -> `manage_scene(save)` ->
+  `manage_asset(delete, "Assets/_MCPVerify")`, then a reload of `SampleScene` from disk confirming
+  its original **3** roots (Main Camera, Directional Light, Global Volume) with original
+  components; `Assets/_MCPVerify` absent from disk; and `Assets/` top level holding only `Scenes`,
+  `Settings`, `TutorialInfo`, `InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta`
+  files.
+- **Label:** VERIFIED on 10.3.0.
+
+### Still UNVERIFIED after Round 9 — stated plainly, with reasons
+- **`manage_graphics` setters and bake actions — DELIBERATELY SKIPPED, not missed.**
+  `pipeline_set_settings`, `pipeline_set_quality`, `feature_add`/`remove`/`configure`/`toggle`,
+  `skybox_set_*`, `volume_*` and `bake_*` mutate **project-wide render settings** on the
+  developer's own project and could not be safely restored, so no pass called them. Everything the
+  docs say about them is documentation-derived, and the POWER.md `manage_graphics` row now states
+  the reason rather than just the status.
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`** — blocked by the user's `permissions.yaml` MCP deny rule (C-5), so **C-6**
+  stays UNVERIFIED.
+- **PlayMode tests**, and `manage_editor`'s `play`/`pause`/`stop`.
+- **`manage_editor`'s `deploy_package`/`restore_package`, `add_tag`/`remove_tag`,
+  `add_layer`/`remove_layer`, `set_active_tool`, `undo`/`redo`.**
+- **`run_tests`' `test_names`/`group_names`/`category_names` filters and `clear_stuck`**; whether
+  `get_test_job`'s `wait_timeout` blocks.
+- **`execute_custom_tool`, `set_active_instance`.**
+- **The MODIFY/DELETE paths of the tools whose create paths were verified here** —
+  `manage_texture(modify)`, `manage_shader(update)`, `manage_scriptable_object(modify)` patches,
+  `manage_ui(update)`/`modify_visual_element`/`render_ui`, the rest of `manage_animation`'s
+  `clip_*`/`animator_*`, `manage_vfx`'s `vfx_*`/`line_*`/`trail_*`, and
+  `manage_prefabs(save_prefab_stage)`.
+- **`t:Model` / `t:GameObject` search filters** — no model assets in the project.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The `mcpforunity://` resource URIs** — no resource-reading tool on this client.
+
+### Preserved unchanged by Round 9
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`" blocks
+in POWER.md and all five READMEs; the two-pin upgrade mechanism; the DISTINCT `no_unity_session` vs
+`Session not found` entries; the `manage_editor` telemetry rows; the `batch_execute` server-layer
+divergence caveat; tool-group activation as conditional troubleshooting only; the `asset_gen` cost
+warning and default-off state with no invented parameter table; the 43 -> 49 additive delta and the
+"use the live count, not upstream's 48" note; the `permissions.yaml` deny-rule root cause and the
+`power-<powerName>-<serverName>` namespace; the pidfile port-discovery guidance; `class_name` never
+`type_name` for `unity_reflect`/`unity_docs` and the `unity_docs` unqualified-name trap;
+`find_in_file` being C#-script-only; the prefixed `by_name`-style `search_method` values; the
+instance-ID volatility warning and the three per-tool `target` conventions; `script_apply_edits`
+taking `name` + `path` not `uri`; the `refresh_unity` `mode`/`compile` enums; `duplicate` ignoring
+`name`; the save-to-persist scene semantics; the AssetDatabase filter fix (`t:MonoScript` /
+`t:Texture2D` verified, `t:Model` unverified, NO `*.ext` globs); the built-in-vs-user-script
+`component_type` rule (`TypeName, Assembly-CSharp`); the test-run `status`-is-test-outcome semantics
+and `progress.failures_so_far`; the EditMode asmdef recipe; the obsolete-physics mapping with the
+2D-only `isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid); and the PASSED
+workshop acceptance test. Each localized README stays in its own language and none of them needed a
+Round-9 edit — they carry no per-tool unverified labels for the tools promoted here. No `src/*.ts`,
+hook, template or `mcp.json` file was touched by this pass; the files changed are POWER.md,
+`steering/unity-general.md`, `steering/scene-scaffolding.md` and this record.
