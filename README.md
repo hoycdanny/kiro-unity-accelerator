@@ -271,7 +271,7 @@ One security improvement worth knowing: on 10.3.0 `debug_request_context` masks 
 
 #### What the write path proved, and the one finding that changes how you chain calls
 
-A final round of verification stopped reading and started writing. Everything went into an isolated `Assets/_MCPVerify/` folder with `MCPVerify_*` object names and was deleted afterwards; the project was then confirmed back at baseline — `SampleScene` with its original 3 roots and their original component sets, and 0 `.cs` assets.
+A final round of verification stopped reading and started writing. Everything went into an isolated `Assets/_MCPVerify/` folder with `MCPVerify_*` object names and was deleted afterwards; the project was then confirmed back at baseline — `SampleScene` with its original 3 roots and their original component sets, and a full `manage_asset(action: "search", search_pattern: "*")` returning its original 20 assets, all stock Unity template content.
 
 **Verified on 10.3.0**: `manage_asset` folder create/delete; `create_script`, `get_sha`, `validate_script`, `find_in_file`'s success path, `script_apply_edits` and `delete_script`; `manage_gameobject` create/modify/duplicate/delete; `manage_components` add and set_property; `manage_prefabs(create_from_gameobject)`; `refresh_unity`; and `run_tests` → `get_test_job` as a complete async job lifecycle (`running` → `succeeded` in about 7.5 s). The project had no test assemblies, so **the lifecycle is confirmed but pass/fail reporting is not.**
 

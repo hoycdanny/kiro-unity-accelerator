@@ -860,3 +860,147 @@ instance IDs differ, for the domain-reload reason in G-1.
 - `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
 - The `mcpforunity://` resource URIs — this client still exposes no resource-reading tool,
   though G-4's hint independently confirms `mcpforunity://editor/state` exists.
+
+---
+
+# ROUND 7 — workshop acceptance test on 10.3.0, and two serious documentation bugs (2026-10-21)
+
+Ran the platformer workshop's critical path against the live Editor as an acceptance test, in an
+isolated scene under `Assets/_MCPVerify/`, then cleaned up and confirmed the project restored.
+Unity 6000.4.6f1, bridge 10.3.0. Two previously-unknown documentation bugs surfaced, one of
+which silently breaks a whole workflow.
+
+## H-1 — CRITICAL: `manage_asset(search)` does NOT accept `*.ext` globs
+
+| `search_pattern` | Result |
+|---|---|
+| `"*.cs"` | **0 assets** — silently |
+| `"Readme"` (bare name substring) | 3 assets, including `Assets/TutorialInfo/Scripts/Readme.cs` and `.../Editor/ReadmeEditor.cs` |
+| `"t:MonoScript"` | **2 assets** — both `.cs` files, correctly |
+| `"t:Texture2D"` | **1 asset** — `Assets/TutorialInfo/Icons/URP.png` |
+| `"*"` | 20 assets (everything) |
+
+**VERIFIED:** `search_pattern` is **Unity's AssetDatabase filter syntax** (`t:<Type>`, plus bare
+name substrings), **not** a filename glob. An `*.ext` pattern matches nothing and returns
+`success: true` with zero results — a silent, confidence-inspiring failure.
+
+**This breaks the Power's own documented guidance in several places**, all of which must be fixed:
+- POWER.md's `manage_asset` row: "There is no `list` action — use `search` with `path` +
+  `search_pattern` (e.g. `"*.fbx"`)".
+- POWER.md's repeated instruction to enumerate scripts with
+  `manage_asset(action:"search", search_pattern:"*.cs")` (used in the `manage_script` and
+  `manage_shader` notes too, e.g. `"*.shader"`).
+- **Workflow 1 (Asset Batch Configuration) step 1**:
+  `manage_asset(action:"search", path:"Assets/Characters/", search_pattern:"*.fbx")`. Following
+  the workflow as written finds **zero** assets, so the batch step configures nothing and the
+  final report says "0 succeeded" — the workflow appears to run and silently does nothing. This
+  is a direct, concrete instance of "the Power cannot drive Unity".
+- `steering/asset-automation.md` and any template encoding an `*.ext` search pattern.
+
+Correct replacements to document: `t:MonoScript` for scripts, `t:Texture2D` for textures,
+`t:Shader` for shaders, `t:Material`, `t:SceneAsset`, `t:Prefab`, etc. For FBX/model files Unity's
+filter is `t:Model` (or `t:GameObject`) — **UNVERIFIED here**, the project contains no model
+assets, so document it as the Unity filter to use while flagging that it was not exercised.
+A bare substring also works and is a safe fallback when the type name is uncertain.
+
+## H-2 — a Round-1..6 claim was WRONG because of H-1
+
+Earlier rounds repeatedly stated "the verification project contains zero `.cs` assets", and used
+that to justify leaving the script tools' success paths UNVERIFIED. That was an artifact of H-1:
+the project actually contains **two** `.cs` assets (`TutorialInfo/Scripts/Readme.cs` and
+`TutorialInfo/Scripts/Editor/ReadmeEditor.cs`). Correct any text that asserts the project has no
+scripts. (The script tools' success paths were independently verified in Round 6 against a script
+that was created for the purpose, so that conclusion still stands — only the stated reason was
+wrong.)
+
+This is also a cautionary example worth keeping: a silent empty result was mistaken for
+"nothing exists" across five rounds.
+
+## H-3 — `manage_components(add)` needs an ASSEMBLY-QUALIFIED name for user scripts
+
+| `component_type` | Result |
+|---|---|
+| `"PlayerController"` | `Component type 'PlayerController' not found. Use a fully-qualified name if needed.` |
+| `"PlayerController, Assembly-CSharp"` | **success** — `componentType: "PlayerController"`, `componentInstanceID: -12444` |
+
+The failure is **not** a timing artifact: `execute_code` in the same Editor confirmed
+`System.Type.GetType("PlayerController, Assembly-CSharp")` → `loaded: PlayerController
+base=MonoBehaviour` *before* the plain-name call was retried and failed again.
+
+**Why this matters a lot:** the live tool description lists `'MyScript'` as an example
+`component_type`, which implies a plain user-script name works. It does not. Every workshop step
+that says "attach this script to the object" — and the platformer workshop has many
+(`PlayerController`, `CameraFollow`, `GameManager`, collectibles, enemies, goal) — fails on the
+natural call. Built-in Unity types are fine with the short name (`Rigidbody`, `Rigidbody2D`,
+`SpriteRenderer`, `BoxCollider2D` all worked). Document the rule: **built-in types → short name;
+user scripts → `TypeName, Assembly-CSharp`.**
+
+## H-4 — `refresh_unity(wait_for_ready: true)` does NOT actually wait
+
+Called with `wait_for_ready: true`, it returned immediately with
+`resulting_state: "compiling"`. A subsequent `manage_components(add)` then failed because the
+assembly was not yet reloaded. So the parameter does not block until the Editor is ready; callers
+must poll (the response's own `hint` says to poll `mcpforunity://editor/state` until
+`data.advice.ready_for_tools` is true). Document that `wait_for_ready` is not a synchronous
+barrier, and that a compile needs an explicit readiness wait before dependent calls.
+
+## H-5 — deletions are not persisted until the scene is saved, and a scene switch can resurrect them
+
+Round 6 deleted `MCPVerify_Cube` from `SampleScene` but never saved the scene. After creating and
+loading another scene and then re-loading `SampleScene` from disk, **the cube was back** —
+`get_hierarchy` showed 4 roots instead of the baseline 3. It had to be deleted again and
+`manage_scene(action:"save")` called explicitly before the on-disk scene was actually clean.
+
+Document this: `manage_gameobject(delete)` (and any scene mutation) affects only the in-memory
+scene; an explicit `manage_scene(action:"save")` is required to persist it, and switching or
+reloading scenes can discard unsaved changes or re-read stale on-disk state. Any workflow that
+mutates a scene must decide deliberately whether to save. This is also a cleanup hazard: a
+verification pass that deletes its test objects without saving leaves them in the project.
+
+## H-6 — WORKSHOP ACCEPTANCE TEST: PASSED
+
+Executed `workshop/2d-platformer-game.md`'s player-setup critical path as written:
+
+| Step | Call | Result |
+|---|---|---|
+| New isolated scene | `manage_scene(create, name:"MCPVerify_Platformer", path:"Assets/_MCPVerify")` | ok — also auto-created the folder; became the active scene (rootCount 0, buildIndex -1) |
+| Player object | `manage_gameobject(create, name:"Player", tag:"Player", position:[0,1,0], components_to_add:["SpriteRenderer","Rigidbody2D","BoxCollider2D"])` | ok — all three components attached, tag applied. `components_to_add` VERIFIED |
+| 2D physics setup | `manage_components(set_property, "Rigidbody2D", properties:{gravityScale:3, freezeRotation:true}, target:"Player")` | ok — `target` by NAME works on `manage_components` too |
+| 6.4-API movement script | `create_script` with `rb.linearVelocity = new Vector2(...)` and `rb.linearVelocity = Vector2.zero` | ok |
+| Compile | `refresh_unity(mode:"force", compile:"request")` then `validate_script` | **0 errors**, 1 analyzer warning (unassigned `groundLayer` field); `read_console(types:[error,warning], filter_text:"PlayerController")` → **0 entries** |
+| Type really compiled | `execute_code` → `System.Type.GetType("PlayerController, Assembly-CSharp")` | `loaded: PlayerController base=MonoBehaviour` |
+| Attach script | `manage_components(add, "PlayerController, Assembly-CSharp")` | ok (see H-3) |
+| Verify the result | `execute_code` reading the live object | `script=True gravityScale=3 freezeRot=FreezeRotation comps=5` |
+| Save | `manage_scene(action:"save")` | ok |
+
+**The key outcome:** a script written with Unity 6.4's current `linearVelocity` API compiled with
+**zero obsolete-API warnings** and ran as a real attached component. That validates the Round-3
+obsolete→current physics mapping *as the workshops now instruct it*. Had the script used the
+classic `rb.velocity`, Unity would have emitted obsolete warnings on 6.4.
+
+Also newly verified here: `manage_scene` **create**, **save** and **load** (all three were
+previously unexercised), and `manage_scene(create)` creating its target folder as needed.
+
+## H-7 — cleanup verified, project fully restored
+
+Final state after cleanup: `SampleScene` active with exactly its original **3** roots (Main
+Camera, Directional Light, Global Volume) and original component sets; a full
+`manage_asset(search, "*")` returns **20** assets, all original Unity template content
+(`InputSystem_Actions.inputactions`, `Readme.asset`, `Scenes/SampleScene.unity`, `Settings/*`,
+`TutorialInfo/*`). No `_MCPVerify` folder, no `MCPVerify_*` objects, no leftover prefab or
+script. Only instance IDs differ, per G-1.
+
+## Still NOT verified
+
+- The six `asset_gen` tools — intentionally never called; they spend real money.
+- `manage_build` — still blocked by the user's `permissions.yaml` MCP deny rule (C-5); C-6 stays
+  UNVERIFIED.
+- `run_tests` with actual tests — the two existing `.cs` files are not test assemblies, so
+  pass/fail reporting, `include_failed_tests` and PlayMode remain unexercised.
+- `t:Model` / `t:GameObject` search filters for FBX — no model assets in the project (H-1).
+- `execute_menu_item`, `execute_custom_tool`, `set_active_instance`, `manage_editor`'s
+  play/pause/stop/deploy_package/restore_package, `manage_scriptable_object`, `manage_animation`,
+  `manage_vfx`, `manage_texture`, `manage_shader`, `manage_ui` writes, `manage_graphics` setters
+  and bake actions, `manage_prefabs` stage actions.
+- `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
+- The `mcpforunity://` resource URIs — no resource-reading tool on this client.

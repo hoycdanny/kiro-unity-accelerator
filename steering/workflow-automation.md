@@ -37,13 +37,13 @@ Multi-step workflows in Unity — "import these assets, configure them, build, t
 manage_asset(action: "search", path: "Assets/", search_pattern: "*")
 ```
 
-There is no `list` action or `recursive` flag — `search` under a folder path already covers subfolders; use `search_pattern` to filter by glob.
+There is no `list` action or `recursive` flag — `search` under a folder path already covers subfolders. **`search_pattern` is Unity's AssetDatabase filter syntax, NOT a filename glob (VERIFIED on 10.3.0, 2026-10-21)**: `"*"` returns everything, `t:MonoScript` / `t:Texture2D` / `t:Shader` / `t:Model` filter by type, and a bare name substring matches on name. An `*.ext` pattern such as `"*.fbx"` matches **nothing** and still returns `success: true` with zero assets — a workflow step built on one appears to run and does nothing. Full detail in `asset-automation.md` under "`search_pattern` Is a Filter, Not a Glob".
 
 ### Batch Execute Multiple Steps
 
 ```
 batch_execute(commands: [
-  { "tool": "manage_asset", "params": { "action": "search", "path": "Assets/", "search_pattern": "*.fbx" } },
+  { "tool": "manage_asset", "params": { "action": "search", "path": "Assets/", "search_pattern": "t:Model" } },
   { "tool": "manage_asset", "params": { "action": "modify", "path": "Assets/Characters/hero.fbx", "properties": { "rigType": "Humanoid" } } }
 ], fail_fast: false)
 ```

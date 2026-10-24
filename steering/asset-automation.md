@@ -15,7 +15,7 @@ Unity's asset import pipeline can be automated through batch operations and pres
 Scan → Detect type → Load Preset → batch_execute apply → Generate change summary
 ```
 
-1. **Scan folder**: Use `manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "*.fbx")` to scan the specified folder and retrieve matching asset paths (there is no `list` action — `search` with `search_pattern` is the real syntax; run it once per extension since `search_pattern` takes a single glob, not a comma-separated list)
+1. **Scan folder**: Use `manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "t:Model")` to scan the specified folder and retrieve matching asset paths (there is no `list` action — `search` with `search_pattern` is the real syntax). **`search_pattern` is Unity's AssetDatabase filter syntax, not a filename glob** — see "`search_pattern` Is a Filter, Not a Glob" below before writing the call. One `t:Model` filter covers every model format, so there is no per-extension repeat
 2. **Detect asset type**: Automatically determine asset type based on file naming conventions (see rules below) and suggest the applicable Asset_Preset
 3. **Load Preset**: Load the corresponding Asset_Preset JSON from `templates/presets/` (custom location takes priority; falls back to built-in template if not found)
 4. **Batch apply**: Use `batch_execute` to batch-apply the parameters defined in the Preset to all selected assets via `manage_asset(action: "modify", path: ..., properties: {...})`. **Pass `fail_fast: false` explicitly** — it defaults to `true`, which aborts the whole batch at the first bad asset instead of continuing as the failure recovery below requires. Keep each batch within the command cap (configurable in the Unity MCP Tools window, default 25, hard maximum 100) and send successive batches for a larger folder. **Batch only Unity-side work like this** — `batch_execute` bypasses the Python server layer, so a server-layer action fails inside a batch with a misleading `Unknown action` error (see "`batch_execute` is not equivalent to direct calls" in `unity-general.md`); if a batched command reports an unknown action, retest it as a direct call before concluding anything
@@ -40,17 +40,35 @@ Matching rules:
 
 ## MCP Tool Usage Examples
 
-> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** and then again against **10.3.0**, both connected to Unity **6000.4.6f1**. The read-only sweeps proved that `manage_asset` has no `list` and no `set_import_settings` action (the 10.3.0 rejection returned the identical valid-action list, so the contract is **verified on both versions**), and that `manage_asset(action: "search")` with a single-glob `search_pattern` works. A later write-path pass on 10.3.0 additionally verified **`manage_asset(action: "create_folder")`** (returns guid, instanceID, `isFolder: true`) and **`manage_asset(action: "delete")`** (removed a folder together with the asset inside it), with every write confined to an isolated `Assets/_MCPVerify/` folder that was deleted afterwards. The `modify` call below (and its importer property names) is **still not** live-verified on either version — nor are `import`, `duplicate`, `move` and `rename` — it is reconciled against the MCP for Unity v10.3.0 generated tool reference. A validation error from the live call lists the real field names and overrides this file.
+> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** and then again against **10.3.0**, both connected to Unity **6000.4.6f1**. The read-only sweeps proved that `manage_asset` has no `list` and no `set_import_settings` action (the 10.3.0 rejection returned the identical valid-action list, so the contract is **verified on both versions**). A seventh round then established what `search_pattern` actually accepts: it is **Unity's AssetDatabase filter syntax, not a filename glob** — `"*.cs"` returned **0** assets with `success: true` while `"t:MonoScript"` correctly returned both of the project's `.cs` files (see "`search_pattern` Is a Filter, Not a Glob" below). Earlier revisions of this file prescribed `"*.fbx"`, which found nothing. A later write-path pass on 10.3.0 additionally verified **`manage_asset(action: "create_folder")`** (returns guid, instanceID, `isFolder: true`) and **`manage_asset(action: "delete")`** (removed a folder together with the asset inside it), with every write confined to an isolated `Assets/_MCPVerify/` folder that was deleted afterwards. The `modify` call below (and its importer property names) is **still not** live-verified on either version — nor are `import`, `duplicate`, `move` and `rename` — it is reconciled against the MCP for Unity v10.3.0 generated tool reference. A validation error from the live call lists the real field names and overrides this file.
 
 The examples below cover the three operations the developer will use most often: scanning, applying settings to a single asset, and applying settings in batch. Real workflows usually chain these together — scan first to confirm the file list, dry-run on one asset, then batch-execute. A brief manual review between scan and batch-execute is recommended, especially the first time a Preset is run against a new folder.
+
+### `search_pattern` Is a Filter, Not a Glob
+
+**VERIFIED on bridge 10.3.0, 2026-10-21 — and getting this wrong breaks a batch run silently.** `search_pattern` takes **Unity's AssetDatabase filter syntax** (`t:<Type>` terms plus bare name substrings), **not** a filename glob. An `*.ext` pattern matches nothing and the call still returns `success: true` with zero assets, so the batch configures nothing and the final report says "0 succeeded" — which reads as *the folder is empty* rather than *the query was wrong*.
+
+Measured on the verification project (20 assets):
+
+| `search_pattern` | Assets returned |
+|---|---|
+| `"*.cs"` | **0** — silently, with `success: true` |
+| `"t:MonoScript"` | **2** — both `.cs` files, correctly |
+| `"t:Texture2D"` | **1** — a `.png` |
+| `"Readme"` (bare name substring) | 3, including both `.cs` files |
+| `"*"` | 20 — every asset |
+
+Use `t:MonoScript` for scripts (**VERIFIED**), `t:Texture2D` for textures (**VERIFIED**), `*` for everything under `path` (**VERIFIED**), and `t:Shader` / `t:Material` / `t:SceneAsset` / `t:Prefab` / `t:AudioClip` for those types. For models — FBX, OBJ, blend — the filter is **`t:Model`** (or `t:GameObject`), which is **UNVERIFIED here**: the verification project contains no model assets, so it was never exercised. A bare name substring also works and is the safe fallback when the type name is uncertain.
+
+**Guard against the silent miss**: if a `search` returns zero assets, re-run it with `search_pattern: "*"` under the same `path` before telling the developer the folder is empty. If `*` returns assets, the filter was wrong.
 
 ### Scan Folder
 
 ```
-manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "*.fbx")
+manage_asset(action: "search", path: "Assets/Characters/", search_pattern: "t:Model")
 ```
 
-Returns a paginated list of asset paths matching the pattern under the specified folder. Run once per extension (e.g. a second call with `search_pattern: "*.obj"`) since the pattern is a single glob, not a comma-separated list. Use `page_size`/`page_number` if the folder has more assets than one page.
+Returns a paginated list of asset paths matching the filter under the specified folder. `t:Model` covers every model format in one call. Use `page_size`/`page_number` if the folder has more assets than one page. Never pass `"*.fbx"` — see the filter note above.
 
 ### Set Model Import Parameters
 

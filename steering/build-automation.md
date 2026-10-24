@@ -108,7 +108,7 @@ Pattern: `Shader error in 'Custom/MyShader': undeclared identifier 'unity_Object
 
 Fix suggestions:
 - Check if the Shader syntax is compatible with the target platform's graphics API
-- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate Shaders in the project (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`). `manage_asset` is in the default-on `core` group; `manage_shader` is declared in the `vfx` group, reported off by default but callable without activation on the live-verified install — run `manage_tools(action: "activate", group: "vfx")` only if `manage_shader` is reported as not existing. See "Tool Group Activation (`manage_tools`)" in `unity-general.md`
+- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "t:Shader")` to enumerate Shaders in the project — **`t:Shader`, not `"*.shader"`**: `search_pattern` is an AssetDatabase filter, and a glob returns zero assets with `success: true` (see "`search_pattern` Is a Filter, Not a Glob" in `asset-automation.md`). (`manage_shader` itself has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`). `manage_asset` is in the default-on `core` group; `manage_shader` is declared in the `vfx` group, reported off by default but callable without activation on the live-verified install — run `manage_tools(action: "activate", group: "vfx")` only if `manage_shader` is reported as not existing. See "Tool Group Activation (`manage_tools`)" in `unity-general.md`
 - Suggest using URP/HDRP-compatible Shaders instead of custom Shaders
 
 #### Missing Asset Errors
@@ -117,7 +117,7 @@ Pattern: `The referenced script on this Behaviour is missing!`
 Pattern: `Missing Prefab with guid: {guid}`
 
 Fix suggestions:
-- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "...")` to search for the missing asset (there is no `find` action)
+- Use `manage_asset(action: "search", path: "Assets/", search_pattern: "<asset name substring>")` to search for the missing asset (there is no `find` action). `search_pattern` is an AssetDatabase filter — a bare name substring matches on name, and `t:<Type>` filters by type; a filename glob matches nothing (see `asset-automation.md`)
 - Check if `.meta` files are intact
 - Confirm the asset was not accidentally deleted or moved
 

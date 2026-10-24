@@ -42,6 +42,34 @@
 >
 > 這張對照表後來也在實機上**寫入並讀回驗證過**（bridge 10.3.0，2026-10-21）：用 `manage_components(action: "set_property", component_type: "Rigidbody", properties: {linearDamping: 2.25, useGravity: false, mass: 7.5})` 設定成功，再用 `execute_code` 讀回得到 `mass=7.5 linearDamping=2.25 useGravity=False`。也就是說 6.4 的新名稱 `linearDamping` 確實可以透過 MCP 橋接設定，而且 `properties` 字典形式可以一次設定多個屬性。
 
+> **這份 Workshop 的關鍵路徑已經實機跑過，而且通過了（驗收測試，bridge 10.3.0，2026-10-21）**
+>
+> 步驟 2「玩家角色：移動與跳躍」的完整流程被照本文的寫法在實機 Unity `6000.4.6f1` 上執行了一遍：建立 Player（`components_to_add` 一次掛上 SpriteRenderer + Rigidbody2D + BoxCollider2D 並設定 tag）→ 設定 Rigidbody2D 的 `gravityScale` 與 `freezeRotation` → 寫一支用 `linearVelocity` 的 `PlayerController` → 編譯 → 掛上腳本 → 讀回物件確認。
+>
+> **最重要的結果**：那支用 6.4 新 API `linearVelocity` 寫的腳本編譯出來是 **0 個錯誤、0 個過時 API 警告**（`validate_script` 回報 0 errors，只有 1 個分析器警告說 `groundLayer` 欄位沒指派；`read_console(types: [error, warning], filter_text: "PlayerController")` 回報 **0 筆**），型別確實有載入（`execute_code` 回報 `loaded: PlayerController base=MonoBehaviour`），腳本真的掛成元件，讀回物件得到 `script=True gravityScale=3 freezeRot=FreezeRotation comps=5`。如果照舊寫法用 `rb.velocity`，6.4 就會冒出一串過時警告 —— 所以上面那張對照表不只是查到的，而是**照這份 Workshop 的寫法實際驗證過的**。
+>
+> 同一次驗收也首次驗證了 `manage_scene` 的 `create`／`save`／`load`（`create` 會自動建立目標資料夾）、`manage_gameobject` 的 `components_to_add`，以及 `manage_components(set_property)` 可以用物件**名稱**當 `target`。
+
+> **掛腳本時的型別名稱規則（不照這個寫，掛載一定失敗）**
+>
+> `manage_components(action: "add")` 對「Unity 內建型別」和「你自己寫的腳本」解析方式不同 —— 實機驗證（bridge 10.3.0，2026-10-21）：
+>
+> | `component_type` 傳什麼 | 結果 |
+> |---|---|
+> | `"PlayerController"`（自己寫的腳本，只給短名稱） | **失敗** —— `Component type 'PlayerController' not found. Use a fully-qualified name if needed.` |
+> | `"PlayerController, Assembly-CSharp"` | **成功** |
+> | `"Rigidbody2D"`、`"SpriteRenderer"`、`"BoxCollider2D"`（內建型別） | **成功**，短名稱就可以 |
+>
+> **規則：內建型別用短名稱；自己寫的腳本要用 `型別名稱, Assembly-CSharp`。**（腳本放在 assembly definition 裡的話，就換成那個 assembly 的名稱。）
+>
+> 這**不是編譯還沒完成的時序問題**：同一個編輯器裡用 `execute_code` 確認 `System.Type.GetType("PlayerController, Assembly-CSharp")` 已經回報 `loaded: PlayerController base=MonoBehaviour` 之後，再重試一次短名稱，還是失敗。型別早就載好了，短名稱就是解析不到使用者組件。
+>
+> 另外要注意：**`refresh_unity(wait_for_ready: true)` 不會真的等**（實機驗證）。它會立刻回來，`resulting_state` 還是 `compiling`，緊接著的 `manage_components(add)` 就因為組件還沒重新載入而失敗。寫完腳本要編譯之後才掛元件的話，必須等到編輯器真的就緒（輪詢 `mcpforunity://editor/state` 直到 `data.advice.ready_for_tools` 為 true，這也是 `refresh_unity` 回應裡 `hint` 自己說的做法），或是失敗就重試。
+>
+> 下面每個要掛腳本的步驟都會重述一次這條規則。本 Workshop 的 Prompt 都是自然語言，Kiro 會自己翻成工具呼叫；這段說明是為了讓 Kiro 翻對，也讓你在它卡住時知道原因。
+
+> **場景改動要存檔才算數**：`manage_gameobject` 的建立／修改／刪除，以及任何場景改動，都只動到**記憶體裡**的場景。沒有呼叫 `manage_scene(action: "save")`，磁碟上的場景檔完全沒變，而切換或重新載入場景會把未存檔的改動丟掉、再把舊檔案讀回來（實機驗證：某個刪掉但沒存檔的物件，在切場景再切回來之後**又出現了**，root 數從 3 變成 4）。本 Workshop 的步驟 1 已經要求存檔，後面每次做完一批改動也請讓 Kiro 存檔。
+
 ---
 
 ## 步驟 0：確認連線（工具群組先不用動）
@@ -138,7 +166,9 @@
 - 元件：SpriteRenderer（先指派好 Sprite）、Rigidbody2D（Gravity Scale 設為 3，讓下落手感稍微紮實一點；Freeze Rotation Z 打勾，避免角色因碰撞亂轉）、BoxCollider2D（size 依照 Sprite 大小設定，完成後回報數值）
 - 位置放在 Ground_Base 上方，例如 (-6, -1.5, 0)
 
-幫我寫一個 C# 腳本 PlayerController，掛在 Player 上，功能：
+幫我寫一個 C# 腳本 PlayerController，掛在 Player 上。掛載時請注意：自己寫的腳本要用組件限定名稱，也就是 `manage_components(action: "add", component_type: "PlayerController, Assembly-CSharp")`，只給 `"PlayerController"` 會回報 `Component type not found`；內建型別（SpriteRenderer、Rigidbody2D、BoxCollider2D）才可以用短名稱。另外寫完腳本要先編譯完成才掛得上，而 `refresh_unity(wait_for_ready: true)` 不會真的等，請輪詢 `mcpforunity://editor/state` 的 `data.advice.ready_for_tools` 或失敗就重試。
+
+功能：
 - 左右移動：用方向鍵或 A/D 控制，速度用 public 變數 moveSpeed（預設 6），直接設定 Rigidbody2D 的水平速度 —— 請用 Unity 6.4 的 `linearVelocity`（例如 `rb.linearVelocity = new Vector2(input * moveSpeed, rb.linearVelocity.y)`），**不要用已經 obsolete 的 `velocity`**；也不要用 MovePosition，因為需要保留重力對垂直速度的影響
 - 跳躍：按下跳躍鍵（空白鍵）時，如果角色目前在地面上，給予一個向上的瞬間速度，大小用 public 變數 jumpForce（預設 12）；同樣透過 `linearVelocity` 設定垂直分量（`rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce)`）
 - 地面偵測（isGrounded）：在腳本裡用 Physics2D.OverlapBox 做檢測，位置取角色 BoxCollider2D 底部邊緣往下一點的位置（用 `collider.bounds.center` 減去 `collider.bounds.extents.y` 再往下偏移約 0.1 個單位計算），偵測範圍是一個扁的小方框（寬度略小於角色本身、高度約 0.2），只要偵測到的物件 Tag 是 "Ground" 就視為在地面上。這個判定請在 FixedUpdate 裡持續更新
@@ -162,7 +192,7 @@
 
 - 用 public Transform target 欄位指定要跟隨的目標（Start() 時如果沒有手動指定，就用 Tag "Player" 自動找到玩家並設定）
 - 在 LateUpdate() 裡，讓攝影機的 X、Y 座標平滑跟隨 target 的 X、Y（用 Vector3.Lerp 或 Vector3.SmoothDamp，速度用 public 變數 followSpeed 控制，預設 5），Z 座標維持攝影機原本的 -10 不變
-- 幫我把這個腳本掛到 Main Camera 上，並確認 target 有正確找到 Player
+- 幫我把這個腳本掛到 Main Camera 上（自己寫的腳本要用組件限定名稱：`component_type: "CameraFollow, Assembly-CSharp"`，只給 `"CameraFollow"` 會失敗；編譯完成後再掛，`wait_for_ready: true` 不會真的等），並確認 target 有正確找到 Player
 
 完成後幫我確認腳本編譯無誤，並回報 Main Camera 上 CameraFollow 元件的 target 欄位是否已正確指向 Player。
 ```
@@ -178,7 +208,7 @@
 **複製貼上這段 Prompt：**
 
 ```
-請幫我建立一個 GameManager 空物件，掛上腳本 GameManager.cs，用 Singleton 模式（static Instance）讓其他腳本可以呼叫：
+請幫我建立一個 GameManager 空物件，掛上腳本 GameManager.cs（掛載時用組件限定名稱 `component_type: "GameManager, Assembly-CSharp"`，只給 `"GameManager"` 會回報 `Component type not found`；要等編譯真的完成才掛，`refresh_unity(wait_for_ready: true)` 不會真的等），用 Singleton 模式（static Instance）讓其他腳本可以呼叫：
 
 - public int score（預設 0）、public int lives（預設 3）
 - private Vector3 respawnPoint，在 Start() 時記錄 Player 目前的初始位置（用 Tag "Player" 找到玩家）作為預設重生點
@@ -205,7 +235,7 @@
 1. 建立一個水晶 Prefab，名稱 Crystal：
    - Sprite（先用簡單的菱形或方形色塊代表，顏色跟地面、玩家都不同），SpriteRenderer 先指派好 Sprite
    - 一個 Collider2D（isTrigger = true），尺寸依照 Sprite 大小設定
-   - 腳本 CollectibleItem.cs：OnTriggerEnter2D 偵測 Tag 為 "Player" 的物件，命中時呼叫 GameManager.Instance.AddScore(一個 public int scoreValue 欄位，預設 10)，然後銷毀自己
+   - 腳本 CollectibleItem.cs：OnTriggerEnter2D 偵測 Tag 為 "Player" 的物件，命中時呼叫 GameManager.Instance.AddScore(一個 public int scoreValue 欄位，預設 10)，然後銷毀自己。掛這支腳本時用組件限定名稱 `component_type: "CollectibleItem, Assembly-CSharp"`（只給短名稱會失敗），並且要等編譯完成才掛
    - 存成 Prefab（Assets/Prefabs/Crystal.prefab）
 
 2. 在關卡中的三個平台（Platform_1、Platform_2、Platform_3）正上方各放一個 Crystal 實例，方便玩家跳上平台時順路收集
@@ -232,6 +262,7 @@
    - 腳本 Patroller.cs：
      - 在兩個邊界之間來回水平移動，用 public float moveSpeed（預設 2）跟 public float patrolDistance（預設 2，代表從初始位置往左右各移動的距離）控制，用 Sin 波或簡單的方向翻轉都可以，實作上你可以自由選擇
      - 提供一個 public 方法 Defeat()：呼叫這個方法時銷毀自己（並可以之後接特效/音效）
+     - 掛這支腳本到 Patroller 物件上時用組件限定名稱 `component_type: "Patroller, Assembly-CSharp"`（短名稱會失敗），並且要等編譯完成才掛
    - 存成 Prefab（Assets/Prefabs/Patroller.prefab）
 
 2. 修改 PlayerController.cs，加上踩踏判定：偵測 OnTriggerEnter2D，如果碰到的物件 Tag 是 "Enemy"：
@@ -259,7 +290,7 @@
 1. 建立一個尖刺 Prefab，名稱 Spike，Tag 設為 "Hazard"（如果 Tag 不存在請先建立）：
    - Sprite（用醒目的顏色如紅色代表），SpriteRenderer 先指派好 Sprite
    - Collider2D（isTrigger = true，尺寸依照 Sprite 大小設定）
-   - 腳本 Hazard.cs：OnTriggerEnter2D 偵測 Tag 為 "Player" 的物件，命中時呼叫 GameManager.Instance.LoseLife()
+   - 腳本 Hazard.cs：OnTriggerEnter2D 偵測 Tag 為 "Player" 的物件，命中時呼叫 GameManager.Instance.LoseLife()。掛這支腳本時用組件限定名稱 `component_type: "Hazard, Assembly-CSharp"`（短名稱會失敗），並且要等編譯完成才掛
    - 存成 Prefab（Assets/Prefabs/Spike.prefab）
 
 2. 在地面上放置一個 Spike 實例，位置大約在兩個平台之間的地面上（例如 (6, -2.3, 0)），讓玩家需要跳過去而不是直接走過去
@@ -283,7 +314,7 @@
 1. 建立一個終點旗桿 Prefab，名稱 Goal，Tag 設為 "Goal"（如果 Tag 不存在請先建立）：
    - Sprite（用顯眼的顏色代表，例如金色或綠色的直立長條），SpriteRenderer 先指派好 Sprite
    - Collider2D（isTrigger = true，尺寸依照 Sprite 大小設定）
-   - 腳本 Goal.cs：OnTriggerEnter2D 偵測 Tag 為 "Player" 的物件，命中時呼叫 GameManager.Instance.ReachGoal()
+   - 腳本 Goal.cs：OnTriggerEnter2D 偵測 Tag 為 "Player" 的物件，命中時呼叫 GameManager.Instance.ReachGoal()。掛這支腳本時用組件限定名稱 `component_type: "Goal, Assembly-CSharp"`（短名稱會失敗），並且要等編譯完成才掛
    - 存成 Prefab（Assets/Prefabs/Goal.prefab）
 
 2. 把 Goal 放在關卡最右側，例如位置 (15, -2, 0)，確保玩家依照關卡佈局跳過平台跟機關後能夠到達

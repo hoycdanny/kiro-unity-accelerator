@@ -44,7 +44,7 @@ Source: [`run_tests` tool reference @ v10.3.0](https://github.com/CoplayDev/unit
 **Verification status — be precise about the split (observed 2026-10-21, bridge 10.3.0):**
 
 - **The async job LIFECYCLE is VERIFIED end to end.** `run_tests(mode: "EditMode")` returned a `job_id`, and `get_test_job(job_id)` went `status: "running"` → `status: "succeeded"` in roughly 7.5 seconds.
-- **Pass/fail reporting is NOT verified.** The verification project has no test assemblies, so the job completed with `completed: 0, total: 0` — nothing was ever asserted on. `include_failed_tests`, the failure payload shape, and PlayMode behaviour (which starts with a domain reload) all remain **UNVERIFIED**. Say so rather than implying results reporting was proved.
+- **Pass/fail reporting is NOT verified.** The verification project has no test assemblies — it does contain two `.cs` files, but neither is a test assembly — so the job completed with `completed: 0, total: 0` and nothing was ever asserted on. `include_failed_tests`, the failure payload shape, and PlayMode behaviour (which starts with a domain reload) all remain **UNVERIFIED**. Say so rather than implying results reporting was proved.
 
 ### Poll for Results
 

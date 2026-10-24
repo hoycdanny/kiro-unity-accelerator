@@ -11,7 +11,7 @@ Maintaining clean architecture in Unity projects benefits from consistent patter
 > **Tool group note**: the script and asset tools used below (`manage_asset`, `manage_script`, `find_in_file`, `validate_script`, `apply_text_edits`) are all in the default-on `core` group. `execute_code` is declared in `scripting_ext`, reported off by default — but it was callable with no activation on the live-verified install, so call it directly and reach for `manage_tools(action: "activate", group: "scripting_ext")` **only if it is reported as not existing** (then expect the MCP client may need a refresh). Canonical procedure: "Tool Group Activation (`manage_tools`)" in `unity-general.md`.
 
 1. **Get project info**: Read the `mcpforunity://project/info` resource for the project root, Unity version and platform — resources read, tools mutate, and a resource read needs no tool group. There is no standalone `project_info` **tool call**, but the **resource** does exist; use `manage_packages(action: "list_packages")` (asynchronous — poll `action: "status", job_id: ...`) for the installed-package picture
-2. **List scripts**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to get all C# script paths (`manage_script` has no `list` action — it's a legacy router supporting only `create`/`read`/`delete`)
+2. **List scripts**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "t:MonoScript")` to get all C# script paths (`manage_script` has no `list` action — it's a legacy router supporting only `create`/`read`/`delete`). **`t:MonoScript`, not `"*.cs"`** — `search_pattern` is an AssetDatabase filter, and the glob form returns zero scripts while reporting success (**VERIFIED on 10.3.0**; see "`search_pattern` Is a Filter, Not a Glob" in `asset-automation.md`)
 3. **Read script content**: Use `manage_script(action: "read", name: scriptName, path: folderPath)` to read scripts that need checking — both `name` (filename without `.cs`) and `path` (containing folder) are required; there is no single-string full-path param
 4. **Load architecture rules**: Load enabled ArchitectureRule definitions from `templates/architecture-rules/` or custom locations
 5. **Analyze code**: Compare script content against architecture rules, identify violations
@@ -68,9 +68,11 @@ If the `scripting_ext` group is already active and a claim needs live reflection
 ### List All Scripts
 
 ```
-manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")
+manage_asset(action: "search", path: "Assets/", search_pattern: "t:MonoScript")
 → { data: { totalAssets: N, assets: [{ path: "Assets/Scripts/PlayerController.cs", guid: "...", ... }, ...] } }
 ```
+
+`search_pattern` is an **AssetDatabase filter**, not a filename glob. `"*.cs"` returns **0** assets with `success: true` — a silent miss, not an error — while `t:MonoScript` correctly returns the project's scripts (**VERIFIED on bridge 10.3.0, 2026-10-21**). If a script scan comes back empty, re-run it with `search_pattern: "*"` before concluding the project has no scripts; that exact mistake was made during this Power's own verification work and repeated for five rounds.
 
 ### Read Script Content
 

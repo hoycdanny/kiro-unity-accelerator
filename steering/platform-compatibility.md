@@ -13,7 +13,7 @@ Cross-platform Unity development requires careful attention to platform-specific
 ## Compatibility Check Flow
 
 1. **Load Platform Profile**: Load the target platform's PlatformProfile from `templates/platform-profiles/` or custom location
-2. **Scan Shaders**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")` to enumerate shader assets (`manage_shader` has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`) to check for unsupported platform features
+2. **Scan Shaders**: Use `manage_asset(action: "search", path: "Assets/", search_pattern: "t:Shader")` to enumerate shader assets — **`t:Shader`, not `"*.shader"`**: `search_pattern` is an AssetDatabase filter and a glob returns zero assets with `success: true` (see "`search_pattern` Is a Filter, Not a Glob" in `asset-automation.md`) — (`manage_shader` has no `list` action — only `read`/`create`/`update`/`delete` by `name`+`path`) to check for unsupported platform features
 3. **Check graphics settings**: Use `manage_graphics(action: "pipeline_get_info")` and `manage_graphics(action: "pipeline_get_settings")` to get current graphics configuration (there is no `get_settings` action)
 4. **Estimate memory**: Use `manage_asset(action: "get_info", path: ...)` per asset to estimate memory usage of various asset types
 5. **Generate report**: Produce a compatibility report classifying issues into Error/Warning/Suggestion severity levels
@@ -93,9 +93,11 @@ Cross-platform Unity development requires careful attention to platform-specific
 
 ### Scan Shaders
 ```
-manage_asset(action: "search", path: "Assets/", search_pattern: "*.shader")
+manage_asset(action: "search", path: "Assets/", search_pattern: "t:Shader")
 → { data: { assets: [{ path: "Assets/Shaders/TessellatedTerrain.shader", guid: "...", ... }, ...] } }
 ```
+
+`search_pattern` is an **AssetDatabase filter**, not a filename glob: `"*.shader"` matches nothing and still returns `success: true`, so a glob-based scan reports a clean project that was never actually scanned (**VERIFIED on bridge 10.3.0, 2026-10-21** — `"*.cs"` returned 0 assets while `t:MonoScript` returned both of the project's scripts). `t:Shader` is Unity's filter for shader assets; the verification project contained none, so that specific value is **UNVERIFIED** — check the returned count before reporting "no unsupported shaders".
 
 Then, if shader source content needs inspection (e.g. to check for specific feature usage in text), read it via `manage_shader(action: "read", name: "TessellatedTerrain", path: "Assets/Shaders")`.
 

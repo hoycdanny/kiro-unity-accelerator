@@ -260,7 +260,7 @@ v10.3.0 的服务器 CLI（在 10.3.0 上执行 `mcp-for-unity --help`）接受 
 
 #### 写入路径实测到了什么，以及那个会改变调用串接方式的发现
 
-最后一轮验证不再只是读取，而是真的写进项目。所有写入都放在隔离的 `Assets/_MCPVerify/` 文件夹、对象统一命名为 `MCPVerify_*`，事后全部删除；之后确认项目回到原始基准状态 —— `SampleScene` 保有原本的 3 个根对象与原本的 component 组合，且 `.cs` 资产数为 0。
+最后一轮验证不再只是读取，而是真的写进项目。所有写入都放在隔离的 `Assets/_MCPVerify/` 文件夹、对象统一命名为 `MCPVerify_*`，事后全部删除；之后确认项目回到原始基准状态 —— `SampleScene` 保有原本的 3 个根对象与原本的 component 组合，完整的 `manage_asset(action: "search", search_pattern: "*")` 也回传原本的 20 个资产，全部都是 Unity 模板自带的内容。
 
 **已在 10.3.0 上验证**：`manage_asset` 的文件夹创建与删除；`create_script`、`get_sha`、`validate_script`、`find_in_file` 的成功路径、`script_apply_edits` 与 `delete_script`；`manage_gameobject` 的 create／modify／duplicate／delete；`manage_components` 的 add 与 set_property；`manage_prefabs(create_from_gameobject)`；`refresh_unity`；以及 `run_tests` → `get_test_job` 的完整异步 job 生命周期（`running` → `succeeded`，约 7.5 秒）。由于该项目没有 test assembly，**生命周期已确认，但通过／失败的结果上报没有**。
 

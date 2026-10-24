@@ -1671,8 +1671,16 @@ in that project was modified. Full capture:
   `Script not found at 'Assets/Scenes/SampleScene.cs'.` — the tool rewrites the extension to `.cs`.
   Its own parameter description implies a general asset search, which is misleading. `find_in_file`
   was added to the docs by the previous pass with that misleading framing.
-- **UNVERIFIED:** the success path. The project contains **zero `.cs` assets**
-  (`manage_asset(action:"search", path:"Assets/", search_pattern:"*.cs")` → 0), which equally blocks
+- **UNVERIFIED:** the success path. **[CORRECTED IN ROUND 7 — H-1/H-2: the reason stated here was
+  wrong.]** This round recorded that the project contains "zero `.cs` assets" because
+  `manage_asset(action:"search", path:"Assets/", search_pattern:"*.cs")` returned 0. That search was
+  simply invalid: `search_pattern` is Unity's AssetDatabase filter syntax, not a filename glob, so an
+  `*.ext` pattern matches nothing and returns `success:true` with zero results. The project actually
+  contains **two** `.cs` assets (`Assets/TutorialInfo/Scripts/Readme.cs` and
+  `.../Editor/ReadmeEditor.cs`); `search_pattern:"t:MonoScript"` returns both. The success paths were
+  genuinely unexercised at this point, but for want of a test subject, not for want of scripts —
+  Round 6 then verified them against a purpose-created script. The original (wrong) reasoning was
+  that a zero result also blocked
   success-path verification of `get_sha`, `validate_script`, `apply_text_edits` and
   `script_apply_edits`.
 - **Changed:** POWER.md's `find_in_file` row (now "searches C# scripts only", with the observed
@@ -1933,7 +1941,10 @@ splits observed from not-observed:
 - **All mutating actions** — nothing in the user's project was modified in any round.
 - **`run_tests` / `get_test_job`** end to end.
 - **`manage_build`** — still blocked by the user's own `permissions.yaml` MCP deny rule (C-5).
-- **Script-tool success paths** — the verification project contains zero `.cs` assets (D-2).
+- **Script-tool success paths** — not exercised in this round because no script had been created to
+  exercise them against. **[CORRECTED IN ROUND 7 — H-2]** this line originally read "the verification
+  project contains zero `.cs` assets (D-2)"; that was false, an artifact of the invalid `"*.cs"`
+  search in H-1. The project has two `.cs` assets.
 - **Whether the Round-2 / Round-3 findings still hold on 10.3.0.** C-2 (`batch_execute` bypassing
   server-layer action handlers), D-1 (`unity_docs` requiring an unqualified `class_name`) and D-2
   (`find_in_file` coercing the `uri` extension to `.cs`) were all observed on **9.6.8** and must be
@@ -2091,7 +2102,9 @@ Each had been observed only on 9.6.8 and was flagged for re-check. All three wer
   keeps **C-6** (the `settings` action's `property` requirement) UNVERIFIED.
 - **`run_tests` / `get_test_job`** end to end.
 - **The script tools' SUCCESS paths** — `find_in_file`, `get_sha`, `validate_script`,
-  `apply_text_edits`, `script_apply_edits` — the verification project still has zero `.cs` assets.
+  `apply_text_edits`, `script_apply_edits` — still unexercised, because no script had been created to
+  exercise them against. **[CORRECTED IN ROUND 7 — H-2]** this line originally said the project "still
+  has zero `.cs` assets"; it has two, and the `"*.cs"` search that suggested otherwise was invalid (H-1).
 - **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
 - **The 25-URI `mcpforunity://` resource table** — still could not be enumerated, because this
   client exposes no resource-reading tool.
@@ -2119,8 +2132,11 @@ bridge is 10.3.0 on both the UPM and the Python side. **Verification method, rec
 credibility:** every write went into an isolated `Assets/_MCPVerify/` folder using `MCPVerify_*`
 object names and was deleted afterwards, and the project was then confirmed back at baseline —
 `SampleScene` with its original 3 roots (Main Camera, Directional Light, Global Volume) carrying
-their original component sets, and 0 `.cs` assets. The only residual difference is the instance
-IDs, for the reason in G-1. Full capture:
+their original component sets, and the project's original asset set — a full
+`manage_asset(action:"search", search_pattern:"*")` returns **20** assets, all stock Unity template
+content. **[CORRECTED IN ROUND 7 — H-2]** this line originally said "0 `.cs` assets", quoting the
+invalid `"*.cs"` search from H-1; the two template `.cs` files were there the whole time. The only
+residual difference is the instance IDs, for the reason in G-1. Full capture:
 `.agents/tasks/unity-6.4-compat-update/live-verification.md` -> "ROUND 6".
 
 **The one-line summary of the verification status change:** the whole **write path** moved from
@@ -2294,8 +2310,12 @@ All of the following had UNVERIFIED / "not exercised" labels in the repo; those 
 
 ### G-8 — cleanup verified: the project was restored — VERIFIED on 10.3.0
 - **Observed after cleanup:** `SampleScene` has exactly its original **3** roots with the original
-  names and component sets, and `manage_asset(action:"search", search_pattern:"*.cs")` returns **0**
-  assets. `Assets/_MCPVerify/` and everything in it is gone. Only the instance IDs differ (G-1).
+  names and component sets. `Assets/_MCPVerify/` and everything in it is gone. Only the instance IDs
+  differ (G-1). **[CORRECTED IN ROUND 7 — H-1/H-2]** this round cited
+  `manage_asset(action:"search", search_pattern:"*.cs")` returning **0** assets as evidence of a clean
+  project. That search was invalid (a glob matches nothing), so it proved nothing either way. The
+  honest cleanup probe is `search_pattern:"*"`, which returns the project's **20** template assets;
+  Round 7 re-ran it and confirmed the restoration.
 - **Why it is recorded in the product docs:** the write-path claims are only as credible as the
   method behind them, so POWER.md's verification-scope note and the Baseline table both state the
   isolation-and-cleanup method, and all five READMEs repeat it in their own language.
@@ -2332,3 +2352,205 @@ prefixed `by_name`-style `search_method` values; and the obsolete-physics mappin
 `isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid — nothing anywhere tells a
 reader to change it). Each localized README stays in its own language, with all new Round-6 text
 written in that language. No `src/*.ts`, template, hook or `mcp.json` file was touched by this pass.
+
+## 18. Round 7 applied (2026-10-21, seventh pass — workshop acceptance test on v10.3.0)
+
+Round 7 ran the platformer workshop's player-setup critical path against the live Unity 6000.4.6f1
+Editor on bridge 10.3.0 as an **acceptance test**. It passed — and in passing it uncovered two
+serious documentation bugs, one of which silently broke an entire workflow. Source of truth:
+`live-verification.md`, ROUND 7 (findings H-1..H-7). Writes were confined to `Assets/_MCPVerify/`
+with `MCPVerify_*` names and deleted afterwards; the project was confirmed restored.
+
+### H-1 — CRITICAL: `manage_asset(search)` does NOT accept `*.ext` globs — VERIFIED on 10.3.0
+- **Observed:** `search_pattern:"*.cs"` -> **0** assets, silently, with `success:true`.
+  `"Readme"` (bare name substring) -> 3 assets including both `.cs` files. `"t:MonoScript"` -> **2**
+  assets, both `.cs` files, correctly. `"t:Texture2D"` -> **1** asset (a `.png`). `"*"` -> all **20**
+  assets.
+- **What this means:** `search_pattern` is **Unity's AssetDatabase filter syntax** (`t:<Type>` terms
+  plus bare name substrings), **not** a filename glob. An `*.ext` pattern matches nothing and returns
+  success with zero results — a silent, confidence-inspiring failure that reads as "nothing exists".
+- **The concrete instance of "the Power cannot drive Unity", now fixed:** Workflow 1 (Asset Batch
+  Configuration) step 1 called
+  `manage_asset(action:"search", path:"Assets/Characters/", search_pattern:"*.fbx")`. Following that
+  workflow as written found **zero** assets, so the batch step configured nothing and the final report
+  said "0 succeeded". The workflow appeared to run and did nothing at all.
+- **Fixed everywhere a glob was prescribed:** POWER.md's `manage_asset` row (`"*.fbx"` removed), the
+  `manage_script` note (`"*.cs"` -> `t:MonoScript`), the `manage_shader` note (`"*.shader"` ->
+  `t:Shader`), Workflow 1 step 1 (-> `t:Model`, with a zero-result sanity check), Workflow 7 (Code
+  Quality) step 2 (-> `t:MonoScript`), Workflow 9 (Platform Compatibility) step 2 (-> `t:Shader`),
+  plus a new POWER.md section
+  "`search_pattern` is an AssetDatabase filter, not a glob" carrying the measured table.
+  `steering/asset-automation.md` gains the canonical section "`search_pattern` Is a Filter, Not a
+  Glob" and both of its scan examples now use `t:Model`.
+  `steering/code-quality.md`, `steering/knowledge-management.md`, `steering/ui-dependency-analysis.md`
+  -> `t:MonoScript`; `steering/platform-compatibility.md`, `steering/build-automation.md` ->
+  `t:Shader`; `steering/workflow-automation.md` -> `t:Model` in the batch example and the "filter by
+  glob" sentence replaced; `templates/workflows/asset-import-setup.json` -> its `"*"` pattern was
+  already valid, and `toolGroupNotes` plus the scan step's name now warn against globs.
+- **Replacements documented, with honest labels:** `t:MonoScript` and `t:Texture2D` are the only
+  filters actually **measured** (plus `*`). `t:Shader`, `t:Material`, `t:SceneAsset`, `t:Prefab` and
+  especially **`t:Model` / `t:GameObject` for FBX/models are marked UNVERIFIED** — the verification
+  project has no model assets, so they are documented as Unity's filter vocabulary while flagged as
+  unexercised. A bare name substring is documented as the safe fallback.
+- **Left alone deliberately:** Workflow 1 step 2's filename patterns (`*_char_*`, `*_env_*`, ...) are
+  the agent matching names in its own reasoning, not a `search_pattern`. They are untouched.
+- **Label:** VERIFIED on 10.3.0 for the glob failure and for `t:MonoScript` / `t:Texture2D` / `*`;
+  UNVERIFIED for `t:Model` and the other `t:` values.
+
+### H-2 — a Round-1..6 claim was WRONG because of H-1 — CORRECTED
+- Earlier rounds repeatedly stated "the verification project contains zero `.cs` assets" and used it
+  to justify leaving the script tools' success paths UNVERIFIED. That was an artifact of H-1: the
+  project contains **two** `.cs` assets (`Assets/TutorialInfo/Scripts/Readme.cs` and
+  `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs`).
+- **The conclusion still stands, the stated reason does not.** The script tools' success paths were
+  independently verified in Round 6 against a script created for the purpose (G-7), so nothing about
+  their status changes — only the explanation for why they had been unexercised.
+- **Corrected in:** POWER.md (the Baseline table's write-path row, the Available-MCP-Tools
+  verification-scope note — both now cite the restored **20**-asset count instead of "0 `.cs`
+  assets"), `steering/unity-general.md`, `steering/cross-platform-testing.md`, all five READMEs (each
+  in its own language), and this file's Round-3/4/5/6 entries, which now carry explicit
+  `[CORRECTED IN ROUND 7]` markers rather than being silently rewritten.
+- **The `run_tests` reason changes too:** the blocker is "no **test assemblies**", not "no scripts".
+  The two `.cs` files that do exist are not test assemblies.
+- **Kept as a cautionary note** in POWER.md and `steering/code-quality.md`: a silent empty result was
+  mistaken for "nothing exists" across five rounds. Both files now tell the reader to re-run a
+  zero-result search with `search_pattern:"*"` before believing it.
+- **Label:** the "zero `.cs` assets" claim is RETRACTED; the script-tool verification status is
+  unchanged (VERIFIED on 10.3.0 via Round 6).
+
+### H-3 — `manage_components(add)` needs an ASSEMBLY-QUALIFIED name for user scripts — VERIFIED
+- **Observed:** `component_type:"PlayerController"` ->
+  `Component type 'PlayerController' not found. Use a fully-qualified name if needed.`
+  `component_type:"PlayerController, Assembly-CSharp"` -> **success**
+  (`componentType: "PlayerController"`).
+- **Not a timing artifact:** `execute_code` in the same Editor confirmed
+  `System.Type.GetType("PlayerController, Assembly-CSharp")` returned
+  `loaded: PlayerController base=MonoBehaviour` **before** the plain-name call was retried — and it
+  failed again.
+- **Why it matters:** the live tool description offers `'MyScript'` as an example `component_type`,
+  implying a plain user-script name works. It does not. Built-in types ARE fine with the short name
+  (`Rigidbody`, `Rigidbody2D`, `SpriteRenderer`, `BoxCollider2D` all verified working).
+- **The rule now documented prominently:** **built-in types -> short name; user scripts ->
+  `TypeName, Assembly-CSharp`** (or the name of the script's assembly definition).
+- **Documented in:** a new POWER.md section "`component_type`: built-in vs. user script", the
+  POWER.md `manage_components` row, Workflow 2 step 6, a new
+  `steering/scene-scaffolding.md` section "Attaching a User Script Needs an Assembly-Qualified Type
+  Name", and `steering/level-design-tooling.md`'s `manage_components` row. **Propagated to both
+  workshops in Traditional Chinese** (code identifiers kept in English): a shared rule block near each
+  workshop's physics table, plus the explicit qualified form inside every step that attaches a script
+  — platformer `PlayerController`, `CameraFollow`, `GameManager`, `CollectibleItem`, `Patroller`,
+  `Hazard`, `Goal`; shooter `PlayerController`, `Bullet`, `Enemy`, `EnemySpawner`, `GameManager`.
+- **Label:** VERIFIED on 10.3.0.
+
+### H-4 — `refresh_unity(wait_for_ready: true)` does NOT actually wait — VERIFIED on 10.3.0
+- **Observed:** called with `wait_for_ready: true`, it returned immediately with
+  `resulting_state: "compiling"`, and a subsequent `manage_components(add)` then failed because the
+  assembly had not reloaded yet.
+- **What to do instead:** `wait_for_ready` is **not a synchronous barrier**. After requesting a
+  compile, wait for readiness explicitly — the response's own `hint` says to poll
+  `mcpforunity://editor/state` until `data.advice.ready_for_tools` is true; without a resource-reading
+  tool, probe with a cheap `core` call and retry the dependent call.
+- **Documented in:** POWER.md's `refresh_unity` row plus a new section "`wait_for_ready` does not
+  wait", cross-linked from the new `component_type` section (the script-create-then-attach flow);
+  `steering/level-design-tooling.md` (both compilation steps and the `refresh_unity` row, which
+  already documented the `mode`/`compile` enums); `steering/scene-scaffolding.md`; and both workshops
+  in Traditional Chinese.
+- **Label:** VERIFIED on 10.3.0.
+- **Preserved:** the `refresh_unity` `mode` (`if_dirty`/`force`) and `compile` (`none`/`request`) enum
+  documentation from G-4 is untouched.
+
+### H-5 — scene mutations are not persisted until save, and a scene switch can resurrect them — VERIFIED
+- **Observed:** Round 6 deleted `MCPVerify_Cube` from `SampleScene` but never saved. After creating
+  and loading another scene and then re-loading `SampleScene` from disk, **the cube was back** —
+  `get_hierarchy` showed **4** roots instead of the baseline 3. It had to be deleted again with an
+  explicit `manage_scene(action:"save")` before the on-disk scene was clean.
+- **What is documented:** `manage_gameobject(delete)` and every other scene mutation affect only the
+  **in-memory** scene; an explicit `manage_scene(action:"save")` is required to persist; switching or
+  reloading a scene can discard unsaved changes or re-read stale on-disk state. Any workflow that
+  mutates a scene must decide deliberately whether to save **and say so in its report**. The cleanup
+  hazard is called out too: a pass that deletes its test objects without saving leaves them in the
+  project.
+- **Documented in:** a new POWER.md section "Scene edits live in memory until you save", the POWER.md
+  `manage_scene` row, Workflow 2 step 7 (now "Save scene — not optional", with step 8 reporting
+  whether the save happened), a new `steering/scene-scaffolding.md` section "Scene Mutations Are Not
+  Persisted Until You Save" plus an explicit save step in its standard process, and both workshops in
+  Traditional Chinese.
+- **Label:** VERIFIED on 10.3.0.
+
+### H-6 — WORKSHOP ACCEPTANCE TEST: PASSED — VERIFIED on 10.3.0; labels promoted
+The platformer workshop's player-setup critical path was executed as written and passed.
+
+| Step | Call | Result |
+|---|---|---|
+| New isolated scene | `manage_scene(create, name:"MCPVerify_Platformer", path:"Assets/_MCPVerify")` | ok — **auto-created the folder**, became the active scene |
+| Player object | `manage_gameobject(create, name:"Player", tag:"Player", components_to_add:["SpriteRenderer","Rigidbody2D","BoxCollider2D"])` | ok — all three attached, tag applied. **`components_to_add` VERIFIED** |
+| 2D physics | `manage_components(set_property, "Rigidbody2D", properties:{gravityScale:3, freezeRotation:true}, target:"Player")` | ok — **`target` by NAME works on `manage_components` too** |
+| 6.4-API script | `create_script` with `rb.linearVelocity = ...` | ok |
+| Compile | `refresh_unity(mode:"force", compile:"request")` then `validate_script` | **0 errors**, 1 analyzer warning (unassigned `groundLayer`); `read_console(types:[error,warning], filter_text:"PlayerController")` -> **0 entries** |
+| Type really compiled | `execute_code` -> `System.Type.GetType("PlayerController, Assembly-CSharp")` | `loaded: PlayerController base=MonoBehaviour` |
+| Attach | `manage_components(add, "PlayerController, Assembly-CSharp")` | ok (H-3) |
+| Verify live object | `execute_code` | `script=True gravityScale=3 freezeRot=FreezeRotation comps=5` |
+| Save | `manage_scene(action:"save")` | ok |
+
+- **THE KEY OUTCOME:** a movement script written with Unity 6.4's current `linearVelocity` API
+  compiled with **zero errors and zero obsolete-API warnings**, the type genuinely compiled and
+  loaded, it attached as a real component, and the live object read back correctly. **So the Round-3
+  obsolete->current physics mapping is validated AS THE WORKSHOPS NOW INSTRUCT IT.** The classic
+  `rb.velocity` would have produced obsolete warnings on 6.4.
+- **Promoted from unverified:** `manage_scene` **create**, **save** and **load** (all three previously
+  unexercised) and `create`'s folder auto-creation; `manage_gameobject`'s `components_to_add`;
+  `manage_components(set_property)` accepting `target` by **name**. Every "`manage_scene`
+  create/save/load not exercised" line in POWER.md and `steering/unity-general.md` is gone.
+- **Recorded where a reader will find it:** POWER.md's Baseline table gains a "Live-verified workshop
+  acceptance test" row, the Available-MCP-Tools verification-scope blockquote states the full result,
+  `steering/unity-general.md` gains a matching bullet, and **both workshop intros carry the result in
+  Traditional Chinese**.
+- **Label:** VERIFIED on 10.3.0.
+
+### H-7 — cleanup verified, project fully restored — VERIFIED on 10.3.0
+- **Method recorded for credibility:** writes were confined to `Assets/_MCPVerify/` with `MCPVerify_*`
+  names, then deleted. Final state: `SampleScene` active with exactly its original **3** roots (Main
+  Camera, Directional Light, Global Volume) and original component sets, and a full
+  `manage_asset(search, "*")` returning **20** assets — all original Unity template content
+  (`InputSystem_Actions.inputactions`, `Readme.asset`, `Scenes/SampleScene.unity`, `Settings/*`,
+  `TutorialInfo/*`). No `_MCPVerify` folder, no `MCPVerify_*` objects, no leftover prefab or script.
+  Only instance IDs differ, per G-1.
+- **Documented in:** POWER.md's verification-scope note and Baseline table, `steering/unity-general.md`
+  and all five READMEs — each now citing the 20-asset probe rather than the invalid "0 `.cs` assets".
+- **Label:** VERIFIED on 10.3.0.
+
+### Still UNVERIFIED after Round 7 — stated plainly
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`** — blocked by the user's `permissions.yaml` MCP deny rule (C-5), so **C-6** stays
+  UNVERIFIED.
+- **`run_tests` with ACTUAL tests** — the two existing `.cs` files are **not test assemblies**, so
+  pass/fail reporting, `include_failed_tests` and PlayMode remain unexercised. (Reason corrected per
+  H-2: "no test assemblies", not "no scripts".)
+- **`t:Model` / `t:GameObject` search filters for FBX** — no model assets in the project (H-1).
+- **`execute_menu_item`, `execute_custom_tool`, `set_active_instance`**, `manage_editor`'s
+  `play`/`pause`/`stop`/`deploy_package`/`restore_package`, `manage_scriptable_object`,
+  `manage_animation`, `manage_vfx`, `manage_texture`, `manage_shader`, `manage_ui` writes,
+  `manage_graphics` setters and bake actions, `manage_prefabs`' prefab-stage actions.
+- **`apply_text_edits`** and `manage_asset`'s `modify`/`import`/`duplicate`/`move`/`rename`.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The `mcpforunity://` resource URIs** — no resource-reading tool on this client.
+
+### Preserved unchanged by Round 7
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`" blocks in
+POWER.md and all five READMEs; the two-pin upgrade mechanism and procedure; the DISTINCT
+`no_unity_session` vs `Session not found` entries; the `manage_editor` telemetry rows; the
+`batch_execute` server-layer divergence caveat (verified on both 9.6.8 and 10.3.0); tool-group
+activation as conditional troubleshooting only; the `asset_gen` cost warning and verified default-off
+state with NO invented parameter table; the 43 -> 49 additive delta and the "use the live count, not
+upstream's 48" note; the `permissions.yaml` deny-rule root cause and the
+`power-<powerName>-<serverName>` namespace; the pidfile port-discovery guidance; `class_name` never
+`type_name` for `unity_reflect`/`unity_docs` and the `unity_docs` unqualified-name trap;
+`find_in_file` being C#-script-only; the prefixed `by_name`-style `search_method` values; the
+instance-ID volatility warning and the three per-tool `target` conventions; `script_apply_edits`
+taking `name` + `path` not `uri`; the `refresh_unity` `mode`/`compile` enums; `duplicate` ignoring
+`name`; and the obsolete-physics mapping with the 2D-only `isKinematic` -> `bodyType` asymmetry (3D
+`isKinematic` is still valid — nothing anywhere tells a reader to change it). Each localized README
+stays in its own language, with all new Round-7 text written in that language. No `src/*.ts`, hook or
+`mcp.json` file was touched by this pass; the only template touched is
+`templates/workflows/asset-import-setup.json` (glob warning added, `"*"` pattern unchanged).

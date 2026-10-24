@@ -258,7 +258,7 @@ v10.3.0 的伺服器 CLI（在 10.3.0 上執行 `mcp-for-unity --help`）接受 
 
 #### 寫入路徑實測到什麼，以及那個會改變呼叫串接方式的發現
 
-最後一輪驗證不再只是讀取，而是真的寫進專案。所有寫入都放在隔離的 `Assets/_MCPVerify/` 資料夾、物件統一命名為 `MCPVerify_*`，事後全部刪除；之後確認專案回到原始基準狀態 —— `SampleScene` 保有原本的 3 個根物件與原本的 component 組合，且 `.cs` 資產數為 0。
+最後一輪驗證不再只是讀取，而是真的寫進專案。所有寫入都放在隔離的 `Assets/_MCPVerify/` 資料夾、物件統一命名為 `MCPVerify_*`，事後全部刪除；之後確認專案回到原始基準狀態 —— `SampleScene` 保有原本的 3 個根物件與原本的 component 組合，完整的 `manage_asset(action: "search", search_pattern: "*")` 也回傳原本的 20 個資產，全部都是 Unity 範本自帶的內容。
 
 **已在 10.3.0 上驗證**：`manage_asset` 的資料夾建立與刪除；`create_script`、`get_sha`、`validate_script`、`find_in_file` 的成功路徑、`script_apply_edits` 與 `delete_script`；`manage_gameobject` 的 create／modify／duplicate／delete；`manage_components` 的 add 與 set_property；`manage_prefabs(create_from_gameobject)`；`refresh_unity`；以及 `run_tests` → `get_test_job` 的完整非同步 job 生命週期（`running` → `succeeded`，約 7.5 秒）。由於該專案沒有 test assembly，**生命週期已確認，但通過／失敗的結果回報沒有**。
 

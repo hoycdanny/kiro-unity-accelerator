@@ -23,7 +23,8 @@ Confirm type → Load Scaffold → Create scene → Build hierarchy → Check co
 3. **Create Scene**: Use `manage_scene(action: "create")` to create a new scene or open the target scene
 4. **Build Hierarchy**: Following the Scaffold hierarchy definition, recursively create objects and components using `manage_gameobject`, `manage_components`, `manage_camera`, `manage_ui`. **Address each object by its scaffold name in every follow-up call — do not reuse the `instanceID` a `create` returned** (it is transient and negative, and a recompile renumbers everything; see the instance-ID note under "Conflict Detection Flow" below). If a step needs an id, re-resolve it with `find_gameobjects` right before that call
 5. **Check Conflicts**: Use `find_gameobjects` to check if objects with the same name already exist in the target scene
-6. **Generate Summary**: Calculate the number of created objects and component list, display a structured summary in Console
+6. **Save the Scene**: Call `manage_scene(action: "save")`. **Nothing built in step 4 is on disk until this call** — see "Scene Mutations Are Not Persisted Until You Save" below. If the developer asked for a throwaway preview, skip the save *deliberately* and say so in the summary
+7. **Generate Summary**: Calculate the number of created objects and component list, state whether the scene was saved, display a structured summary in Console
 
 ## Built-in Scene Scaffold Types
 
@@ -45,6 +46,8 @@ Confirm type → Load Scaffold → Create scene → Build hierarchy → Check co
 > - `manage_ui` manages **UI Toolkit** (UXML/USS/UIDocument) — there is no `create_canvas`/`create_panel`/`create_button`/`create_text` action. For legacy uGUI (`Canvas`, `Button`, `Text`, `Image`), build them with `manage_gameobject(action: "create", components_to_add: ["UnityEngine.UI.Canvas", "UnityEngine.UI.GraphicRaycaster"])` etc., then `manage_components(action: "set_property", ...)` to configure them
 > - `batch_execute` commands use a `params` key, not `args` — and `batch_execute` is not equivalent to direct calls: it bypasses the Python server layer, so an `Unknown action` error raised inside a batch must be retested as a direct call before it is believed (see `unity-general.md`)
 > - `manage_gameobject`'s `target` **must be a string** and is resolved as a **name** by default (an int is rejected with `Input should be a valid string`); `manage_prefabs` requires a **name**; `manage_components` additionally accepts an **int** instance ID. Passing the name satisfies all three — **VERIFIED on bridge 10.3.0, 2026-10-21**
+> - `manage_components(action: "add")` takes a **built-in** type's short name (`Rigidbody2D`, `SpriteRenderer`, `BoxCollider2D` — all verified working) but needs an **assembly-qualified** name for a script from the project: `component_type: "PlayerController"` failed with `Component type 'PlayerController' not found. Use a fully-qualified name if needed.` while `"PlayerController, Assembly-CSharp"` succeeded — **VERIFIED on 10.3.0, 2026-10-21**. See "Attaching a User Script Needs an Assembly-Qualified Type Name" below
+> - `manage_scene` `create`, `save` and `load` are **VERIFIED on 10.3.0, 2026-10-21**, and `create` with `name` + `path` **auto-creates its target folder**. `manage_gameobject`'s `components_to_add` is verified too: `SpriteRenderer` + `Rigidbody2D` + `BoxCollider2D` attached in one `create` call, with `tag` applied in the same call. `manage_components(action: "set_property")` also resolves `target` by **name**
 > - `manage_gameobject(action: "duplicate")` **ignores `name`** — **VERIFIED on 10.3.0**: duplicating `MCPVerify_Cube` with `name: "MCPVerify_Cube_Dup"` produced Unity's auto-name `MCPVerify_Cube_Copy`. To name a duplicate, follow it with `manage_gameobject(action: "modify", target: "<auto-name>", name: "<wanted>")`. The duplicate does correctly inherit the original's added components
 
 ### 3D First-Person Scene Generation (legacy uGUI HUD)
@@ -101,6 +104,32 @@ batch_execute(commands: [
   { "tool": "manage_camera", "params": { "action": "create_camera", "properties": { "name": "MainCamera" } } }
 ])
 ```
+
+## Attaching a User Script Needs an Assembly-Qualified Type Name
+
+**VERIFIED on bridge 10.3.0, 2026-10-21.** `manage_components(action: "add")` resolves built-in Unity types and project scripts differently, and the live tool description is misleading — it offers `'MyScript'` as an example `component_type`, implying a plain script name works.
+
+| `component_type` | Result |
+|---|---|
+| `"PlayerController"` (a project script) | **FAILS** — `Component type 'PlayerController' not found. Use a fully-qualified name if needed.` |
+| `"PlayerController, Assembly-CSharp"` | **SUCCESS** — `componentType: "PlayerController"` |
+| `"Rigidbody"`, `"Rigidbody2D"`, `"SpriteRenderer"`, `"BoxCollider2D"` | **SUCCESS** with the short name |
+
+**The rule: built-in types take the short name; a script from this project needs `"TypeName, Assembly-CSharp"`** (or the name of its assembly definition, if it lives in one). A scaffold that attaches generated behaviour scripts must emit the qualified form, or every such step fails.
+
+**It is not a race with compilation.** In the same Editor, `execute_code` confirmed `System.Type.GetType("PlayerController, Assembly-CSharp")` returned `loaded: PlayerController base=MonoBehaviour` *before* the plain-name call was retried — and it failed again. The type was loaded; the short name simply does not resolve for user assemblies.
+
+**Compilation is a separate problem, and `wait_for_ready` does not solve it.** `refresh_unity(mode: "force", compile: "request", wait_for_ready: true)` returned **immediately** with `resulting_state: "compiling"`, and the next `manage_components(action: "add")` failed because the assembly had not reloaded yet (**VERIFIED on 10.3.0**). `wait_for_ready` is **not** a synchronous barrier. After requesting a compile, poll `mcpforunity://editor/state` until `data.advice.ready_for_tools` is true — the `refresh_unity` response's own `hint` says exactly that — or retry the dependent call instead of assuming the refresh finished. A scaffold that writes a script and attaches it in the next breath must handle both failure modes.
+
+## Scene Mutations Are Not Persisted Until You Save
+
+**VERIFIED on bridge 10.3.0, 2026-10-21.** Every scene mutation — `manage_gameobject` `create`/`modify`/`delete`, component adds, property sets — changes only the **in-memory** scene. Without `manage_scene(action: "save")` the file on disk is untouched, and loading a scene re-reads that stale file.
+
+Observed: an object deleted from `SampleScene` without saving came **back**. After another scene was created and loaded and `SampleScene` was re-loaded from disk, `get_hierarchy` reported **4** roots instead of the baseline 3; the object had to be deleted again *and* explicitly saved before the file was clean.
+
+- **A scaffolding run must save**, and the summary must say whether it did. Silence leaves the developer unable to tell whether the hierarchy survived.
+- **Switching or reloading a scene discards unsaved changes.** Never treat a scene load as a way to refresh what you just built.
+- **Cleanup has the same hazard**: deleting temporary objects without saving leaves them in the project on the next load.
 
 ## Conflict Handling Guide
 

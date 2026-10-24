@@ -262,7 +262,7 @@ v10.3.0 のサーバー CLI（10.3.0 で `mcp-for-unity --help`）は `--default
 
 #### 書き込み経路で何が確認できたか、そして呼び出しの連結方法を変える 1 つの発見
 
-最後のラウンドでは読み取りだけでなく、実際にプロジェクトへ書き込みました。書き込みはすべて隔離した `Assets/_MCPVerify/` フォルダー内で行い、オブジェクト名は `MCPVerify_*` に統一し、終了後にすべて削除しています。そのうえでプロジェクトが元の基準状態に戻ったことを確認しました — `SampleScene` は元の 3 つのルートオブジェクトと元の component 構成を保持し、`.cs` アセットは 0 件です。
+最後のラウンドでは読み取りだけでなく、実際にプロジェクトへ書き込みました。書き込みはすべて隔離した `Assets/_MCPVerify/` フォルダー内で行い、オブジェクト名は `MCPVerify_*` に統一し、終了後にすべて削除しています。そのうえでプロジェクトが元の基準状態に戻ったことを確認しました — `SampleScene` は元の 3 つのルートオブジェクトと元の component 構成を保持し、`manage_asset(action: "search", search_pattern: "*")` も元の 20 件のアセット（すべて Unity テンプレート付属の内容）を返します。
 
 **10.3.0 で検証済み**: `manage_asset` のフォルダー作成と削除、`create_script`、`get_sha`、`validate_script`、`find_in_file` の成功パス、`script_apply_edits`、`delete_script`、`manage_gameobject` の create / modify / duplicate / delete、`manage_components` の add と set_property、`manage_prefabs(create_from_gameobject)`、`refresh_unity`、そして `run_tests` → `get_test_job` の非同期ジョブのライフサイクル全体（`running` → `succeeded`、約 7.5 秒）。プロジェクトに test assembly が無いため、**ライフサイクルは確認済みですが、合否のレポートは未確認です**。
 

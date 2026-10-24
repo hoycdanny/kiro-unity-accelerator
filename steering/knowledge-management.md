@@ -23,7 +23,7 @@ This document provides Unity team knowledge management expertise. When the devel
 
 ### API Change Detection
 1. Use `manage_packages(action: "list_packages")` to get Unity package versions used in the project (asynchronous — returns `{job_id}`; poll with `action: "status", job_id: ...`)
-2. Use `manage_asset(action: "search", path: "Assets/", search_pattern: "*.cs")` to enumerate all C# scripts in the project (`manage_script` has no `list` action), then `manage_script(action: "read", name: ..., path: ...)` per script to read content
+2. Use `manage_asset(action: "search", path: "Assets/", search_pattern: "t:MonoScript")` to enumerate all C# scripts in the project (`manage_script` has no `list` action; **`t:MonoScript`, not `"*.cs"` — `search_pattern` is an AssetDatabase filter and a glob silently returns zero assets**, see "`search_pattern` Is a Filter, Not a Glob" in `asset-automation.md`), then `manage_script(action: "read", name: ..., path: ...)` per script to read content
 3. Parse Unity APIs used in scripts (using statements and method calls)
 4. Compare against API change list, identify affected APIs in the project. To check a specific type against the *connected* Editor instead of the static list, call `unity_reflect(action: "get_type", class_name: "...")` and read its `obsolete_members`; pass `unity_docs(action: "get_doc")` the **unqualified** class name only (see the docs-tool note above — a qualified name returns a silent `found: false`)
 5. Generate migration guides for each affected API and store in Knowledge_Base

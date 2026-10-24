@@ -44,6 +44,32 @@
 >
 > 這張對照表後來也在實機上**寫入並讀回驗證過**（bridge 10.3.0，2026-10-21）：用 `manage_components(action: "set_property", component_type: "Rigidbody", properties: {linearDamping: 2.25, useGravity: false, mass: 7.5})` 設定成功，再用 `execute_code` 讀回得到 `mass=7.5 linearDamping=2.25 useGravity=False`。也就是說 6.4 的新名稱 `linearDamping` 確實可以透過 MCP 橋接設定，而且 `properties` 字典形式可以一次設定多個屬性。
 
+> **這類「建立物件 → 寫腳本 → 掛上腳本」的流程已經在實機跑過驗收測試，而且通過了**（bridge 10.3.0，2026-10-21）
+>
+> 驗收測試跑的是姊妹篇 `2d-platformer-game.md` 的步驟 2，流程跟本篇步驟 2 完全同型：建立 Player（`components_to_add` 一次掛上 SpriteRenderer + Rigidbody2D + BoxCollider2D 並設定 tag）→ 設定 Rigidbody2D 屬性 → 寫一支用 `linearVelocity` 的 `PlayerController` → 編譯 → 掛上腳本 → 讀回物件確認。
+>
+> **最重要的結果**：那支用 6.4 新 API `linearVelocity` 寫的腳本編譯出來是 **0 個錯誤、0 個過時 API 警告**（`validate_script` 回報 0 errors，只有 1 個分析器警告說某個欄位沒指派；`read_console(types: [error, warning], filter_text: "PlayerController")` 回報 **0 筆**），型別確實有載入（`execute_code` 回報 `loaded: PlayerController base=MonoBehaviour`），腳本真的掛成元件。如果照舊寫法用 `rb.velocity`，6.4 就會冒出一串過時警告 —— 所以上面那張對照表是**照 Workshop 的寫法實際驗證過的**，不是只查文件。
+>
+> 同一次驗收也首次驗證了 `manage_scene` 的 `create`／`save`／`load`（`create` 會自動建立目標資料夾）、`manage_gameobject` 的 `components_to_add`，以及 `manage_components(set_property)` 可以用物件**名稱**當 `target`。
+
+> **掛腳本時的型別名稱規則（不照這個寫，掛載一定失敗）**
+>
+> `manage_components(action: "add")` 對「Unity 內建型別」和「你自己寫的腳本」解析方式不同 —— 實機驗證（bridge 10.3.0，2026-10-21）：
+>
+> | `component_type` 傳什麼 | 結果 |
+> |---|---|
+> | `"PlayerController"`（自己寫的腳本，只給短名稱） | **失敗** —— `Component type 'PlayerController' not found. Use a fully-qualified name if needed.` |
+> | `"PlayerController, Assembly-CSharp"` | **成功** |
+> | `"Rigidbody2D"`、`"SpriteRenderer"`、`"BoxCollider2D"`、`"CircleCollider2D"`（內建型別） | **成功**，短名稱就可以 |
+>
+> **規則：內建型別用短名稱；自己寫的腳本（`PlayerController`、`Bullet`、`Enemy`、`EnemySpawner`、`GameManager`）要用 `型別名稱, Assembly-CSharp`。**（腳本放在 assembly definition 裡的話，就換成那個 assembly 的名稱。）
+>
+> 這**不是編譯還沒完成的時序問題**：同一個編輯器裡用 `execute_code` 確認 `System.Type.GetType("PlayerController, Assembly-CSharp")` 已經回報 `loaded: PlayerController base=MonoBehaviour` 之後，再重試一次短名稱，還是失敗。
+>
+> 另外要注意：**`refresh_unity(wait_for_ready: true)` 不會真的等**（實機驗證）。它會立刻回來，`resulting_state` 還是 `compiling`，緊接著的 `manage_components(add)` 就因為組件還沒重新載入而失敗。寫完腳本要編譯之後才掛元件的話，必須等到編輯器真的就緒（輪詢 `mcpforunity://editor/state` 直到 `data.advice.ready_for_tools` 為 true，這也是 `refresh_unity` 回應裡 `hint` 自己說的做法），或是失敗就重試。
+
+> **場景改動要存檔才算數**：`manage_gameobject` 的建立／修改／刪除，以及任何場景改動，都只動到**記憶體裡**的場景。沒有呼叫 `manage_scene(action: "save")`，磁碟上的場景檔完全沒變，而切換或重新載入場景會把未存檔的改動丟掉、再把舊檔案讀回來（實機驗證：某個刪掉但沒存檔的物件，在切場景再切回來之後**又出現了**，root 數從 3 變成 4）。本 Workshop 的步驟 1 已經要求存檔，後面每次做完一批改動也請讓 Kiro 存檔。
+
 ---
 
 ## 步驟 0：確認連線（工具群組先不用動）
@@ -134,7 +160,7 @@
 - 元件：SpriteRenderer（先指派好 Sprite）、Rigidbody2D（Gravity Scale = 0）、BoxCollider2D
 - BoxCollider2D 的 size 請依照 Sprite 的實際大小設定（不要留預設或空值），完成後回報 size 數值供我確認
 - 位置放在畫面下方中間偏下，例如 (0, -4, 0)
-- 幫我寫一個 C# 腳本 PlayerController，掛在 Player 上：
+- 幫我寫一個 C# 腳本 PlayerController，掛在 Player 上（掛載時自己寫的腳本要用組件限定名稱：`manage_components(action: "add", component_type: "PlayerController, Assembly-CSharp")`，只給 `"PlayerController"` 會回報 `Component type not found`；內建型別如 SpriteRenderer、Rigidbody2D、BoxCollider2D 才可以用短名稱。另外要等編譯真的完成才掛得上，`refresh_unity(wait_for_ready: true)` 不會真的等，請輪詢 `mcpforunity://editor/state` 的 `data.advice.ready_for_tools` 或失敗就重試）：
   - 用方向鍵或 WASD 控制上下左右移動，移動速度用 public 變數 moveSpeed（預設 8）。用 transform 位移或 Rigidbody2D 都可以；如果用 Rigidbody2D 驅動，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = direction * moveSpeed`），**不要用已經 obsolete 的 `velocity`**
   - 限制移動範圍，不要讓玩家飛出攝影機可視範圍外（大約 x: -8~8，y: -5~5）
   - 依照專案的 Input System 設定選用對應 API
@@ -158,7 +184,7 @@
 1. 建立一個子彈 Prefab，名稱 Bullet：
    - Sprite（先用簡單的小色塊代表），SpriteRenderer 先指派好 Sprite
    - Rigidbody2D（Gravity Scale = 0）、CircleCollider2D（radius 依照 Sprite 大小設定，isTrigger = true）
-   - 腳本 Bullet.cs：往上飛（沿著 Y 軸正方向），速度用 public 變數 speed（預設 12）控制，飛出畫面範圍外（例如 y > 6）就自動銷毀自己。如果用 Rigidbody2D 驅動飛行，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = Vector2.up * speed`），不要用已經 obsolete 的 `velocity`
+   - 腳本 Bullet.cs（掛到 Bullet 物件上時用組件限定名稱 `component_type: "Bullet, Assembly-CSharp"`，短名稱會失敗；要等編譯完成才掛）：往上飛（沿著 Y 軸正方向），速度用 public 變數 speed（預設 12）控制，飛出畫面範圍外（例如 y > 6）就自動銷毀自己。如果用 Rigidbody2D 驅動飛行，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = Vector2.up * speed`），不要用已經 obsolete 的 `velocity`
    - 存成 Prefab（Assets/Prefabs/Bullet.prefab）
 
 2. 修改 PlayerController.cs，加上射擊邏輯：
@@ -185,13 +211,13 @@
 1. 建立敵人 Prefab，名稱 Enemy，Tag 設為 "Enemy"（如果 Tag 不存在請先建立）：
    - Sprite（用另一種顏色的色塊區分玩家與敵人），SpriteRenderer 先指派好 Sprite
    - Rigidbody2D（Gravity Scale = 0）、BoxCollider2D（size 依照 Sprite 大小設定，isTrigger = true）
-   - 腳本 Enemy.cs：
+   - 腳本 Enemy.cs（掛到 Enemy 物件上時用組件限定名稱 `component_type: "Enemy, Assembly-CSharp"`，短名稱會失敗；要等編譯完成才掛）：
      - 往下移動（Y 軸負方向），速度用 public 變數 speed（預設 3）控制。如果用 Rigidbody2D 驅動，請設定 Unity 6.4 的 `linearVelocity`（`rb.linearVelocity = Vector2.down * speed`），不要用已經 obsolete 的 `velocity`
      - 飛出畫面下方（例如 y < -6）時，代表玩家漏接：呼叫 GameManager.Instance.DamagePlayer(missedDamage)（新增一個 public int missedDamage 欄位，預設 1），再銷毀自己
      - 偵測 OnTriggerEnter2D，如果碰到的物件 Tag 是 "Player"：呼叫 GameManager.Instance.DamagePlayer(1)，銷毀對方，並銷毀自己
    - 存成 Prefab（Assets/Prefabs/Enemy.prefab）
 
-2. 建立一個空物件 EnemySpawner，掛上腳本 EnemySpawner.cs：
+2. 建立一個空物件 EnemySpawner，掛上腳本 EnemySpawner.cs（掛載時用組件限定名稱 `component_type: "EnemySpawner, Assembly-CSharp"`，短名稱會失敗；要等編譯完成才掛）：
    - 每隔一段時間（spawnInterval，預設 1.5 秒）在畫面上方隨機 X 位置（範圍約 -7 到 7）生成一個 Enemy
    - 使用 Coroutine 搭配 WaitForSeconds 實作定時生成
 
@@ -213,7 +239,7 @@
 ```
 請幫我建立分數與血量的核心管理器：
 
-1. 建立一個 GameManager 空物件，掛上腳本 GameManager.cs，用 Singleton 模式（static Instance）：
+1. 建立一個 GameManager 空物件，掛上腳本 GameManager.cs（掛載時用組件限定名稱 `component_type: "GameManager, Assembly-CSharp"`，只給 `"GameManager"` 會回報 `Component type not found`；要等編譯真的完成才掛，`refresh_unity(wait_for_ready: true)` 不會真的等），用 Singleton 模式（static Instance）：
    - public int score（預設 0）、public int playerHealth（預設 3）
    - 方法 AddScore(int amount)：加分
    - 方法 DamagePlayer(int amount)：扣血，血量歸零時觸發遊戲結束（先在 Console 印出 "Game Over"，下一步再做 UI）

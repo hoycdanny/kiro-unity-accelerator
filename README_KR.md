@@ -260,7 +260,7 @@ v10.3.0의 서버 CLI(10.3.0에서 `mcp-for-unity --help`)는 `--default-instanc
 
 #### 쓰기 경로에서 확인된 것, 그리고 호출을 이어 붙이는 방식을 바꾸는 발견 하나
 
-마지막 라운드는 읽기만 하지 않고 실제로 프로젝트에 썼습니다. 모든 쓰기는 격리된 `Assets/_MCPVerify/` 폴더 안에서 수행하고 오브젝트 이름은 `MCPVerify_*`로 통일했으며, 작업이 끝난 뒤 전부 삭제했습니다. 그다음 프로젝트가 원래 기준 상태로 돌아왔음을 확인했습니다 — `SampleScene`은 원래의 루트 오브젝트 3개와 원래의 component 구성을 유지하고 있고, `.cs` 애셋은 0개입니다.
+마지막 라운드는 읽기만 하지 않고 실제로 프로젝트에 썼습니다. 모든 쓰기는 격리된 `Assets/_MCPVerify/` 폴더 안에서 수행하고 오브젝트 이름은 `MCPVerify_*`로 통일했으며, 작업이 끝난 뒤 전부 삭제했습니다. 그다음 프로젝트가 원래 기준 상태로 돌아왔음을 확인했습니다 — `SampleScene`은 원래의 루트 오브젝트 3개와 원래의 component 구성을 유지하고 있고, 전체 `manage_asset(action: "search", search_pattern: "*")` 역시 원래의 애셋 20개(모두 Unity 템플릿 기본 콘텐츠)를 반환합니다.
 
 **10.3.0에서 검증 완료**: `manage_asset`의 폴더 생성/삭제, `create_script`, `get_sha`, `validate_script`, `find_in_file`의 성공 경로, `script_apply_edits`, `delete_script`, `manage_gameobject`의 create/modify/duplicate/delete, `manage_components`의 add와 set_property, `manage_prefabs(create_from_gameobject)`, `refresh_unity`, 그리고 `run_tests` → `get_test_job` 비동기 job 라이프사이클 전체(`running` → `succeeded`, 약 7.5초). 프로젝트에 test assembly가 없으므로 **라이프사이클은 확인되었지만 통과/실패 보고는 확인되지 않았습니다**.
 
