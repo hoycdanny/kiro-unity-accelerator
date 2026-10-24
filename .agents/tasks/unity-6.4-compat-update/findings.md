@@ -3070,3 +3070,204 @@ Play Mode claim and no per-tool label that this round changed. No `src/*.ts`, ho
 `steering/scene-scaffolding.md`, `steering/level-design-tooling.md`,
 `steering/cross-platform-testing.md`, `workshop/2d-platformer-game.md`,
 `workshop/2d-shooter-game.md` and this record.
+
+---
+
+## 22. Round 11 applied (2026-10-21, eleventh pass — PlayMode tests VERIFIED)
+
+Ground truth: ROUND 11 of `.agents/tasks/unity-6.4-compat-update/live-verification.md` (findings
+L-1 .. L-4). A throwaway **PlayMode** test assembly was created, run and deleted against the live
+Unity `6000.4.6f1` Editor on bridge 10.3.0 — the last structurally risky gap in this effort. No
+Unity MCP connection was available while applying this round, so nothing here was re-probed; every
+label comes from the ground-truth file.
+
+### L-1 — `run_tests(mode: "PlayMode")` is VERIFIED end to end
+
+`run_tests(mode: "PlayMode", assembly_names: ["MCPVerify.PlayTests"], include_failed_tests: true,
+init_timeout: 120000)` returned `{job_id, status: "running", mode: "PlayMode"}`, and `get_test_job`
+reported:
+
+```
+status: "failed"
+mode:   "PlayMode"
+progress: { completed: 3, total: 3,
+            failures_so_far: [ { full_name: "MCPVerifyPlayTests.MCPVerify_Play_IntentionalFail",
+                                 message: "intentional PlayMode failure for MCP verification
+                                           Expected: 5  But was: 4" } ],
+            stuck_suspected: false, failures_capped: false }
+result: { mode: "PlayMode",
+          summary: { total: 3, passed: 2, failed: 1, skipped: 0,
+                     durationSeconds: 0.0716135, resultState: "Failed(Child)" },
+          results: null }
+```
+
+**2 of 3 passed, and one of those was a `[UnityTest]` coroutine** asserting `Time.frameCount`
+advanced across two `yield return null`s — so frame-based PlayMode tests genuinely execute, not just
+plain `[Test]` methods. The **`assembly_names`** filter works in PlayMode too.
+
+**The consistency result is the part worth stating loudly:** the PlayMode response matches the
+EditMode semantics already documented. `status: "failed"` reflects the **TEST OUTCOME**, not a
+harness error (I-2), and `result.results` is **null** with failures arriving via
+`progress.failures_so_far` (I-3). **Confirmed identical in both modes**, so a reader never has to
+wonder whether PlayMode reports differently, and nobody needs a second code path for it.
+
+- **Label:** VERIFIED on 10.3.0. Promoted from UNVERIFIED (it was the headline gap after Round 10).
+- **Applied to:** a new `Live-verified PlayMode test run` row in POWER.md's baseline table; POWER.md's
+  `run_tests` row; the "Test job `status` means the test outcome" subsection (now explicitly
+  both-modes, with a dedicated "PlayMode behaves the same way" paragraph); POWER.md Workflow 4
+  steps 3 and 4; `steering/cross-platform-testing.md`'s "Verification status" bullets and its
+  troubleshooting bullets; `steering/unity-general.md`'s version-baseline block (two new bullets,
+  and PlayMode removed from its still-unverified list); `templates/workflows/test-execution.json`
+  (`resultInterpretationNotes` point 6, and the `run-playmode` step name — which also now passes
+  `init_timeout: 120000`); and all five READMEs, **each in its own language**.
+
+### L-1b — the PlayMode asmdef recipe, recorded next to the EditMode one
+
+```jsonc
+{
+  "name": "MyProject.PlayTests",
+  "references": ["UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+  "includePlatforms": [],
+  "precompiledReferences": ["nunit.framework.dll"],
+  "overrideReferences": true,
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}
+```
+
+**`includePlatforms: []` (empty = all platforms) instead of `["Editor"]` is the single difference**
+that makes an assembly PlayMode-capable. Everything else is unchanged from the EditMode recipe.
+Also recorded: `[UnityTest]` returning `IEnumerator` is the **coroutine form**, and it requires
+**`using UnityEngine.TestTools;`**.
+
+- **Label:** VERIFIED on 10.3.0.
+- **Recorded in:** a new `steering/cross-platform-testing.md` section "Getting a Testable PlayMode
+  Assembly in Place", immediately after the existing EditMode recipe section (which is left intact).
+  POWER.md Workflow 4 step 3 names the one-field difference and points at that file.
+
+### L-2 — the MCP session SURVIVES a PlayMode run with a full domain reload
+
+The stated risk did not materialise: the `get_test_job` poll issued immediately after the run
+succeeded — **no `Session not found` (E-4) and no `no_unity_session` (E-3)**. And the reload was
+genuine, not skipped: `execute_code` reported `EditorSettings.enterPlayModeOptionsEnabled = False`
+and `enterPlayModeOptions = None`, so that project does **not** skip domain reload on Play Mode
+entry.
+
+- **Label:** VERIFIED on 10.3.0. Recorded as a **reassurance with its evidence**, wherever the docs
+  warn about domain reloads around Play Mode.
+- **The distinction that had to be made explicit, so the two facts can never be conflated:** a
+  surviving **session** and surviving **instance IDs** are different things. **G-1 is untouched** —
+  ids still must not be cached across a domain reload, and a live connection will happily accept a
+  stale id and answer "not found". Both POWER.md's and `unity-general.md`'s instance-ID sections
+  gained an explicit bullet saying the session reassurance does **not** soften the id rule, and the
+  PlayMode-run text in every file repeats the distinction rather than implying it.
+- **Applied to:** POWER.md's "Play Mode silently discards scene work" scope note (a new paragraph),
+  its instance-ID subsection, the `run_tests`/Workflow 4 text and the new baseline row;
+  `steering/unity-general.md` (a new baseline bullet plus the instance-ID section);
+  `steering/cross-platform-testing.md` (a "Verification status" bullet and a new troubleshooting
+  bullet reframing a post-run `Session not found` as a real fault to diagnose, not an expected cost).
+
+### L-2b — the 6.x enter-play-mode default claim stays REPORTED/UNVERIFIED
+
+`steering/unity-general.md` and `steering/performance-analysis.md` carry a *reported, unverified*
+claim that a 6.x Update release changed the default for **new** projects to skip domain reload. This
+project's setting is disabled — but its template assets carry `lastWriteTimeUtc` **2025-01-30**, so
+it was created in the Unity 6.0 era and later upgraded to 6.4, which means it would carry the older
+default anyway.
+
+- **Label:** the observation is VERIFIED; **the upstream claim remains REPORTED, NOT VERIFIED.**
+- **This is NOT evidence against the upstream claim, and was deliberately not written as a
+  refutation.** It was added *beside* the existing claim in both files as a concrete data point that
+  an **upgraded** project keeps domain reload on — which is also exactly why both files already tell
+  the reader to read the setting rather than infer it from a version number. The
+  "reported, not verified" labelling on the new-project default is unchanged in both files.
+
+### L-3 — measured PlayMode timing, with the open question left open
+
+Wall clock `started_unix_ms` → `finished_unix_ms` was **~5.2 s**, of which the tests themselves were
+`durationSeconds: 0.0716`. EditMode's equivalent was **~4.2 s** (I-5). So PlayMode added only about
+a second despite the domain reload.
+
+- **Label:** the numbers are VERIFIED on 10.3.0 (one machine, one run).
+- **Deliberately NOT concluded:** `init_timeout: 120000` **was** passed on this run, so **whether a
+  smaller `init_timeout` would suffice is UNVERIFIED**. No text anywhere recommends lowering it; the
+  timing paragraphs in POWER.md and `steering/cross-platform-testing.md` each say in so many words
+  that the fast number is not a reason to lower it, upstream's recommendation stands, and the
+  question is open. It is also listed in the UNVERIFIED lists in POWER.md,
+  `steering/unity-general.md`, `steering/cross-platform-testing.md` and the workflow template.
+- **Recorded in:** POWER.md's "Test job `status` means the test outcome" timing paragraph, its
+  Workflow 4 step 4 and the new baseline row; `steering/cross-platform-testing.md`'s timing
+  paragraph, its `init_timeout` parameter bullet and its PlayMode troubleshooting bullet.
+
+### L-4 — cleanup / isolation method, and the assembly-unload evidence
+
+`manage_asset(action: "delete", path: "Assets/_MCPVerify")` plus `refresh_unity` removed it.
+Confirmed: `Assets/_MCPVerify` **gone from disk**; `Assets/` top level back to only `Scenes`,
+`Settings`, `TutorialInfo`, `InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta`
+files; and `execute_code` reported
+`scene=SampleScene roots=3 dirty=False isPlaying=False testAsmGone=True` — **the test type no longer
+resolves, so the assembly was genuinely unloaded**, not merely deleted from disk while still live in
+the domain. **No scene save was needed** because the scene was never modified.
+
+- **Label:** VERIFIED on 10.3.0.
+- **Recorded in:** a new `steering/cross-platform-testing.md` section "Removing a Throwaway Test
+  Assembly Afterwards" — the three-step method (isolate in one folder → `manage_asset(delete)` →
+  `refresh_unity`), with `testAsmGone` called out as the field that actually proves the unload, and
+  a pointer to the save-to-persist / mutate-then-save rules for tests that *do* mutate a scene, plus
+  the dangling-GUID `create_folder` trap for anyone recreating the same path.
+
+### Still UNVERIFIED after Round 11 — stated plainly, with reasons
+
+- **`manage_graphics` setters and bake actions — DELIBERATELY SKIPPED, not missed.** They mutate
+  project-wide render settings on the developer's own project and could not be safely restored.
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`, and with it C-6** (the `settings` action's `property` requirement). The reason is
+  precise and it is not a defect: every attempt was refused by a **`capability: mcp` / `effect: deny`
+  rule in the USER'S OWN `~/.kiro/settings/permissions.yaml`**. That is **the user's security
+  decision, not a defect in this Power or in the bridge**. It is deliberately not framed as something
+  to fix or work around, and nothing suggests editing that file — the existing guidance (report the
+  matched rule, let the developer decide, never edit their permission file) stands unchanged.
+- **Whether a smaller `init_timeout` suffices** for a PlayMode test run (L-3) — 120000 was passed.
+- **`run_tests`' `test_names` / `group_names` / `category_names` filters and `clear_stuck`**; whether
+  **`get_test_job`'s `wait_timeout` blocks**.
+- **`manage_editor`'s `deploy_package`/`restore_package`, `add_tag`/`remove_tag`,
+  `add_layer`/`remove_layer`, `set_active_tool`, `undo`/`redo`.**
+- **`execute_custom_tool`, `set_active_instance`.**
+- **The modify/delete paths of the Round-9 create-verified tools.**
+- **`t:Model` / `t:GameObject` search filters** — no model assets in the project.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The `mcpforunity://` resource URIs** — no resource-reading tool on this client.
+
+**Removed from the unverified list this round:** PlayMode test runs (L-1).
+
+### Preserved unchanged by Round 11
+
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`" blocks
+in POWER.md and all five READMEs; the two-pin upgrade mechanism; the DISTINCT `no_unity_session` vs
+`Session not found` entries; the `manage_editor` `telemetry_status`/`telemetry_ping` rows; the
+`batch_execute` server-layer divergence caveat; tool-group activation as conditional troubleshooting
+only; the `asset_gen` cost warning and default-off state with no invented parameter table; the
+43 -> 49 additive delta and the "use the live count, not upstream's 48" note; the `permissions.yaml`
+deny-rule root cause and the `power-<powerName>-<serverName>` namespace; the pidfile port-discovery
+guidance; `class_name` never `type_name` and the `unity_docs` unqualified-name trap; `find_in_file`
+being C#-script-only; the prefixed `by_name`-style `search_method` values; **the instance-ID
+volatility warning** and the three per-tool `target` conventions; `script_apply_edits` taking
+`name` + `path` not `uri`; the `refresh_unity` `mode`/`compile` enums, its non-blocking
+`wait_for_ready` on the compile path and its SYNCHRONOUS `compile: "none"` path; `duplicate` ignoring
+`name`; the save-to-persist scene semantics AND the mutation-then-save ordering rule; the
+dangling-GUID `create_folder` bug and its mkdir+refresh workaround; the AssetDatabase filter fix
+(`t:MonoScript` / `t:Texture2D` verified, `t:Model` unverified, NO `*.ext` globs); the
+built-in-vs-user-script `component_type` rule (`TypeName, Assembly-CSharp`); the test-run
+`status`-is-test-outcome semantics and `progress.failures_so_far`; **the EditMode asmdef recipe**
+(the PlayMode one was added beside it, not in place of it); `manage_animation`'s camelCase
+`properties` keys; `execute_menu_item` being fire-and-forget; **the Play Mode silent-work-loss
+precondition from Round 10**; the obsolete-physics mapping with the 2D-only
+`isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid); the PASSED workshop
+acceptance test; and the Round-10 reliability audit note. Each localized README stays in its OWN
+language (README_CN Simplified, README_ZH Traditional, README_JP Japanese, README_KR Korean) and all
+four were updated **in their own language** — none was converted to English. No `src/*.ts`, hook or
+`mcp.json` file was touched. Files changed: POWER.md, `steering/cross-platform-testing.md`,
+`steering/unity-general.md`, `steering/performance-analysis.md`,
+`templates/workflows/test-execution.json`, README.md, README_CN.md, README_ZH.md, README_JP.md,
+README_KR.md and this record.

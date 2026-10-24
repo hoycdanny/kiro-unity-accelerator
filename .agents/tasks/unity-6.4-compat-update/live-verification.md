@@ -1354,3 +1354,105 @@ one.
 
 No cleanup was required this round: Play Mode discarded the only object created, and the scene
 ended at its original 3 roots with `isDirty=False`.
+
+---
+
+# ROUND 11 — PlayMode tests VERIFIED (2026-10-21)
+
+The last structurally risky gap. A throwaway **PlayMode** test assembly was created, run and
+deleted against the live Editor. Unity 6000.4.6f1, bridge 10.3.0.
+
+Setup: `MCPVerify.PlayTests.asmdef` — same shape as the EditMode recipe but with
+**`includePlatforms: []`** (empty = all platforms) instead of `["Editor"]`, which is what makes
+it a PlayMode-capable test assembly. References `UnityEngine.TestRunner` +
+`UnityEditor.TestRunner`, `precompiledReferences: ["nunit.framework.dll"]`,
+`defineConstraints: ["UNITY_INCLUDE_TESTS"]`.
+Tests: `MCPVerify_Play_PlainPass` (`[Test]`), `MCPVerify_Play_FrameAdvances`
+(`[UnityTest]` coroutine asserting `Time.frameCount` advances across two `yield return null`s),
+and `MCPVerify_Play_IntentionalFail` (`[UnityTest]`, deliberate assertion failure).
+Confirmed loaded before running: `execute_code` →
+`loaded: MCPVerifyPlayTests asm=MCPVerify.PlayTests methods=3`.
+
+## L-1 — `run_tests(mode:"PlayMode")` works end to end
+
+`run_tests(mode:"PlayMode", assembly_names:["MCPVerify.PlayTests"], include_failed_tests:true,
+init_timeout:120000)` → `{job_id, status:"running", mode:"PlayMode"}`.
+
+`get_test_job` returned:
+```
+status: "failed"
+mode:   "PlayMode"
+progress: { completed: 3, total: 3,
+            last_finished_test_full_name: "MCPVerifyPlayTests.MCPVerify_Play_PlainPass",
+            failures_so_far: [ { full_name: "MCPVerifyPlayTests.MCPVerify_Play_IntentionalFail",
+                                 message: "intentional PlayMode failure for MCP verification
+                                           Expected: 5  But was: 4" } ],
+            stuck_suspected: false, failures_capped: false }
+result: { mode: "PlayMode",
+          summary: { total: 3, passed: 2, failed: 1, skipped: 0,
+                     durationSeconds: 0.0716135, resultState: "Failed(Child)" },
+          results: null }
+```
+
+**2 passed** — so the `[UnityTest]` coroutine really ran across frames in Play Mode, not just the
+plain `[Test]`. The `assembly_names` filter worked in PlayMode too.
+
+Everything matches the EditMode semantics already documented, which is a useful consistency
+result: `status: "failed"` reflects the **test outcome** (I-2), and `result.results` is **null**
+with failures arriving via `progress.failures_so_far` (I-3) — identical in PlayMode.
+
+## L-2 — the MCP session SURVIVES a PlayMode run, with a full domain reload
+
+This was the stated risk, and it did not materialise. The poll immediately after the run
+succeeded — no `Session not found` (E-4) and no `no_unity_session` (E-3).
+
+And it was a genuine domain reload, not a skipped one: `execute_code` reported
+`EditorSettings.enterPlayModeOptionsEnabled = False`, `enterPlayModeOptions = None`. So this
+project does **not** skip domain reload on Play Mode entry, and the bridge still came back intact.
+
+Note on the related steering claim: `steering/unity-general.md` and
+`steering/performance-analysis.md` record a *reported, unverified* claim that a 6.x Update release
+changed the default for **new** projects to skip domain reload. This project's actual setting is
+disabled — but its template assets carry `lastWriteTimeUtc` of 2025-01-30, i.e. it was created in
+the Unity 6.0 era and later upgraded to 6.4, so it would carry the older default. So this is
+**not** evidence against the upstream claim; it is a concrete data point that an *upgraded*
+project keeps domain reload on. Keep the claim labelled as reported/unverified and add this
+observation beside it.
+
+## L-3 — PlayMode timing is barely worse than EditMode here
+
+Wall clock from `started_unix_ms` to `finished_unix_ms`: **~5.2 s** (1792853652008 → 1792853657244),
+of which the tests themselves were `durationSeconds: 0.0716`. Compare EditMode's ~4.2 s (I-5). So
+on this machine PlayMode added only about a second of overhead despite the domain reload.
+
+That makes the `init_timeout: 120000` upstream recommends look generous rather than necessary —
+but it was passed on this run, so **whether a smaller `init_timeout` would have sufficed is
+UNVERIFIED**. Do not recommend lowering it on the strength of one fast run; document the measured
+number and leave the upstream recommendation standing.
+
+## L-4 — cleanup verified
+
+`manage_asset(action:"delete", path:"Assets/_MCPVerify")` plus `refresh_unity`. Confirmed:
+`Assets/_MCPVerify` gone from disk; `Assets/` top level back to only `Scenes`, `Settings`,
+`TutorialInfo`, `InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta` files; and
+`execute_code` reported `scene=SampleScene roots=3 dirty=False isPlaying=False testAsmGone=True`
+— the test assembly type no longer resolves, so the assembly was genuinely unloaded. No scene
+save was needed because the scene was never modified.
+
+## Still NOT verified
+
+- `manage_graphics` setters and bake actions — deliberately skipped (project-wide render
+  settings, not safely restorable).
+- The six `asset_gen` tools — intentionally never called; they spend real money.
+- `manage_build` — blocked by the user's own `permissions.yaml` MCP deny rule (C-5); C-6 stays
+  UNVERIFIED. **This is the user's security decision, not a bug to fix.**
+- Whether a smaller `init_timeout` suffices for PlayMode (L-3).
+- `run_tests`' `test_names` / `group_names` / `category_names` filters and `clear_stuck`;
+  whether `get_test_job`'s `wait_timeout` blocks.
+- `manage_editor`'s `deploy_package` / `restore_package`, `add_tag`/`remove_tag`,
+  `add_layer`/`remove_layer`, `set_active_tool`, `undo`/`redo`.
+- `execute_custom_tool`, `set_active_instance`.
+- Modify/delete paths of the Round-9 create-verified tools.
+- `t:Model` / `t:GameObject` search filters — no model assets in the project.
+- `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
+- The `mcpforunity://` resource URIs — no resource-reading tool on this client.

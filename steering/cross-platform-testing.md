@@ -53,6 +53,44 @@ refresh_unity(mode: "force", compile: "request")
 
 **That import path is VERIFIED**: files created outside Unity's import pipeline (ordinary file I/O, or `create_script`) were picked up by `refresh_unity(mode: "force", compile: "request")`, and `execute_code` then confirmed the type had really loaded — `System.Type.GetType("MCPVerifyTests, MCPVerify.Tests")` returned `loaded: MCPVerifyTests asm=MCPVerify.Tests`. Remember that `wait_for_ready: true` does **not** block (see `unity-general.md`): confirm the type loaded before calling `run_tests`, rather than assuming the compile finished. Pass the assembly's `name` to `run_tests(assembly_names: [...])` to run only those tests.
 
+### Getting a Testable PlayMode Assembly in Place
+
+A PlayMode test assembly is the EditMode recipe with **one field changed**. This is the **PlayMode test-assembly recipe VERIFIED working on bridge 10.3.0 / Unity 6000.4.6f1 (2026-10-21)**:
+
+```jsonc
+// Assets/<YourFolder>/Tests/MyProject.PlayTests.asmdef
+{
+  "name": "MyProject.PlayTests",
+  "references": ["UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+  "includePlatforms": [],
+  "precompiledReferences": ["nunit.framework.dll"],
+  "overrideReferences": true,
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}
+```
+
+**The single difference from the EditMode recipe is `includePlatforms: []`** — an empty list means *all platforms*, and that is what makes the assembly PlayMode-capable. `["Editor"]` restricts it to EditMode. Everything else is unchanged and every field still matters: `UnityEngine.TestRunner` + `UnityEditor.TestRunner` in `references`, `precompiledReferences: ["nunit.framework.dll"]` together with `overrideReferences: true` so NUnit's `Assert` resolves, `autoReferenced: false`, and `defineConstraints: ["UNITY_INCLUDE_TESTS"]`.
+
+Inside a PlayMode assembly you can write either form of test:
+
+- `[Test]` — a plain synchronous NUnit test, same as in EditMode.
+- **`[UnityTest]` returning `IEnumerator` — the coroutine form**, which Unity drives across frames so `yield return null` advances one frame. It requires **`using UnityEngine.TestTools;`**. The verified run included a `[UnityTest]` asserting `Time.frameCount` advanced across two `yield return null`s, and it passed — frame-based tests really do execute.
+
+Import it the same way (`refresh_unity(mode: "force", compile: "request")`, then confirm the type loaded), then run it with `run_tests(mode: "PlayMode", assembly_names: ["MyProject.PlayTests"], init_timeout: 120000)`.
+
+### Removing a Throwaway Test Assembly Afterwards
+
+A test assembly created only to prove something should be removed, and the removal is **VERIFIED to be complete on bridge 10.3.0 (2026-10-21)**:
+
+1. Keep the whole thing in **one isolated folder** from the start (the verified runs used `Assets/_MCPVerify/`) so deletion is a single call.
+2. `manage_asset(action: "delete", path: "Assets/_MCPVerify")`.
+3. `refresh_unity` so the AssetDatabase and the compiler notice.
+
+What was confirmed afterwards, and worth confirming yourself: the folder was **gone from disk**; `Assets/` was back to only its original top-level entries (`Scenes`, `Settings`, `TutorialInfo`, `InputSystem_Actions.inputactions`, `Readme.asset` and their `.meta` files); and `execute_code` reported `scene=SampleScene roots=3 dirty=False isPlaying=False testAsmGone=True`. **That last field is the one that matters: the test type no longer resolved, so the assembly was genuinely unloaded, not merely deleted from disk while still live in the domain.** Check the type is gone rather than trusting the delete call's success.
+
+**No scene save was needed**, because the scene was never modified — a PlayMode test run does not dirty it. If your tests *do* mutate the scene, the save-to-persist and mutate-then-save ordering rules apply (see `unity-general.md` and `scene-scaffolding.md`). And note the related trap recorded in `unity-general.md`: re-creating a previously deleted asset folder at the **same path** can fail with a misleading "already exists" error, whose fix is a disk-level mkdir plus a refresh.
+
 ### Start Tests
 
 ```
@@ -63,7 +101,7 @@ run_tests(mode: "EditMode")
 There is no `action: "run"` param and no `testFilter`/`platform` params. The real params are `mode`, `test_names`, `group_names`, `category_names`, `assembly_names`, `include_failed_tests`, `include_details`, `init_timeout` and `clear_stuck`. Three of them are easy to misuse:
 
 - `group_names` takes **regular expressions** matched against the full test name (unlike `test_names`, which needs exact full names including namespace and class)
-- `init_timeout` is in **milliseconds** and defaults to 15000; a PlayMode run starts with a domain reload, so 120000 is the documented recommendation
+- `init_timeout` is in **milliseconds** and defaults to 15000; a PlayMode run starts with a domain reload, so 120000 is the documented recommendation. **Keep passing 120000 for PlayMode.** The one verified PlayMode run finished in ~5.2 s wall clock, but it was run *with* `init_timeout: 120000`, so **whether a smaller value would have sufficed is UNVERIFIED** — a fast run is not evidence that a shorter timeout is safe, and upstream's recommendation stands
 - `clear_stuck: true` only clears an orphaned job that is blocking new runs — it starts no tests, and it marks any job in the `running` state as failed without checking whether the run is still alive
 
 Source: [`run_tests` tool reference @ v10.3.0](https://github.com/CoplayDev/unity-mcp/blob/v10.3.0/website/docs/reference/tools/testing/run_tests.md), retrieved 2026-10-21.
@@ -72,9 +110,12 @@ Source: [`run_tests` tool reference @ v10.3.0](https://github.com/CoplayDev/unit
 
 - **The async job LIFECYCLE is VERIFIED end to end.** `run_tests(mode: "EditMode")` returned a `job_id`, and `get_test_job(job_id)` went `status: "running"` → `status: "succeeded"` in roughly 7.5 seconds — on a project that had no test assemblies, so that run reported `completed: 0, total: 0`.
 - **EditMode pass/fail reporting is VERIFIED.** A throwaway test assembly with one deliberately passing and one deliberately failing test was built, imported, run and deleted. The job reported `summary: {total: 2, passed: 1, failed: 1, skipped: 0, durationSeconds: 0.33, resultState: "Failed(Child)"}` with NUnit's assertion text intact. The **`assembly_names`** filter is verified in the same run.
-- **PlayMode is still NOT verified.** Only EditMode was exercised. A PlayMode run starts with a domain reload and upstream recommends `init_timeout: 120000`; none of that was tested. Do not describe PlayMode behaviour as proved.
-- **Do not confuse that with Play Mode *control*, which IS verified.** `manage_editor` `play`/`pause`/`stop` were exercised on 10.3.0 (2026-10-21) and work; the MCP session survives Play Mode entry and exit. **That verification does not extend to `run_tests(mode: "PlayMode")` by even one step** — driving the Editor into Play Mode by hand is not the same code path as a PlayMode test run, which starts with a domain reload and is managed by the Test Framework. See "Play Mode control is VERIFIED" in `unity-general.md`, and note the separate hazard recorded there: a scene mutation issued while Play Mode is on **succeeds and is then silently discarded**.
-- **Also still UNVERIFIED**: the `test_names` / `group_names` / `category_names` filters, `clear_stuck`, whether `wait_timeout` blocks, and what `include_failed_tests` / `include_details` actually change — `result.results` came back `null` with either setting.
+- **PlayMode pass/fail reporting is VERIFIED too (2026-10-21, bridge 10.3.0).** A throwaway PlayMode test assembly — three tests, one deliberately failing — was created, run and deleted. `run_tests(mode: "PlayMode", assembly_names: ["MCPVerify.PlayTests"], include_failed_tests: true, init_timeout: 120000)` ran end to end and the job reported `status: "failed"`, `mode: "PlayMode"`, `progress.completed: 3` of `total: 3`, and `summary: {total: 3, passed: 2, failed: 1, skipped: 0, durationSeconds: 0.0716135, resultState: "Failed(Child)"}` with `result.results: null`. **Two of the three passed, and one of those was a `[UnityTest]` coroutine** asserting `Time.frameCount` advanced across two `yield return null`s — so frame-based PlayMode tests genuinely execute, not just plain `[Test]` methods. The **`assembly_names`** filter works in PlayMode as well.
+- **The PlayMode response shape is IDENTICAL to EditMode's — confirmed in both modes, so there is nothing mode-specific to re-learn.** `status: "failed"` reflects the **test outcome**, not a harness error (see "A Test Job's `status` Is the Test Outcome" below), and `result.results` came back `null` with failure detail arriving through `progress.failures_so_far` — exactly as in the EditMode runs. Read a PlayMode job with the same rules as an EditMode one.
+- **The MCP session SURVIVES a PlayMode run, and it was a real domain reload.** The `get_test_job` poll issued immediately after the run succeeded — no `Session not found`, no `no_unity_session`. The reload was genuine, not skipped: `execute_code` reported `EditorSettings.enterPlayModeOptionsEnabled = False` and `enterPlayModeOptions = None`, so that project does **not** skip domain reload on Play Mode entry. **This does not soften the instance-ID rule**: the *session* surviving a domain reload and *instance IDs* surviving one are two different facts, and IDs still do not survive — re-resolve every id on the far side of a PlayMode run (see the instance-ID section in `unity-general.md`).
+- **Play Mode *control* is verified separately.** `manage_editor` `play`/`pause`/`stop` were exercised on 10.3.0 (2026-10-21) and work. It is still a different code path from a Test-Framework-managed PlayMode test run — both are now verified, but evidence about one is not evidence about the other. See "Play Mode control is VERIFIED" in `unity-general.md`, and note the separate hazard recorded there: a scene mutation issued while Play Mode is on **succeeds and is then silently discarded**.
+- **Also still UNVERIFIED**: whether a **smaller `init_timeout`** suffices for PlayMode (120000 was passed on the one verified run), the `test_names` / `group_names` / `category_names` filters, `clear_stuck`, whether `wait_timeout` blocks, and what `include_failed_tests` / `include_details` actually change — `result.results` came back `null` with either setting.
+- **`manage_build` is UNVERIFIED on the verification machine, and that is not a defect.** Step 6 of the flow above pairs test runs with per-platform builds, but no `manage_build` call could be made: a `capability: mcp` / `effect: deny` rule in the **user's own** `~/.kiro/settings/permissions.yaml` blocked it before Unity saw it. That is the **user's security decision**, not a bug in this Power or in the bridge — report the matched rule and stop, and never edit that file on their behalf (see "Tool Call Denied by the IDE's Permissions" in `unity-general.md`).
 
 ### A Test Job's `status` Is the Test Outcome, Not the Run's Health
 
@@ -90,7 +131,7 @@ The observed `failed` job had `error: null`, both of its tests executed, and `pr
 
 Neither value means much on its own. The other end of the same scale was also observed: a run against a project with no test assemblies returned `status: "succeeded"` with `completed: 0, total: 0`. So "succeeded" can mean *nothing ran*. **Always report the status together with the counts**, never the status alone.
 
-**Timing expectation**: two EditMode runs of two trivial tests each took about **4.2 seconds** wall clock (`started_unix_ms` → `finished_unix_ms`) while the tests themselves took 0.33 s and 0.21 s — roughly **4 seconds of fixed overhead per EditMode run**, independent of test count. Do not treat a few seconds of apparent idleness as a stuck run; `progress.stuck_suspected` (with `progress.blocked_reason`) is the field to watch.
+**Timing expectation**: two EditMode runs of two trivial tests each took about **4.2 seconds** wall clock (`started_unix_ms` → `finished_unix_ms`) while the tests themselves took 0.33 s and 0.21 s — roughly **4 seconds of fixed overhead per EditMode run**, independent of test count. The measured PlayMode run of three trivial tests took **~5.2 seconds** wall clock with `durationSeconds: 0.0716` — so on that machine **PlayMode added only about a second over EditMode despite the domain reload**. Both figures are measured on one machine; use them to set expectations, not as a budget. Do not treat a few seconds of apparent idleness as a stuck run; `progress.stuck_suspected` (with `progress.blocked_reason`) is the field to watch. And do **not** read the fast PlayMode number as a reason to lower `init_timeout` — that run passed `init_timeout: 120000`, so a smaller value is untested.
 
 ### Poll for Results
 
@@ -172,11 +213,12 @@ State the job's `status` and the `completed`/`total` counts side by side. A bare
 - If `run_tests`/`get_test_job` is reported as an unknown tool, the `testing` group may not be active for this session — run `manage_tools(action: "list_groups")`, then `sync`, then `activate` with `group: "testing"`, then refresh or reconnect the MCP client before retrying. Note that `list_groups` can report `enabled: false` for a group whose tools work fine, so judge by whether the retry succeeds, not by that field
 - If the call comes back as *denied by permissions* instead, an IDE-side `capability: mcp` deny rule blocked it before Unity saw it — check `~/.kiro/settings/permissions.yaml`, report the matched rule, and stop (see "Tool Call Denied by the IDE's Permissions" in `unity-general.md`)
 - If `run_tests`/`get_test_job` returns a connection error, prompt the developer to confirm Unity Editor is open and the MCP for Unity status panel reads `Connected`
-- `get_test_job` may report `progress.stuck_suspected` or `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run. That behaviour can be disabled by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server. The `run_tests` → `get_test_job` **lifecycle and EditMode pass/fail reporting are both verified** on bridge 10.3.0; **PlayMode is not** (see "Verification status" above)
+- `get_test_job` may report `progress.stuck_suspected` or `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run. That behaviour can be disabled by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server. The `run_tests` → `get_test_job` **lifecycle and both EditMode and PlayMode pass/fail reporting are verified** on bridge 10.3.0 (see "Verification status" above)
 - A `status: "failed"` job is **not** an error to troubleshoot — it means a test failed. Only treat the run as broken when `error` is populated and `progress.completed`/`total` never advanced
 - If a new run is rejected because a job is already `running` and no run is actually alive — typically an orphan left behind by a domain reload — clear it with `run_tests(..., clear_stuck: true)`, then start the run again
 - If a test job's status stays `"running"` far longer than expected (check `progress.stuck_suspected` if present), suggest the developer check if the Editor lost focus (some PlayMode test runs pause without an active window) or narrow the test scope
-- If `wait_timeout` polling returns `"running"` repeatedly, keep polling with reasonable intervals rather than assuming failure — PlayMode tests with domain reload can take a while to start
+- If `wait_timeout` polling returns `"running"` repeatedly, keep polling with reasonable intervals rather than assuming failure — PlayMode tests with domain reload can take a while to start (the one measured PlayMode run took ~5.2 s end to end, but that is one data point on one machine, not a ceiling)
+- **Do not expect a PlayMode run to drop the MCP session.** The verified PlayMode run went through a genuine domain reload (`enterPlayModeOptionsEnabled = False`) and the poll straight afterwards worked — so a `Session not found` or `no_unity_session` after a PlayMode run is a real connection problem to diagnose, not the expected cost of the reload. Instance IDs are a separate matter: those **do not** survive the reload, so re-resolve any id you were holding
 
 ## Cross-Platform Testing Strategy Recommendations
 
