@@ -39,13 +39,30 @@ There is no `action: "run"` param and no `testFilter`/`platform` params. The rea
 - `init_timeout` is in **milliseconds** and defaults to 15000; a PlayMode run starts with a domain reload, so 120000 is the documented recommendation
 - `clear_stuck: true` only clears an orphaned job that is blocking new runs — it starts no tests, and it marks any job in the `running` state as failed without checking whether the run is still alive
 
-Source: [`run_tests` tool reference @ v10.3.0](https://github.com/CoplayDev/unity-mcp/blob/v10.3.0/website/docs/reference/tools/testing/run_tests.md), retrieved 2026-10-21. End-to-end behaviour is **UNVERIFIED** — `run_tests` was not exercised on the verification machine.
+Source: [`run_tests` tool reference @ v10.3.0](https://github.com/CoplayDev/unity-mcp/blob/v10.3.0/website/docs/reference/tools/testing/run_tests.md), retrieved 2026-10-21.
+
+**Verification status — be precise about the split (observed 2026-10-21, bridge 10.3.0):**
+
+- **The async job LIFECYCLE is VERIFIED end to end.** `run_tests(mode: "EditMode")` returned a `job_id`, and `get_test_job(job_id)` went `status: "running"` → `status: "succeeded"` in roughly 7.5 seconds.
+- **Pass/fail reporting is NOT verified.** The verification project has no test assemblies, so the job completed with `completed: 0, total: 0` — nothing was ever asserted on. `include_failed_tests`, the failure payload shape, and PlayMode behaviour (which starts with a domain reload) all remain **UNVERIFIED**. Say so rather than implying results reporting was proved.
 
 ### Poll for Results
 
 ```
 get_test_job(job_id: "...", wait_timeout: 30, include_failed_tests: true)
 ```
+
+**The response carries considerably more than older drafts of this file described (VERIFIED on 10.3.0, 2026-10-21):** timestamps `started_unix_ms`, `finished_unix_ms` and `last_update_unix_ms`, plus a `progress` object containing `completed`, `total`, `current_test_full_name`, `last_finished_test_full_name`, `stuck_suspected`, `editor_is_focused`, `run_in_background`, `focus_nudge_attempts`, `focus_nudge_limit`, `focus_nudge_status`, `blocked_reason`, `failures_so_far` and `failures_capped`.
+
+Use them instead of guessing at the run's state:
+
+- `progress.completed` / `progress.total` → a real progress figure to report while the run is in flight
+- `progress.current_test_full_name` / `last_finished_test_full_name` → where the run actually is
+- `progress.failures_so_far` → report failures as they accumulate, without waiting for the terminal status; `failures_capped` says the server stopped collecting more
+- `progress.blocked_reason` → why a job is not advancing; `stuck_suspected`, `editor_is_focused` and the `focus_nudge_*` fields describe the focus-nudging behaviour
+- `started_unix_ms` / `finished_unix_ms` → the run's real duration, instead of timing the polling loop
+
+**Also note `clear_stuck` on `run_tests`**: an orphaned `running` job lost to a domain reload will block new runs, and `clear_stuck: true` clears it (it starts no tests).
 
 ### Read Test Results From Console
 
@@ -99,7 +116,8 @@ Each `run_tests` call still returns its own `job_id` — `batch_execute` here ju
 - If `run_tests`/`get_test_job` is reported as an unknown tool, the `testing` group may not be active for this session — run `manage_tools(action: "list_groups")`, then `sync`, then `activate` with `group: "testing"`, then refresh or reconnect the MCP client before retrying. Note that `list_groups` can report `enabled: false` for a group whose tools work fine, so judge by whether the retry succeeds, not by that field
 - If the call comes back as *denied by permissions* instead, an IDE-side `capability: mcp` deny rule blocked it before Unity saw it — check `~/.kiro/settings/permissions.yaml`, report the matched rule, and stop (see "Tool Call Denied by the IDE's Permissions" in `unity-general.md`)
 - If `run_tests`/`get_test_job` returns a connection error, prompt the developer to confirm Unity Editor is open and the MCP for Unity status panel reads `Connected`
-- `get_test_job` may report `progress.stuck_suspected` or `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run. That behaviour can be disabled by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server. End-to-end `run_tests`/`get_test_job` behaviour was **not** exercised live for this Power — treat it as unverified
+- `get_test_job` may report `progress.stuck_suspected` or `progress.focus_nudge_status`, and the server may briefly focus the Unity window during a stalled run. That behaviour can be disabled by setting `UNITY_MCP_DISABLE_FOCUS_NUDGE=1` on the Python server. The `run_tests` → `get_test_job` **lifecycle is verified** on bridge 10.3.0; **pass/fail reporting is not** (see "Verification status" above)
+- If a new run is rejected because a job is already `running` and no run is actually alive — typically an orphan left behind by a domain reload — clear it with `run_tests(..., clear_stuck: true)`, then start the run again
 - If a test job's status stays `"running"` far longer than expected (check `progress.stuck_suspected` if present), suggest the developer check if the Editor lost focus (some PlayMode test runs pause without an active window) or narrow the test scope
 - If `wait_timeout` polling returns `"running"` repeatedly, keep polling with reasonable intervals rather than assuming failure — PlayMode tests with domain reload can take a while to start
 

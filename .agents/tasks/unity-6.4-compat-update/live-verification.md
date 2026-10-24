@@ -698,3 +698,165 @@ divergence; the `unity_docs` name-form trap; `find_in_file` being script-only; a
 - **`manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths** — packages absent.
 - **The 25-URI `mcpforunity://` resource table** — this client exposes no resource-reading tool,
   so the URIs still could not be enumerated or fetched.
+
+---
+
+# ROUND 6 — MUTATING actions verified on v10.3.0 (2026-10-21)
+
+The write path was finally exercised. Everything was created inside an isolated folder
+`Assets/_MCPVerify/` with `MCPVerify_*` object names, then deleted; the project was confirmed
+back at its original baseline afterwards (see F6-8). Unity 6000.4.6f1, bridge 10.3.0 both sides.
+
+Baseline before: `SampleScene`, 3 roots — Main Camera (49224), Directional Light (49234),
+Global Volume (49242); **0** `.cs` assets.
+
+## G-1 — THE BIG ONE: instance IDs are volatile and must never be cached
+
+Tracked a single GameObject across its lifetime:
+
+| Moment | Reported instanceID |
+|---|---|
+| `manage_gameobject(create)` returned | **-5560** (negative) |
+| later, in `manage_gameobject(duplicate)`'s `originalId` | **50436** (positive) |
+| later, in `manage_prefabs(create_from_gameobject)`'s `instanceId` | **50470** |
+
+And after the `refresh_unity` recompile / domain reload, **objects nobody touched were also
+renumbered**: Main Camera 49224 → **50412**, Directional Light 49234 → **50422**,
+Global Volume 49242 → **50430**.
+
+**VERIFIED CONSEQUENCES:**
+- A newly created GameObject's instance ID is **transient and negative**. Once the object is
+  registered, it becomes a different, positive ID, and the negative one stops resolving:
+  `manage_gameobject(action:"duplicate", target:"-5560", search_method:"by_id")` failed with
+  `Target GameObject ('-5560') not found using method 'by_id'`.
+- **Instance IDs do not survive a domain reload** — not even for untouched objects.
+- Therefore any multi-step workflow that captures an instance ID and reuses it later is unsafe.
+  This hits this Power directly: Workflow 2 (scene scaffolding) chains object creation and then
+  operates on what it created, and `find_gameobjects` returns *only* instance IDs.
+
+**Guidance to document:** prefer **names or paths** as the durable handle across steps; re-resolve
+instance IDs immediately before use; never carry an ID across a `refresh_unity`, a recompile, or
+anything that triggers a domain reload. POWER.md currently says "instance ID preferred" for
+`manage_components.target` — that is fine *within* a single immediate step, but must be qualified
+with this lifetime warning.
+
+## G-2 — Three INCONSISTENT `target` conventions across the three object tools
+
+All three take a parameter called `target`, and all three resolve it differently:
+
+| Tool | Accepted `target` | Evidence |
+|---|---|---|
+| `manage_components` | **int** instance ID works | `target: -5560` (int) → `Component 'Rigidbody' added` |
+| `manage_gameobject` | **must be a string**, and is treated as a **name** by default | `target: -5560` (int) → `Input should be a valid string`. `target: "-5560"` → `not found using method 'default'`. `target: "MCPVerify_Cube"` → success. `search_method:"by_id"` works only with a **positive** id: `target:"50436"` → success |
+| `manage_prefabs` | requires the **name**; an instance-ID string fails | `target: "50436"` → `GameObject '50436' not found in the active scene or prefab stage`. `target: "MCPVerify_Cube"` → success |
+
+This is a real trap: an agent that learns "pass the instance ID" from one tool's docs will fail
+on the other two. Document the per-tool convention explicitly.
+
+## G-3 — `script_apply_edits` does NOT take `uri` (documentation error in this repo)
+
+`script_apply_edits` requires **`name` + `path`**, not `uri`:
+- `uri: "Assets/_MCPVerify/MCPVerifyProbe.cs"` → `3 validation errors`: `name` missing,
+  `path` missing, `uri` unexpected keyword argument.
+- `name: "MCPVerifyProbe"`, `path: "Assets/_MCPVerify"` → success.
+
+**POWER.md is currently WRONG about this.** Its script-URI note says the `uri` argument of
+`apply_text_edits` / **`script_apply_edits`** / `get_sha` / `validate_script` / `delete_script` /
+`find_in_file` accepts three forms. `script_apply_edits` must be removed from that list and
+documented with its own `name` + `path` signature.
+
+Successful response shape: `{path, uri, editsApplied: 1, scheduledRefresh: false, sha256,
+normalizedEdits: [...], routing: "structured"}`. Canonical edit fields confirmed from the live
+description: `op` (one of `replace_method, insert_method, delete_method, anchor_insert,
+anchor_delete, anchor_replace`), `className`, `methodName`, `replacement`; plus
+`options.validate` (`standard` / `basic`).
+
+## G-4 — `refresh_unity` parameter VALUES (both are enums, and `compile` is NOT a boolean)
+
+`mode: "both", compile: true` → `2 validation errors`:
+- `mode` must be `'if_dirty'` or `'force'`
+- `compile` must be `'none'` or `'request'` — a **string**, not a bool
+
+Correct call `{mode:"force", compile:"request", wait_for_ready:true}` returned
+`{refresh_triggered:true, compile_requested:true, compile_started:true,
+resulting_state:"compiling"}`.
+
+POWER.md lists the parameter *names* but not their allowed values, so `compile: true` is the
+natural and wrong guess. Document the enums.
+
+**Bonus corroboration:** the response `hint` reads "poll the `mcpforunity://editor/state`
+resource until `data.advice.ready_for_tools` is true" — independent confirmation that the
+editor-state resource really exists, which is what Round 1 flagged (POWER.md's old
+"do not assume editor-state resources exist" warning was wrong and has already been fixed).
+
+## G-5 — `manage_gameobject(duplicate)` ignores the `name` parameter
+
+Called with `name: "MCPVerify_Cube_Dup"`; the duplicate was created as **`MCPVerify_Cube_Copy`**
+(Unity's own auto-naming). So `name` is not an alias for the new object's name on `duplicate` —
+rename afterwards with `action:"modify"` if a specific name is needed. Document this.
+
+The duplicate correctly inherited the added `Rigidbody` (`componentNames` included
+`UnityEngine.Rigidbody`), confirming the earlier component add really applied.
+
+## G-6 — Unity 6.4's current physics API works through the bridge
+
+`manage_components(action:"set_property", component_type:"Rigidbody", properties:{linearDamping:
+2.25, useGravity:false, mass:7.5})` succeeded, and reading back via `execute_code` returned:
+`MCPVerify_Cube mass=7.5 linearDamping=2.25 useGravity=False`.
+
+So the 6.4 replacement property `linearDamping` (for the obsolete `drag`) is settable through
+`manage_components`, and the `properties` dictionary form works for multiple properties at once.
+This validates the Round-3 obsolete→current physics mapping end to end on a real object.
+
+## G-7 — mutating actions and async jobs: all verified
+
+| Call | Result |
+|---|---|
+| `manage_asset(create_folder, path:"Assets/_MCPVerify")` | ok — returned guid, instanceID, `isFolder:true` |
+| `create_script(path, contents)` | ok — returned `uri: mcpforunity://path/...`, `scheduledRefresh:false`. Params are `path` + `contents` (plain text; the server base64-encodes) |
+| `get_sha(uri)` | ok — `sha256`, `lengthBytes: 249` |
+| `validate_script(uri)` | ok — `{warnings:0, errors:0}` |
+| `find_in_file(uri, pattern)` **success path** | ok — `matches[{line, content, match, start, end}]`, `count`, `total_matches`. Closes the D-2 success-path gap |
+| `script_apply_edits(name, path, edits)` | ok (see G-3) |
+| `manage_gameobject(create, primitive_type:"Cube", position:[10,0,10])` | ok — Transform/MeshFilter/BoxCollider/MeshRenderer |
+| `manage_components(add, "Rigidbody")` | ok — `componentInstanceID` returned |
+| `manage_components(set_property, properties:{...})` | ok (see G-6) |
+| `manage_gameobject(modify, position, search_method:"by_id")` | ok — position updated |
+| `manage_gameobject(duplicate)` | ok (see G-5) |
+| `manage_prefabs(create_from_gameobject, prefab_path)` | ok — `componentCount:5`, `wasUnlinked:false`, `wasReplaced:false`, "instance linked" |
+| `manage_gameobject(delete)` ×2 | ok |
+| `delete_script(uri)` | ok — "moved to trash" |
+| `manage_asset(delete, folder path)` | ok — removed the folder and the prefab inside it |
+| `refresh_unity` | ok (see G-4) |
+| `run_tests(mode:"EditMode")` → `get_test_job(job_id)` | **end-to-end ok** — `status:"running"` then `status:"succeeded"` in ~7.5s. `completed:0, total:0` since the project has no test assemblies, but the full async job lifecycle is confirmed |
+
+`get_test_job`'s response carries more than the docs describe: `started_unix_ms`,
+`finished_unix_ms`, `last_update_unix_ms`, and a `progress` object with `completed`, `total`,
+`current_test_full_name`, `last_finished_test_full_name`, `stuck_suspected`,
+`editor_is_focused`, `run_in_background`, `focus_nudge_attempts`, `focus_nudge_limit`,
+`focus_nudge_status`, `blocked_reason`, `failures_so_far`, `failures_capped`. `run_tests` also
+accepts `group_names`, `include_details`, `init_timeout` (PlayMode needs longer — upstream
+recommends 120000) and `clear_stuck` (to clear an orphaned job lost to a domain reload), none of
+which the Power documents.
+
+## G-8 — cleanup verified: project restored
+
+After cleanup: `SampleScene` has exactly its original **3** roots with the original names and
+component sets (Main Camera, Directional Light, Global Volume), and `manage_asset(search,
+"*.cs")` returns **0** assets. `Assets/_MCPVerify/` and everything in it is gone. Only the
+instance IDs differ, for the domain-reload reason in G-1.
+
+## Still NOT verified after Round 6
+
+- The six `asset_gen` tools — intentionally never called; they spend real money.
+- `manage_build` — still blocked by the user's own `permissions.yaml` MCP deny rule (C-5), so
+  C-6 (the `settings` action's `property` requirement) remains UNVERIFIED.
+- `run_tests` with **actual tests** — the project has no test assemblies, so pass/fail
+  reporting, `include_failed_tests` and PlayMode behaviour are unexercised.
+- `execute_menu_item`, `execute_custom_tool`, `set_active_instance`, `manage_editor`'s
+  `play`/`pause`/`stop`/`deploy_package`/`restore_package`, `manage_scene` create/save/load,
+  `manage_scriptable_object`, `manage_animation`, `manage_vfx`, `manage_texture`,
+  `manage_shader`, `manage_ui` writes, `manage_graphics` setters and bake actions.
+- `manage_probuilder`, memory snapshots, Cinemachine `manage_camera` paths — packages absent.
+- The `mcpforunity://` resource URIs — this client still exposes no resource-reading tool,
+  though G-4's hint independently confirms `mcpforunity://editor/state` exists.

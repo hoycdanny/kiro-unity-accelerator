@@ -2111,3 +2111,224 @@ mapping with the 2D-only `isKinematic` -> `bodyType` asymmetry (3D `isKinematic`
 nothing anywhere tells a reader to change it). Each localized README stays in its own language, with
 all new Round-5 text written in that language. No `src/*.ts`, template, hook or `mcp.json` file was
 touched by this pass.
+
+## 17. Round 6 applied (2026-10-21, sixth pass — MUTATING actions verified on v10.3.0)
+
+Round 6 is the first pass that exercised the **write path**. Unity stayed on `6000.4.6f1`; the
+bridge is 10.3.0 on both the UPM and the Python side. **Verification method, recorded for
+credibility:** every write went into an isolated `Assets/_MCPVerify/` folder using `MCPVerify_*`
+object names and was deleted afterwards, and the project was then confirmed back at baseline —
+`SampleScene` with its original 3 roots (Main Camera, Directional Light, Global Volume) carrying
+their original component sets, and 0 `.cs` assets. The only residual difference is the instance
+IDs, for the reason in G-1. Full capture:
+`.agents/tasks/unity-6.4-compat-update/live-verification.md` -> "ROUND 6".
+
+**The one-line summary of the verification status change:** the whole **write path** moved from
+UNVERIFIED to **VERIFIED on 10.3.0** — GameObject/component/prefab mutations, the script tools'
+success paths (closing the long-standing D-2 gap), `manage_asset` folder create/delete,
+`refresh_unity`, and the `run_tests` -> `get_test_job` async job **lifecycle**. Three repo
+documentation errors were corrected (G-1's cached-id guidance, G-3's `uri` on `script_apply_edits`,
+G-4's missing enum values). Still UNVERIFIED and labelled as such: the six `asset_gen` tools,
+`manage_build`, `run_tests` against actual tests (so pass/fail reporting), and the remaining
+unexercised actions listed at the end of this section.
+
+### G-1 — THE BIG ONE: instance IDs are volatile and must never be cached — VERIFIED on 10.3.0
+- **Observed across one GameObject's lifetime:** `manage_gameobject(create)` returned instanceID
+  **-5560** (negative); the same object later appeared as **50436** in
+  `manage_gameobject(duplicate)`'s `originalId`, and as **50470** in
+  `manage_prefabs(create_from_gameobject)`'s `instanceId`.
+- **Observed after a `refresh_unity` recompile / domain reload:** objects **nobody touched** were
+  renumbered too — Main Camera 49224 -> 50412, Directional Light 49234 -> 50422, Global Volume
+  49242 -> 50430.
+- **VERIFIED consequence (a):** a newly created GameObject's instance ID is **transient and
+  negative**, and once the object is registered it becomes a different positive ID while the
+  negative one stops resolving —
+  `manage_gameobject(action:"duplicate", target:"-5560", search_method:"by_id")` failed with
+  `Target GameObject ('-5560') not found using method 'by_id'`.
+- **VERIFIED consequence (b):** instance IDs **do not survive a domain reload**, not even for
+  untouched objects.
+- **Guidance now documented:** prefer **names or paths** as the durable handle across steps;
+  re-resolve instance IDs immediately before use; never carry an ID across `refresh_unity`, a
+  recompile, or anything triggering a domain reload.
+- **Follow-through on this Power's own guidance (the point of the finding):** POWER.md's
+  `manage_components.target` "instance ID preferred" wording was **kept but qualified** — an int
+  instance ID is still the fastest handle *within one immediate step*, and unsafe across steps.
+  POWER.md **Workflow 2 (scene scaffolding)** now says explicitly to address objects by the
+  scaffold's NAME in every follow-up call and to re-resolve with `find_gameobjects` immediately
+  before a call that needs an id; Workflow 6's bottleneck step carries the same warning; the
+  `find_gameobjects` row says that returning *only* ids is exactly where multi-step workflows get
+  into trouble. `steering/scene-scaffolding.md` (build-hierarchy step 4 and the instance-ID note),
+  `steering/level-design-tooling.md` (the `find_gameobjects` / batch-configuration rows plus a note
+  under the batch example explaining why every `target` there is a name),
+  `steering/workflow-automation.md` (a multi-step design note) and `steering/unity-general.md` (a
+  new "Instance IDs Are Volatile — Never Cache One" section ahead of the existing opaque-token
+  section) all carry it. A new POWER.md Error-Categories row maps the
+  `not found using method 'by_id'` symptom to this cause.
+- **Templates checked, no change needed:** the five scaffolds in `templates/scaffolds/` already use
+  object **names** in their `manage_gameobject(action:'modify', target: ...)` notes and never
+  capture or reuse an id, so nothing in `templates/` cached an id.
+- **Label:** VERIFIED on 10.3.0.
+
+### G-2 — three INCONSISTENT `target` conventions across the object tools — VERIFIED on 10.3.0
+- `manage_components`: an **int** instance ID works — `target: -5560` (int) -> `Component
+  'Rigidbody' added`.
+- `manage_gameobject`: `target` **must be a string** (`target: -5560` as int -> `Input should be a
+  valid string`) and is treated as a **NAME** by default (`target: "-5560"` ->
+  `not found using method 'default'`; `target: "MCPVerify_Cube"` -> success). `search_method:"by_id"`
+  works only with a **positive** id (`target:"50436"` -> success).
+- `manage_prefabs`: requires the **NAME**; an instance-ID string fails (`target: "50436"` ->
+  `GameObject '50436' not found in the active scene or prefab stage`; `target: "MCPVerify_Cube"` ->
+  success).
+- **The trap, documented explicitly:** learning one tool's convention breaks the other two. The
+  safe habit — pass the **name** to all three — is stated in POWER.md's new
+  "The three `target` conventions" subsection, in each of the three tools' table rows, in
+  `steering/unity-general.md` ("The Three `target` Conventions"), in
+  `steering/scene-scaffolding.md`'s verified-syntax list and in `steering/level-design-tooling.md`'s
+  tool-mapping rows.
+- **Label:** VERIFIED on 10.3.0.
+
+### G-3 — DOCUMENTATION ERROR FIXED: `script_apply_edits` does NOT take `uri` — VERIFIED on 10.3.0
+- **Observed:** `uri: "Assets/_MCPVerify/MCPVerifyProbe.cs"` -> **3 validation errors** (`name`
+  missing, `path` missing, `uri` unexpected keyword argument). `name: "MCPVerifyProbe"` +
+  `path: "Assets/_MCPVerify"` -> success.
+- **What was wrong in this repo:** POWER.md's script-URI note listed `script_apply_edits` among the
+  tools whose `uri` argument accepts three forms. **It has been removed from that list** (and from
+  the parallel sentence in the MCP Resources section) and given its own **`name` + `path`**
+  signature, with `name` the filename without `.cs` and `path` the containing folder.
+- **Verified success shape recorded:** `{path, uri, editsApplied, scheduledRefresh, sha256,
+  normalizedEdits, routing: "structured"}`. Canonical edit fields: `op` (one of `replace_method,
+  insert_method, delete_method, anchor_insert, anchor_delete, anchor_replace`), `className`,
+  `methodName`, `replacement`, plus `options.validate` (`standard` / `basic`).
+- **Documented in:** POWER.md -> "Script-tool parameters" (the corrected-instruction bullet), the
+  `apply_text_edits` / `script_apply_edits` table row, and the MCP Resources URI-form paragraph.
+  `steering/code-quality.md` -> a corrected-signature callout next to the script-tool paragraph.
+  `steering/level-design-tooling.md` -> the write-script row.
+- **Label:** VERIFIED on 10.3.0.
+
+### G-4 — `refresh_unity`'s parameter VALUES are enums; `compile` is NOT a boolean — VERIFIED
+- **Observed:** `{mode:"both", compile:true}` -> **2 validation errors**: `mode` must be
+  `'if_dirty'` or `'force'`; `compile` must be `'none'` or `'request'` — a **string**.
+- **Observed correct call:** `{mode:"force", compile:"request", wait_for_ready:true}` ->
+  `{refresh_triggered:true, compile_requested:true, compile_started:true,
+  resulting_state:"compiling"}`.
+- **Why it mattered:** POWER.md listed the parameter *names* without their allowed values, so
+  `compile: true` was the natural wrong guess. The enums are now documented, and `compile: true`
+  appears nowhere as a valid value.
+- **Response `hint` recorded:** poll the `mcpforunity://editor/state` resource until
+  `data.advice.ready_for_tools` is true — folded in as **corroboration** that the editor-state
+  resource exists (the Round-1 item that was already corrected; nothing was re-opened).
+- **Documented in:** POWER.md -> the `refresh_unity` tool row (including the warning that a
+  compiling refresh invalidates every held instance ID). `steering/level-design-tooling.md` -> the
+  trigger-compilation row, which now shows the verified call shape.
+- **Label:** VERIFIED on 10.3.0.
+
+### G-5 — `manage_gameobject(duplicate)` ignores `name` — VERIFIED on 10.3.0
+- **Observed:** called with `name: "MCPVerify_Cube_Dup"`, the duplicate was created as
+  **`MCPVerify_Cube_Copy`** (Unity's own auto-naming). A specific name needs a follow-up
+  `action:"modify"`, targeted at the auto-name.
+- The duplicate **did** correctly inherit the added `Rigidbody` (`componentNames` included
+  `UnityEngine.Rigidbody`), which also confirms the earlier component add really applied.
+- **Documented in:** POWER.md -> a "`duplicate` does not honour `name`" subsection plus the
+  `manage_gameobject` row and Workflow 2. `steering/scene-scaffolding.md` -> the verified-syntax
+  list.
+- **Label:** VERIFIED on 10.3.0.
+
+### G-6 — Unity 6.4's current physics API works through the bridge — VERIFIED on 10.3.0
+- **Observed:** `manage_components(action:"set_property", component_type:"Rigidbody",
+  properties:{linearDamping:2.25, useGravity:false, mass:7.5})` succeeded, and an `execute_code`
+  read-back returned `MCPVerify_Cube mass=7.5 linearDamping=2.25 useGravity=False`.
+- **Consequence:** 6.4's `linearDamping` (replacing the obsolete `drag`) **is settable through the
+  bridge**, and the `properties` dictionary form sets several properties in one call. This
+  validates the Round-3 obsolete->current physics mapping **end to end on a real object**.
+- **Documented where that mapping lives:** `steering/code-quality.md` -> "Current Physics APIs on
+  Unity 6.4 (obsolete -> current)", immediately after the 2D-only `isKinematic` asymmetry note
+  (which is untouched — 3D `isKinematic` is still valid and nothing tells anyone to change it).
+  Both workshops carry the same confirmation in Traditional Chinese next to their mapping tables.
+  POWER.md's `manage_components` row records it too.
+- **Label:** VERIFIED on 10.3.0.
+
+### G-7 — the write path and the async test job — VERIFIED on 10.3.0; labels promoted
+All of the following had UNVERIFIED / "not exercised" labels in the repo; those labels are now
+**removed** and replaced with the verified shapes:
+
+| Call | Verified result now documented |
+|---|---|
+| `manage_asset(create_folder)` / `manage_asset(delete)` | guid + instanceID + `isFolder:true`; delete removed the folder and the prefab inside it |
+| `create_script(path, contents)` | `contents` is **plain text** — the server base64-encodes it; response has `uri: mcpforunity://path/...`, `scheduledRefresh:false` |
+| `get_sha(uri)` | `sha256`, `lengthBytes` |
+| `validate_script(uri)` | `{warnings, errors}` |
+| `find_in_file(uri, pattern)` **success path** | `matches[{line, content, match, start, end}]`, `count`, `total_matches` — **closes the long-standing D-2 success-path gap** |
+| `script_apply_edits(name, path, edits)` | see G-3 |
+| `manage_gameobject` create/modify/duplicate/delete | `create` with `primitive_type:"Cube"` returned Transform/MeshFilter/BoxCollider/MeshRenderer |
+| `manage_components` add / set_property | `componentInstanceID` returned; `properties` dictionary form verified (G-6) |
+| `manage_prefabs(create_from_gameobject)` | `componentCount`, `wasUnlinked:false`, `wasReplaced:false`, instance linked |
+| `delete_script(uri)` | "moved to trash" |
+| `refresh_unity` | see G-4 |
+| `run_tests` -> `get_test_job` | **lifecycle END TO END**: `status:"running"` then `"succeeded"` in ~7.5s |
+
+- **Be precise about the test job, and the repo now is:** the project has **no test assemblies**, so
+  the job finished with `completed:0, total:0`. The async job **LIFECYCLE is confirmed**;
+  **pass/fail reporting is NOT**, and neither are `include_failed_tests` or PlayMode. Every place
+  that mentions the test flow states that split rather than claiming "`run_tests` is verified".
+- **Undocumented richness of the async test API, now documented:** `get_test_job` returns
+  `started_unix_ms`, `finished_unix_ms`, `last_update_unix_ms` and a `progress` object
+  (`completed`, `total`, `current_test_full_name`, `last_finished_test_full_name`,
+  `stuck_suspected`, `editor_is_focused`, `run_in_background`, `focus_nudge_attempts`,
+  `focus_nudge_limit`, `focus_nudge_status`, `blocked_reason`, `failures_so_far`,
+  `failures_capped`); `run_tests` also accepts `group_names`, `include_details`, `init_timeout`
+  (PlayMode needs longer — upstream recommends 120000) and `clear_stuck` (clears an orphaned job
+  lost to a domain reload).
+- **Documented in:** POWER.md -> the `manage_asset`, `manage_gameobject`, `manage_components`,
+  `manage_prefabs`, `refresh_unity`, `find_in_file`, `run_tests` and `get_test_job` rows, the
+  Script-tool parameters section, the Unity 6.4 Baseline table (a new "Live-verified write path"
+  row), the Available-MCP-Tools verification-scope note, and Workflow 4 step 4.
+  `steering/cross-platform-testing.md` -> a "Verification status" split plus a full `progress`-field
+  section and the `clear_stuck` recovery note. `steering/code-quality.md`,
+  `steering/asset-automation.md`, `steering/workflow-automation.md` and
+  `steering/unity-general.md` -> their verification-scope notes no longer say "read-only calls only,
+  no mutating action was exercised"; they state exactly which writes were verified and which were
+  not. All five READMEs -> the baseline blockquote and a new write-path subsection, each in that
+  file's own language.
+- **Label:** write path VERIFIED on 10.3.0; `run_tests` job lifecycle VERIFIED, pass/fail reporting
+  UNVERIFIED.
+
+### G-8 — cleanup verified: the project was restored — VERIFIED on 10.3.0
+- **Observed after cleanup:** `SampleScene` has exactly its original **3** roots with the original
+  names and component sets, and `manage_asset(action:"search", search_pattern:"*.cs")` returns **0**
+  assets. `Assets/_MCPVerify/` and everything in it is gone. Only the instance IDs differ (G-1).
+- **Why it is recorded in the product docs:** the write-path claims are only as credible as the
+  method behind them, so POWER.md's verification-scope note and the Baseline table both state the
+  isolation-and-cleanup method, and all five READMEs repeat it in their own language.
+- **Label:** VERIFIED on 10.3.0.
+
+### Still UNVERIFIED after Round 6 — stated plainly
+- **The six `asset_gen` tools** — intentionally never called; they spend real money.
+- **`manage_build`** — still blocked by the user's own `permissions.yaml` MCP deny rule (C-5), which
+  keeps **C-6** (the `settings` action's `property` requirement) UNVERIFIED.
+- **`run_tests` with ACTUAL tests** — no test assemblies, so pass/fail reporting,
+  `include_failed_tests` and PlayMode are unexercised.
+- **`execute_menu_item`, `execute_custom_tool`, `set_active_instance`**, `manage_editor`'s
+  `play`/`pause`/`stop`/`deploy_package`/`restore_package`, `manage_scene` create/save/load,
+  `manage_scriptable_object`, `manage_animation`, `manage_vfx`, `manage_texture`, `manage_shader`,
+  `manage_ui` writes, `manage_graphics` setters and bake actions.
+- **`apply_text_edits`** and `manage_asset`'s `modify`/`import`/`duplicate`/`move`/`rename`.
+- **`manage_probuilder`, memory snapshots and Cinemachine `manage_camera` paths** — packages absent.
+- **The `mcpforunity://` resource URIs** — no resource-reading tool on this client, though G-4's
+  response `hint` independently confirms `mcpforunity://editor/state` exists.
+
+### Preserved unchanged by Round 6
+The Unity 6.4 (`6000.4`) baseline with pinned patch `6000.4.12f1` and minimum Editor 6.0; zero
+references to 6.7 / `6000.7`; the pinned `#v10.3.0` install ref and the "do not use `#main`"
+corrected-instruction blocks in POWER.md and all five READMEs; the two-pin (UPM vs Python server)
+upgrade mechanism and its ordered procedure; the DISTINCT `no_unity_session` vs `Session not found`
+entries; the restored `manage_editor` `telemetry_status` / `telemetry_ping` rows; the
+`batch_execute` server-layer divergence caveat (verified on both 9.6.8 and 10.3.0); tool-group
+activation as conditional troubleshooting only; the `asset_gen` cost warning and verified
+default-off state with NO invented parameter table; the 43 -> 49 additive delta and the "use the
+live count, not upstream's 48" note; the `permissions.yaml` deny-rule root cause and the
+`power-<powerName>-<serverName>` namespace; the pidfile port-discovery guidance; `class_name` never
+`type_name` for `unity_reflect`/`unity_docs` and the `unity_docs` unqualified-name trap; the
+prefixed `by_name`-style `search_method` values; and the obsolete-physics mapping with the 2D-only
+`isKinematic` -> `bodyType` asymmetry (3D `isKinematic` is still valid — nothing anywhere tells a
+reader to change it). Each localized README stays in its own language, with all new Round-6 text
+written in that language. No `src/*.ts`, template, hook or `mcp.json` file was touched by this pass.

@@ -39,6 +39,8 @@
 > **特別注意這個不對稱**：`isKinematic` 只有在 `Rigidbody2D` 上是 obsolete；3D `Rigidbody.isKinematic` 仍然是有效、沒有被標記 obsolete 的屬性，**不要把 3D 的 `isKinematic` 改成 `bodyType`**。
 >
 > 來源：對實機 Unity `6000.4.6f1` 編輯器（bridge 9.6.8）呼叫 `unity_reflect(action: "get_type", class_name: "Rigidbody2D")` 與 `class_name: "Rigidbody"`，讀取回應裡的 `obsolete_members` 欄位（2026-10-21）。換到別的 Unity 版本時，用同一個呼叫重新確認，不要憑記憶。
+>
+> 這張對照表後來也在實機上**寫入並讀回驗證過**（bridge 10.3.0，2026-10-21）：用 `manage_components(action: "set_property", component_type: "Rigidbody", properties: {linearDamping: 2.25, useGravity: false, mass: 7.5})` 設定成功，再用 `execute_code` 讀回得到 `mass=7.5 linearDamping=2.25 useGravity=False`。也就是說 6.4 的新名稱 `linearDamping` 確實可以透過 MCP 橋接設定，而且 `properties` 字典形式可以一次設定多個屬性。
 
 ---
 

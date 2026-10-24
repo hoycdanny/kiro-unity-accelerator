@@ -27,7 +27,9 @@ Multi-step workflows in Unity — "import these assets, configure them, build, t
 
 ## MCP Tool Usage
 
-> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** and then again against **10.3.0**, both connected to Unity **6000.4.6f1** — **read-only calls only; no mutating action was exercised and nothing in the project was changed.** The `search` syntax and the `params` key on `batch_execute` are live-verified, and `batch_execute`'s divergence from direct calls (server-layer actions fail inside a batch) was reproduced on **both** bridge versions. The `manage_asset(action: "modify", ...)` and `manage_build(action: "build", ...)` calls below are reconciled against the MCP for Unity v10.3.0 generated tool reference, not live-verified on either version.
+> **Verification scope**: checked on **2026-10-21** against MCP for Unity **9.6.8** and then again against **10.3.0**, both connected to Unity **6000.4.6f1**. The `search` syntax and the `params` key on `batch_execute` are live-verified, and `batch_execute`'s divergence from direct calls (server-layer actions fail inside a batch) was reproduced on **both** bridge versions. A later write-path pass on 10.3.0 verified the GameObject/component/prefab/script mutations and `refresh_unity` (writes confined to an isolated `Assets/_MCPVerify/` folder, deleted afterwards). The `manage_asset(action: "modify", ...)` and `manage_build(action: "build", ...)` calls below are still reconciled against the MCP for Unity v10.3.0 generated tool reference, not live-verified on either version.
+>
+> **Multi-step consequence you must design around**: instance IDs are **volatile** — a `create` returns a transient negative id, the registered object then answers to a different positive id, and any recompile or domain reload renumbers everything, including untouched objects (**VERIFIED on 10.3.0**). A workflow step must therefore pass **names or paths** to later steps, never an id captured earlier; re-resolve an id with `find_gameobjects` in the step that consumes it. See "Instance IDs Are Volatile — Never Cache One" in `unity-general.md`.
 
 ### Execute a Single Workflow Step
 
